@@ -20,12 +20,12 @@
    and facing. Everything visual about how a species moves lives there.
 */
 
-import * as THREE from '../../lib/three.module.js';
-import { buildAnimal } from '../art/AnimalArt.js';
-import { poseAnimal, SPECIES } from './Anim.js';
-import { MATS } from '../art/Materials.js';
-import { PLAYER, WORLD } from '../core/Config.js';
-import { clamp, clamp01, lerp, damp, dampAngle, angleDelta, TAU, smoothstep } from '../core/Util.js';
+import * as THREE from '../../lib/three.module.js?v=20260920180429';
+import { buildAnimal } from '../art/AnimalArt.js?v=20260920180429';
+import { poseAnimal, SPECIES } from './Anim.js?v=20260920180429';
+import { MATS } from '../art/Materials.js?v=20260920180429';
+import { PLAYER, WORLD } from '../core/Config.js?v=20260920180429';
+import { clamp, clamp01, lerp, damp, dampAngle, angleDelta, TAU, smoothstep } from '../core/Util.js?v=20260920180429';
 
 const UP = new THREE.Vector3(0, 1, 0);
 

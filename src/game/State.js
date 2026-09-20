@@ -11,13 +11,13 @@
    millisecond.
 */
 
-import { loadRaw, saveRaw, clearSave } from '../core/Save.js';
-import { bus, EV } from '../core/Bus.js';
-import { GAME } from '../core/Config.js';
-import { rollStick, stickValue, stickTags, stickTier, stickName, stickComponents, RARE } from '../data/StickData.js';
-import { forgeWeapon, WEAPON_CLASSES } from '../data/WeaponData.js';
-import { SPECIES } from './Anim.js';
-import { clamp } from '../core/Util.js';
+import { loadRaw, saveRaw, clearSave } from '../core/Save.js?v=20260920180429';
+import { bus, EV } from '../core/Bus.js?v=20260920180429';
+import { GAME } from '../core/Config.js?v=20260920180429';
+import { rollStick, stickValue, stickTags, stickTier, stickName, stickComponents, RARE } from '../data/StickData.js?v=20260920180429';
+import { forgeWeapon, WEAPON_CLASSES } from '../data/WeaponData.js?v=20260920180429';
+import { SPECIES } from './Anim.js?v=20260920180429';
+import { clamp } from '../core/Util.js?v=20260920180429';
 
 let nextUid = 1;
 

@@ -11,7 +11,7 @@
    multiplies and has no such tell.
 */
 
-import { lerp, smootherstep } from './Util.js';
+import { lerp, smootherstep } from './Util.js?v=20260920180429';
 
 const GRAD2 = [
   [1, 0], [-1, 0], [0, 1], [0, -1],

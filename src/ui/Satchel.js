@@ -6,17 +6,17 @@
    and seeing that it has three little brackets growing out of one side.
 */
 
-import * as THREE from '../../lib/three.module.js';
-import { MeshBuilder } from '../art/Geo.js';
-import { buildStick } from '../art/StickGen.js';
-import { buildWeapon } from '../art/WeaponArt.js';
-import { MATS } from '../art/Materials.js';
+import * as THREE from '../../lib/three.module.js?v=20260920180429';
+import { MeshBuilder } from '../art/Geo.js?v=20260920180429';
+import { buildStick } from '../art/StickGen.js?v=20260920180429';
+import { buildWeapon } from '../art/WeaponArt.js?v=20260920180429';
+import { MATS } from '../art/Materials.js?v=20260920180429';
 
-import { stickBlurb, stickValue, SPECIES as WOOD } from '../data/StickData.js';
-import { RARITY } from '../art/Palette.js';
-import { ic } from './Icons.js';
-import { makeScreen, stickRow, stickDetail } from './UI.js';
-import { esc, clamp, clamp01, damp, TAU } from '../core/Util.js';
+import { stickBlurb, stickValue, SPECIES as WOOD } from '../data/StickData.js?v=20260920180429';
+import { RARITY } from '../art/Palette.js?v=20260920180429';
+import { ic } from './Icons.js?v=20260920180429';
+import { makeScreen, stickRow, stickDetail } from './UI.js?v=20260920180429';
+import { esc, clamp, clamp01, damp, TAU } from '../core/Util.js?v=20260920180429';
 
 /* ========================================================================= */
 /* A REUSABLE TURNTABLE                                                      */

@@ -16,11 +16,11 @@
    in at the edge of vision.
 */
 
-import * as THREE from '../../lib/three.module.js';
-import { MeshBuilder, blob, blade } from '../art/Geo.js';
-import { LEAF, BUILD, MUSHROOM, PLANT, mixHex, tweak } from '../art/Palette.js';
-import { makeRng, clamp, clamp01, lerp, TAU, smoothstep } from '../core/Util.js';
-import { windU } from '../art/Materials.js';
+import * as THREE from '../../lib/three.module.js?v=20260920180429';
+import { MeshBuilder, blob, blade } from '../art/Geo.js?v=20260920180429';
+import { LEAF, BUILD, MUSHROOM, PLANT, mixHex, tweak } from '../art/Palette.js?v=20260920180429';
+import { makeRng, clamp, clamp01, lerp, TAU, smoothstep } from '../core/Util.js?v=20260920180429';
+import { windU } from '../art/Materials.js?v=20260920180429';
 
 /* ========================================================================= */
 

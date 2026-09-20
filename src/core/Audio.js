@@ -14,8 +14,8 @@
    then every call here is a no-op that costs nothing.
 */
 
-import { AUDIO } from './Config.js';
-import { clamp, lerp, makeRng } from './Util.js';
+import { AUDIO } from './Config.js?v=20260920180429';
+import { clamp, lerp, makeRng } from './Util.js?v=20260920180429';
 
 const rnd = makeRng(0x50554e4b);
 

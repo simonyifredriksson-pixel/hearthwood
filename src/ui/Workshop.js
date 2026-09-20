@@ -16,12 +16,12 @@
    to work. Then the room goes quiet and dark and you find out.
 */
 
-import { forgeHint } from '../data/WeaponData.js';
-import { stickBlurb, SPECIES, MATERIALS, EFFECTS, BARKS } from '../data/StickData.js';
-import { RARITY } from '../art/Palette.js';
-import { ic } from './Icons.js';
-import { makeScreen } from './UI.js';
-import { esc, clamp } from '../core/Util.js';
+import { forgeHint } from '../data/WeaponData.js?v=20260920180429';
+import { stickBlurb, SPECIES, MATERIALS, EFFECTS, BARKS } from '../data/StickData.js?v=20260920180429';
+import { RARITY } from '../art/Palette.js?v=20260920180429';
+import { ic } from './Icons.js?v=20260920180429';
+import { makeScreen } from './UI.js?v=20260920180429';
+import { esc, clamp } from '../core/Util.js?v=20260920180429';
 
 /* The stages of the forge, in order, with how long each one holds. */
 const STAGES = [

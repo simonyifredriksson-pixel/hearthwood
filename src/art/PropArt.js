@@ -13,11 +13,11 @@
    stamped into a tile by Village.js.
 */
 
-import * as THREE from '../../lib/three.module.js';
-import { MeshBuilder, box, hexa, beam, cylinder, lathe, blob, tube, quad, blade, sheet } from './Geo.js';
-import { BUILD, METAL, MOSS, PLANT, LEAF, BARK, GROUND, mixHex, tweak, shade } from './Palette.js';
-import { orient, lumpWarp } from './TreeGen.js';
-import { makeRng, clamp, lerp, TAU } from '../core/Util.js';
+import * as THREE from '../../lib/three.module.js?v=20260920180429';
+import { MeshBuilder, box, hexa, beam, cylinder, lathe, blob, tube, quad, blade, sheet } from './Geo.js?v=20260920180429';
+import { BUILD, METAL, MOSS, PLANT, LEAF, BARK, GROUND, mixHex, tweak, shade } from './Palette.js?v=20260920180429';
+import { orient, lumpWarp } from './TreeGen.js?v=20260920180429';
+import { makeRng, clamp, lerp, TAU } from '../core/Util.js?v=20260920180429';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const mat = (x, y, z, ry = 0, s = 1) => new THREE.Matrix4().compose(

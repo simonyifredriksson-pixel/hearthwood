@@ -19,7 +19,7 @@
    joints. Nothing rebuilds geometry, ever.
 */
 
-import { clamp, clamp01, lerp, damp, dampAngle, TAU, smoothstep, makeRng } from '../core/Util.js';
+import { clamp, clamp01, lerp, damp, dampAngle, TAU, smoothstep, makeRng } from '../core/Util.js?v=20260920180429';
 
 /* ========================================================================= */
 /* SPECIES DEFINITIONS                                                       */

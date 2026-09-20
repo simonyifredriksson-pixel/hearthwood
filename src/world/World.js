@@ -17,22 +17,22 @@
    releases the ones behind you.
 */
 
-import * as THREE from '../../lib/three.module.js';
-import { Terrain, riverX, riverLevel } from './Terrain.js';
+import * as THREE from '../../lib/three.module.js?v=20260920180429';
+import { Terrain, riverX, riverLevel } from './Terrain.js?v=20260920180429';
 import {
   buildTerrainTile, buildRiverMesh, buildRiverEdge, lodForDistance, detailForDistance,
-} from './TerrainMesh.js';
-import { scatterTile, stickSlots, stickContext, SCATTER_PASS_A, SCATTER_PASS_B } from './Scatter.js';
-import { planVillage, buildVillage } from './Village.js';
-import { Sky } from '../art/Sky.js';
-import { Ambient } from './Ambient.js';
-import { MATS, makeTerrainMaterial, makeWaterMaterial, updateWind } from '../art/Materials.js';
-import { WATER, SKY } from '../art/Palette.js';
-import { WORLD, RENDER } from '../core/Config.js';
-import { rollStick } from '../data/StickData.js';
-import { buildStick } from '../art/StickGen.js';
-import { MeshBuilder } from '../art/Geo.js';
-import { clamp, clamp01, lerp, now, Budget, TAU } from '../core/Util.js';
+} from './TerrainMesh.js?v=20260920180429';
+import { scatterTile, stickSlots, stickContext, SCATTER_PASS_A, SCATTER_PASS_B } from './Scatter.js?v=20260920180429';
+import { planVillage, buildVillage } from './Village.js?v=20260920180429';
+import { Sky } from '../art/Sky.js?v=20260920180429';
+import { Ambient } from './Ambient.js?v=20260920180429';
+import { MATS, makeTerrainMaterial, makeWaterMaterial, updateWind } from '../art/Materials.js?v=20260920180429';
+import { WATER, SKY } from '../art/Palette.js?v=20260920180429';
+import { WORLD, RENDER } from '../core/Config.js?v=20260920180429';
+import { rollStick } from '../data/StickData.js?v=20260920180429';
+import { buildStick } from '../art/StickGen.js?v=20260920180429';
+import { MeshBuilder } from '../art/Geo.js?v=20260920180429';
+import { clamp, clamp01, lerp, now, Budget, TAU } from '../core/Util.js?v=20260920180429';
 
 /** A far block is exactly 2x2 near tiles — see _rebuildWishlist. */
 export const FAR_BLOCK = WORLD.tile * 2;
@@ -432,7 +432,13 @@ export class World {
       return;
     }
 
-    // its terrain was dropped under it; the wishlist will requeue the lot\n    if (!rec || !rec.parts) return;\n    if (rec.parts[job.part]) return;   // already built: never add it twice
+    /* Its terrain was dropped out from under it between this job being queued
+       and it running — the wishlist will requeue the lot, so drop this job.
+       Without this guard `rec` is undefined, `add()` throws on the first
+       mesh, and the exception takes the whole of update() with it: streaming
+       stops dead and the ground simply stops arriving as you walk. */
+    if (!rec || !rec.parts) return;
+    if (rec.parts[job.part]) return;   // already built: never add it twice
 
     const add = (builder, mat, cast) => {
       if (builder.isEmpty) return;

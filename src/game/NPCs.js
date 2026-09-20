@@ -23,13 +23,13 @@
    is far worse than one who walks through the corner of a flowerbed.
 */
 
-import * as THREE from '../../lib/three.module.js';
-import { buildVillager, buildCritter } from '../art/VillagerArt.js';
-import { VILLAGERS, CRITTERS, STICKWRIGHT, SMALL_TALK } from '../data/VillagerData.js';
-import { MeshBuilder, blob, tube } from '../art/Geo.js';
-import { MATS } from '../art/Materials.js';
-import { BARK, BUILD, mixHex } from '../art/Palette.js';
-import { makeRng, clamp, clamp01, lerp, damp, dampAngle, angleDelta, TAU, smoothstep } from '../core/Util.js';
+import * as THREE from '../../lib/three.module.js?v=20260920180429';
+import { buildVillager, buildCritter } from '../art/VillagerArt.js?v=20260920180429';
+import { VILLAGERS, CRITTERS, STICKWRIGHT, SMALL_TALK } from '../data/VillagerData.js?v=20260920180429';
+import { MeshBuilder, blob, tube } from '../art/Geo.js?v=20260920180429';
+import { MATS } from '../art/Materials.js?v=20260920180429';
+import { BARK, BUILD, mixHex } from '../art/Palette.js?v=20260920180429';
+import { makeRng, clamp, clamp01, lerp, damp, dampAngle, angleDelta, TAU, smoothstep } from '../core/Util.js?v=20260920180429';
 
 const UP = new THREE.Vector3(0, 1, 0);
 

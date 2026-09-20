@@ -13,31 +13,31 @@
      7. ui, then render
 */
 
-import * as THREE from '../lib/three.module.js';
-import { input } from './core/Input.js';
-import { CameraRig } from './core/CameraRig.js';
-import { audio } from './core/Audio.js';
-import { bus, EV } from './core/Bus.js';
-import { BUILD, RENDER, WORLD, GAME, PLAYER } from './core/Config.js';
-import { clamp, clamp01, lerp, now, Rolling } from './core/Util.js';
+import * as THREE from '../lib/three.module.js?v=20260920180429';
+import { input } from './core/Input.js?v=20260920180429';
+import { CameraRig } from './core/CameraRig.js?v=20260920180429';
+import { audio } from './core/Audio.js?v=20260920180429';
+import { bus, EV } from './core/Bus.js?v=20260920180429';
+import { BUILD, RENDER, WORLD, GAME, PLAYER } from './core/Config.js?v=20260920180429';
+import { clamp, clamp01, lerp, now, Rolling } from './core/Util.js?v=20260920180429';
 
-import { MATS } from './art/Materials.js';
-import { World } from './world/World.js';
-import { Player } from './game/Player.js';
-import { NPCs } from './game/NPCs.js';
-import { GameState } from './game/State.js';
-import { SPECIES } from './game/Anim.js';
-import { weaponMeshes } from './art/WeaponArt.js';
-import { WEAPON_CLASSES } from './data/WeaponData.js';
-import { RARITY } from './art/Palette.js';
-import { STICKWRIGHT } from './data/VillagerData.js';
-import { RARE } from './data/StickData.js';
+import { MATS } from './art/Materials.js?v=20260920180429';
+import { World } from './world/World.js?v=20260920180429';
+import { Player } from './game/Player.js?v=20260920180429';
+import { NPCs } from './game/NPCs.js?v=20260920180429';
+import { GameState } from './game/State.js?v=20260920180429';
+import { SPECIES } from './game/Anim.js?v=20260920180429';
+import { weaponMeshes } from './art/WeaponArt.js?v=20260920180429';
+import { WEAPON_CLASSES } from './data/WeaponData.js?v=20260920180429';
+import { RARITY } from './art/Palette.js?v=20260920180429';
+import { STICKWRIGHT } from './data/VillagerData.js?v=20260920180429';
+import { RARE } from './data/StickData.js?v=20260920180429';
 
-import { UI } from './ui/UI.js';
-import { CharSelect } from './ui/CharSelect.js';
-import { SatchelScreen, Turntable } from './ui/Satchel.js';
-import { WorkshopScreen } from './ui/Workshop.js';
-import { ic } from './ui/Icons.js';
+import { UI } from './ui/UI.js?v=20260920180429';
+import { CharSelect } from './ui/CharSelect.js?v=20260920180429';
+import { SatchelScreen, Turntable } from './ui/Satchel.js?v=20260920180429';
+import { WorkshopScreen } from './ui/Workshop.js?v=20260920180429';
+import { ic } from './ui/Icons.js?v=20260920180429';
 
 /* ========================================================================= */
 

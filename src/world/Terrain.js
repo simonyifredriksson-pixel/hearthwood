@@ -22,10 +22,10 @@
    run through the village.
 */
 
-import { Noise2D, Cellular } from '../core/Noise.js';
-import { WORLD } from '../core/Config.js';
-import { clamp, clamp01, lerp, smoothstep, invLerp, TAU, segDist2, hash2 } from '../core/Util.js';
-import { GROUND, WATER, mixHex, tweak, shade } from '../art/Palette.js';
+import { Noise2D, Cellular } from '../core/Noise.js?v=20260920180429';
+import { WORLD } from '../core/Config.js?v=20260920180429';
+import { clamp, clamp01, lerp, smoothstep, invLerp, TAU, segDist2, hash2 } from '../core/Util.js?v=20260920180429';
+import { GROUND, WATER, mixHex, tweak, shade } from '../art/Palette.js?v=20260920180429';
 
 /* ========================================================================= */
 /* THE RIVER                                                                 */

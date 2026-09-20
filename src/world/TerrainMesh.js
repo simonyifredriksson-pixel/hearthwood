@@ -15,13 +15,13 @@
    with its vertex red channel carrying depth for the shader.
 */
 
-import * as THREE from '../../lib/three.module.js';
-import { MeshBuilder } from '../art/Geo.js';
-import { WORLD } from '../core/Config.js';
-import { riverX, riverLevel } from './Terrain.js';
-import { WATER, mixHex } from '../art/Palette.js';
-import { Fields } from './Scatter.js';
-import { clamp, clamp01, lerp, invLerp } from '../core/Util.js';
+import * as THREE from '../../lib/three.module.js?v=20260920180429';
+import { MeshBuilder, quadIdx } from '../art/Geo.js?v=20260920180429';
+import { WORLD } from '../core/Config.js?v=20260920180429';
+import { riverX, riverLevel } from './Terrain.js?v=20260920180429';
+import { WATER, mixHex } from '../art/Palette.js?v=20260920180429';
+import { Fields } from './Scatter.js?v=20260920180429';
+import { clamp, clamp01, lerp, invLerp } from '../core/Util.js?v=20260920180429';
 
 /** Vertices along a tile edge, by LOD. LOD 0 is 2.5 m steps. */
 export const TILE_RES = [26, 14, 8, 4];
@@ -99,10 +99,18 @@ export function buildTerrainTile(T, tx, tz, lod, tileSize = WORLD.tile, resOverr
       // choice puts a visible chevron along every crest
       const ha = b.pos[a * 3 + 1], hc = b.pos[c * 3 + 1];
       const hd2 = b.pos[d * 3 + 1], he = b.pos[e * 3 + 1];
+      /* THE GROUND MUST FACE UP.
+         The corners run a=(i,j) c=(i+1,j) d=(i+1,j+1) e=(i,j+1), which is
+         CLOCKWISE seen from above — so tri(a,c,d) has its normal pointing
+         into the earth. With a FrontSide material that is not a shading
+         artefact, it is a world with no floor: every interior triangle is
+         culled and the only ground left is the skirt, which survives purely
+         because it is deliberately drawn with both windings. Each quad is
+         wound the other way round here. */
       if (Math.abs(ha - hd2) <= Math.abs(hc - he)) {
-        b.tri(a, c, d); b.tri(a, d, e);
+        b.tri(a, d, c); b.tri(a, e, d);
       } else {
-        b.tri(a, c, e); b.tri(c, d, e);
+        b.tri(a, e, c); b.tri(c, e, d);
       }
     }
   }
@@ -163,7 +171,11 @@ export function buildRiverMesh(T) {
       row.push(b.vert(x, lvl, z, 0));
     }
     if (prev) {
-      for (let i = 0; i < across; i++) b.quad(prev[i], prev[i + 1], row[i + 1], row[i]);
+      /* Wound so the surface faces the SKY. The water material is FrontSide
+         like everything else, so the obvious ordering — across the previous
+         row and back along this one — points the river at the riverbed and
+         you see straight through to it. Same fault the terrain had. */
+      for (let i = 0; i < across; i++) b.quad(prev[i], row[i], row[i + 1], prev[i + 1]);
     }
     prev = row;
   }
@@ -195,12 +207,17 @@ export function buildRiverEdge(T) {
       const w = 1.1 + jitter;
       b.color(mixHex(WATER.foam, 0xd8d2bc, 0.4 + jitter * 0.3), 0.08);
       const y = lvl + 0.035;
-      b.quad(
+      /* The winding of this quad FLIPS WITH `side`, because the x extent is
+         mirrored, so writing it out by hand gives foam facing the sky on one
+         bank and facing the riverbed on the other. Stating the outward
+         direction and letting quadIdx work out the order is the only version
+         of this that cannot be half wrong. */
+      quadIdx(b,
         b.vert(x - side * w, y, z - zStep * 0.5, 0),
         b.vert(x + side * w * 0.5, y, z - zStep * 0.5, 0),
         b.vert(x + side * w * 0.5, y, z + zStep * 0.5, 0),
         b.vert(x - side * w, y, z + zStep * 0.5, 0),
-      );
+        [0, 1, 0]);
     }
   }
   return b.build({ flat: true });
