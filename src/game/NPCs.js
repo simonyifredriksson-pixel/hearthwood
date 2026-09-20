@@ -23,13 +23,15 @@
    is far worse than one who walks through the corner of a flowerbed.
 */
 
-import * as THREE from '../../lib/three.module.js?v=20260920180429';
-import { buildVillager, buildCritter } from '../art/VillagerArt.js?v=20260920180429';
-import { VILLAGERS, CRITTERS, STICKWRIGHT, SMALL_TALK } from '../data/VillagerData.js?v=20260920180429';
-import { MeshBuilder, blob, tube } from '../art/Geo.js?v=20260920180429';
-import { MATS } from '../art/Materials.js?v=20260920180429';
-import { BARK, BUILD, mixHex } from '../art/Palette.js?v=20260920180429';
-import { makeRng, clamp, clamp01, lerp, damp, dampAngle, angleDelta, TAU, smoothstep } from '../core/Util.js?v=20260920180429';
+import * as THREE from '../../lib/three.module.js?v=20260920201841';
+import { buildVillager, buildCritter } from '../art/VillagerArt.js?v=20260920201841';
+import { VILLAGERS, CRITTERS, STICKWRIGHT, FISHERMAN, SMALL_TALK } from '../data/VillagerData.js?v=20260920201841';
+import { MeshBuilder, blob, tube } from '../art/Geo.js?v=20260920201841';
+import { MATS } from '../art/Materials.js?v=20260920201841';
+import { BARK, BUILD, mixHex } from '../art/Palette.js?v=20260920201841';
+import { riverX, riverLevel } from '../world/Terrain.js?v=20260920201841';
+import { WORLD } from '../core/Config.js?v=20260920201841';
+import { makeRng, clamp, clamp01, lerp, damp, dampAngle, angleDelta, TAU, smoothstep } from '../core/Util.js?v=20260920201841';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -50,6 +52,43 @@ export class NPCs {
   /* ====================================================================== */
   /* SPAWN                                                                  */
   /* ====================================================================== */
+
+
+  /**
+   * A place to stand and fish: on the bank, facing the water.
+   *
+   * Walks outward from the river centreline until the ground rises clear of
+   * the water line, then steps back half a metre so he is ON the bank rather
+   * than in it. Searching for the bank beats hard-coding a coordinate,
+   * because the river is carved procedurally and moves whenever the terrain
+   * seed does.
+   */
+  _bankSpot() {
+    const W = this.world;
+    const V = WORLD.village;
+    // a stretch of river near the village, but out of the busy middle
+    const z = V.cz + 34;
+    const cx = riverX(z);
+    const lvl = riverLevel(z);
+    for (const side of [1, -1]) {
+      for (let d = WORLD.river.width * 0.4; d < WORLD.river.bankWidth * 2.4; d += 0.4) {
+        const x = cx + side * d;
+        const h = W.terrain.height(x, z);
+        if (h > lvl + 0.35) {
+          const bx = cx + side * (d + 0.55);
+          return {
+            x: bx, z,
+            y: W.groundAt(bx, z),
+            // facing the water
+            yaw: Math.atan2(-side, 0),
+            depth: 0.55, remoteness: 0.25,
+            seed: 0xf15a21,
+          };
+        }
+      }
+    }
+    return { x: cx + 6, z, y: W.groundAt(cx + 6, z), yaw: -Math.PI / 2, depth: 0.5, remoteness: 0.25, seed: 1 };
+  }
 
   spawn() {
     const W = this.world;
@@ -73,6 +112,20 @@ export class NPCs {
       npc.isStickwright = true;
       npc.home = { x: spot.x, z: spot.z, yaw: spot.yaw };
       this.stickwright = npc;
+    }
+
+    /* --- the Fisherman, on the bank -------------------------------------
+       Placed against the RIVER rather than in a village slot: he is the one
+       villager whose whole character is where he is standing, and a fisherman
+       assigned to a market stall would be nonsense. The bank is found by
+       walking out from the bridge until the ground is just above the water. */
+    {
+      const spot = this._bankSpot();
+      const npc = this._make(FISHERMAN, spot.x, spot.z, spot.yaw, 'fish');
+      npc.isFisherman = true;
+      npc.home = { x: spot.x, z: spot.z, yaw: spot.yaw };
+      npc.fishSpot = spot;
+      this.fisherman = npc;
     }
 
     /* --- everybody else -------------------------------------------------- */

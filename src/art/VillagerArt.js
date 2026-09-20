@@ -19,11 +19,11 @@
    They are built standing, arms down, and posed by NPCs.js.
 */
 
-import * as THREE from '../../lib/three.module.js?v=20260920180429';
-import { MeshBuilder, tube, blob, lathe, blade, box, quad, sheet, wedge } from './Geo.js?v=20260920180429';
-import { FUR, CLOTH, BUILD, METAL, mixHex, tweak, shade } from './Palette.js?v=20260920180429';
-import { MATS } from './Materials.js?v=20260920180429';
-import { makeRng, clamp, lerp, TAU } from '../core/Util.js?v=20260920180429';
+import * as THREE from '../../lib/three.module.js?v=20260920201841';
+import { MeshBuilder, tube, blob, lathe, blade, box, quad, sheet, wedge } from './Geo.js?v=20260920201841';
+import { FUR, CLOTH, BUILD, METAL, mixHex, tweak, shade } from './Palette.js?v=20260920201841';
+import { MATS } from './Materials.js?v=20260920201841';
+import { makeRng, clamp, lerp, TAU } from '../core/Util.js?v=20260920201841';
 
 /* ========================================================================= */
 /* SPECIES                                                                   */
@@ -55,6 +55,12 @@ export const VILLAGER_KINDS = {
   otter: {
     label: 'otter', h: 1.12, build: 1.0, fur: FUR.otter, inner: FUR.otterIn,
     ear: 'small', earLen: 0.032, earW: 0.040, muzzle: 0.070, tail: 'thick', eye: 0x2a1f18,
+  },
+  /* The fisherman. Short muzzle, wide-set rounded ears and a long tail —
+     the three things that stop a cat reading as a small fox. */
+  cat: {
+    label: 'cat', h: 1.06, build: 0.94, fur: 0x8a8578, inner: 0xf0e8d8,
+    ear: 'tall', earLen: 0.070, earW: 0.062, muzzle: 0.048, tail: 'long', eye: 0x7aa84a,
   },
   squirrel: {
     label: 'squirrel', h: 0.88, build: 0.85, fur: FUR.squirrel, inner: FUR.squirrelIn,

@@ -13,31 +13,35 @@
      7. ui, then render
 */
 
-import * as THREE from '../lib/three.module.js?v=20260920180429';
-import { input } from './core/Input.js?v=20260920180429';
-import { CameraRig } from './core/CameraRig.js?v=20260920180429';
-import { audio } from './core/Audio.js?v=20260920180429';
-import { bus, EV } from './core/Bus.js?v=20260920180429';
-import { BUILD, RENDER, WORLD, GAME, PLAYER } from './core/Config.js?v=20260920180429';
-import { clamp, clamp01, lerp, now, Rolling } from './core/Util.js?v=20260920180429';
+import * as THREE from '../lib/three.module.js?v=20260920201841';
+import { input } from './core/Input.js?v=20260920201841';
+import { CameraRig } from './core/CameraRig.js?v=20260920201841';
+import { audio } from './core/Audio.js?v=20260920201841';
+import { bus, EV } from './core/Bus.js?v=20260920201841';
+import { BUILD, RENDER, WORLD, GAME, PLAYER } from './core/Config.js?v=20260920201841';
+import { clamp, clamp01, lerp, now, Rolling } from './core/Util.js?v=20260920201841';
 
-import { MATS } from './art/Materials.js?v=20260920180429';
-import { World } from './world/World.js?v=20260920180429';
-import { Player } from './game/Player.js?v=20260920180429';
-import { NPCs } from './game/NPCs.js?v=20260920180429';
-import { GameState } from './game/State.js?v=20260920180429';
-import { SPECIES } from './game/Anim.js?v=20260920180429';
-import { weaponMeshes } from './art/WeaponArt.js?v=20260920180429';
-import { WEAPON_CLASSES } from './data/WeaponData.js?v=20260920180429';
-import { RARITY } from './art/Palette.js?v=20260920180429';
-import { STICKWRIGHT } from './data/VillagerData.js?v=20260920180429';
-import { RARE } from './data/StickData.js?v=20260920180429';
+import { MATS } from './art/Materials.js?v=20260920201841';
+import { World } from './world/World.js?v=20260920201841';
+import { Player } from './game/Player.js?v=20260920201841';
+import { NPCs } from './game/NPCs.js?v=20260920201841';
+import { GameState } from './game/State.js?v=20260920201841';
+import { SPECIES } from './game/Anim.js?v=20260920201841';
+import { weaponMeshes } from './art/WeaponArt.js?v=20260920201841';
+import { WEAPON_CLASSES } from './data/WeaponData.js?v=20260920201841';
+import { RARITY } from './art/Palette.js?v=20260920201841';
+import { STICKWRIGHT, FISHERMAN } from './data/VillagerData.js?v=20260920201841';
+import { RARE } from './data/StickData.js?v=20260920201841';
 
-import { UI } from './ui/UI.js?v=20260920180429';
-import { CharSelect } from './ui/CharSelect.js?v=20260920180429';
-import { SatchelScreen, Turntable } from './ui/Satchel.js?v=20260920180429';
-import { WorkshopScreen } from './ui/Workshop.js?v=20260920180429';
-import { ic } from './ui/Icons.js?v=20260920180429';
+import { UI } from './ui/UI.js?v=20260920201841';
+import { CharSelect } from './ui/CharSelect.js?v=20260920201841';
+import { SatchelScreen, Turntable } from './ui/Satchel.js?v=20260920201841';
+import { WorkshopScreen } from './ui/Workshop.js?v=20260920201841';
+import { Workers } from './game/Workers.js?v=20260920201841';
+import { Fishing, FISH_STATE } from './game/Fishing.js?v=20260920201841';
+import { FishingUI } from './ui/FishingUI.js?v=20260920201841';
+import { Quest, FESTIVAL_SPEECH } from './game/Quest.js?v=20260920201841';
+import { ic } from './ui/Icons.js?v=20260920201841';
 
 /* ========================================================================= */
 
@@ -71,6 +75,7 @@ input.attach(canvas);
 
 const G = {
   state: null, world: null, player: null, npcs: null, ui: null,
+  workers: null, fishing: null, fishUI: null, quest: null,
   charSel: null, turntable: null,
   mode: 'boot',            // boot | select | play
   t: 0, frames: 0,
@@ -102,6 +107,13 @@ async function boot() {
 
   G.npcs = new NPCs(G.world, scene);
   G.npcs.spawn();
+
+  /* the survey crews out in the wood, and the two systems the tutorial
+     hands the player on its way through */
+  G.workers = new Workers(G.world, scene);
+  G.workers.plan(7);
+  G.fishing = new Fishing({ audio });
+  G.fishUI = new FishingUI(document.getElementById('ui'));
 
   setBoot(0.96, 'lighting the lanterns');
   await new Promise(r => setTimeout(r, 60));
@@ -179,6 +191,12 @@ function startGame(species, saved) {
 
   rig.reset({ x: G.player.x, y: G.player.y, z: G.player.z, yaw: G.player.yaw + Math.PI, preset: 'roam' });
   rig.setProbe((x, z) => G.world.groundAt(x, z));
+
+  /* THE FIRST FORGE FESTIVAL. A returning player resumes wherever they got
+     to; a new one starts at the speech. */
+  G.quest = new Quest(G);
+  G.quest.start(saved ? (saved.questStep || 'done') : null);
+  if (G.quest.inSpeech) setTimeout(() => runFestival(), 900);
 
   G.player.onStep = (surface, rel) => audio.step(surface, SPECIES[species].carryScale, rel);
 
@@ -315,9 +333,155 @@ async function talkTo(npc) {
     return;
   }
 
+  /* --- the Fisherman, who hands over the rod ---------------------------- */
+  if (npc.isFisherman) {
+    const first = !G.state.hasRod;
+    G.state.metNPCs.add('fisherman');
+    if (first) {
+      /* His four opening lines, one box at a time. It is the only place in
+         the game that plays a fixed script at the player, and it is four
+         lines long for exactly that reason. */
+      for (const line of FISHERMAN.first) {
+        await G.ui.say(`${npc.name}, ${npc.title}`, line);
+      }
+      G.state.hasRod = true;
+      G.quest?.noteRod();
+      G.state.save();
+      G.ui.toast({
+        text: 'A fishing rod', sub: 'Stand by the water and press E.',
+        icon: 'drop', tone: 'rare', ms: 7000,
+      });
+      audio.craft?.();
+    } else {
+      const said = G.state.stats.fish > 0 ? pick(FISHERMAN.proud) : pick(FISHERMAN.greet);
+      const choice = await G.ui.say(`${npc.name}, ${npc.title}`, said, [
+        { id: 'fish', label: 'Fish here', icon: 'drop' },
+        { id: 'talk', label: 'Ask about the water', icon: 'leaf' },
+        { id: 'bye', label: 'Leave him to it', icon: 'chevron' },
+      ]);
+      if (choice === 'fish') startFishing(npc.fishSpot);
+      else if (choice === 'talk') await G.ui.say(npc.name, pick(FISHERMAN.idle));
+    }
+    G.player.lookAt = null;
+    return;
+  }
+
   G.state.metNPCs.add(npc.name);
   await G.ui.say(npc.name, G.npcs.line(npc));
   G.player.lookAt = null;
+}
+
+
+/* ========================================================================= */
+/* THE FIRST FORGE FESTIVAL                                                  */
+/* ========================================================================= */
+
+/**
+ * The opening.
+ *
+ * The Elder's speech is the only time the game takes the controls, so it is
+ * kept to what it needs: the camera settles on the stage, the lines play one
+ * at a time, and any key skips to the end. Thirteen short lines is about
+ * forty seconds at a reading pace, and it can be skipped in one press.
+ */
+async function runFestival() {
+  const P = G.player;
+  const plaza = G.world.plan.plaza;
+
+  G.ui.banner({
+    kicker: 'The First Forge Festival',
+    title: 'Every nine years, the wood asks something of you.',
+    long: true, ms: 4200,
+  });
+
+  // face the stage and hold still
+  P.yaw = Math.atan2(plaza.x - P.x, plaza.z - P.z);
+  rig.applyPreset('close');
+
+  for (let i = 0; i < FESTIVAL_SPEECH.length; i++) {
+    if (!G.quest || G.quest.speechDone) break;
+    const line = FESTIVAL_SPEECH[i];
+    /* The first box offers a way out. A thirteen-line speech is the right
+       length the first time and far too long the second, and a returning
+       player who has wiped their save should not have to sit through it. */
+    const opts = i === 0
+      ? [{ id: 'on', label: 'Listen', icon: 'leaf' },
+         { id: 'skip', label: 'Skip the speech', icon: 'chevron' }]
+      : null;
+    const c = await G.ui.say(line.who, line.text, opts);
+    if (c === 'skip') break;
+  }
+
+  G.quest?.finishSpeech();
+  rig.applyPreset('roam');
+  G.ui.banner({
+    title: 'Find a stick worthy of you.',
+    sub: 'The wood is past the fences. Look down.',
+  });
+}
+
+/* --- what the systems report back ------------------------------------- */
+
+bus.on(EV.FISH_CAUGHT, ({ fish }) => {
+  G.state.addFish(fish);
+  G.quest?.noteFish();
+  G.state.save();
+  G.fishUI.reveal(fish).then(() => {
+    G.fishing.reset();
+    G.fishing.state = 'idle';
+  });
+});
+
+bus.on(EV.FISH_LOST, () => {
+  setTimeout(() => { if (G.fishing) { G.fishing.reset(); G.fishing.state = 'idle'; } }, 1400);
+});
+
+bus.on(EV.CAMP_CLEARED, ({ total }) => {
+  G.state.stats.scared++;
+  G.ui.toast({
+    text: 'They have packed up and gone',
+    sub: total === 1 ? 'One clearing saved. There are others.' : `${total} clearings saved.`,
+    icon: 'leaf', tone: 'rare', ms: 6000,
+  });
+  G.state.save();
+});
+/* ========================================================================= */
+/* FISHING                                                                   */
+/* ========================================================================= */
+
+function startFishing(spot = null) {
+  if (!G.state.hasRod || G.fishing.active) return;
+  const P = G.player;
+  const s = spot || nearWater(P.x, P.z);
+  if (!s) {
+    G.ui.toast({ text: 'No water within reach.', icon: 'drop', tone: 'warn' });
+    return;
+  }
+  P.yaw = Math.atan2(s.x - P.x, s.z - P.z);
+  G.fishing.cast({
+    ...s,
+    remoteness: clamp01(Math.hypot(P.x - WORLD.village.cx, P.z - WORLD.village.cz) / 700),
+    night: G.world.sky.night,
+  });
+}
+
+/**
+ * Is there fishable water near enough to cast into?
+ * Samples a ring around the player rather than testing the river's formula,
+ * so a pond or a widened bend works too.
+ */
+function nearWater(x, z) {
+  const W = G.world;
+  for (let ring = 2.5; ring <= 9; ring += 1.6) {
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      const px = x + Math.cos(a) * ring, pz = z + Math.sin(a) * ring;
+      if (W.terrain.waterAt && W.terrain.waterAt(px, pz)) {
+        return { x: px, z: pz, depth: 0.45, seed: Math.floor(px * 13 + pz * 7) };
+      }
+    }
+  }
+  return null;
 }
 
 const pick = arr => arr[Math.floor(Math.random() * arr.length)];
@@ -422,9 +586,24 @@ function frame() {
     if (input.rawPressed('KeyQ', 'Tab')) openSatchel();
     if (input.rawPressed('Escape')) { /* nothing open: ignore */ }
     if (input.rawPressed('KeyE')) doInteract();
-    if (input.rawPressed('KeyF') && G.player?.weapon && !G.player.busy) {
-      audio.swing(G.player.weapon.info?.length || 1);
-      G.player.startAction('swing', G.state.equippedWeapon?.stats.swingTime || 0.7);
+    /* ATTACK. Left mouse or F, and it is a real swing now: the class picks
+       the arc, the arc picks what it reaches, and anything caught in it gets
+       a fright. */
+    const wantsSwing = input.rawPressed('KeyF')
+      || (input.mouseClicked && !G.fishing.active && !G.ui.busy);
+    if (wantsSwing && G.player?.weapon && !G.player.busy) {
+      const sw = G.player.attack();
+      if (sw) audio.swing(G.player.weapon.info?.length || 1);
+    }
+
+    /* FISHING takes the mouse button while it is up. One control does the
+       whole minigame: hold to rise, release to sink, and the same press
+       strikes the bite. */
+    if (G.fishing.active) {
+      if (input.mouseDown) G.fishing.press(); else G.fishing.release();
+      if (input.rawPressed('Escape', 'KeyQ')) G.fishing.cancel();
+    } else if (input.rawPressed('KeyR') && G.state.hasRod) {
+      startFishing();
     }
     if (input.rawPressed('KeyV')) {
       rig.applyPreset(rig.presetName === 'vista' ? 'roam' : 'vista');
@@ -458,15 +637,44 @@ function frame() {
   /* --- 4. world --------------------------------------------------------- */
   const { sky, env } = G.world.update(dt, P, camera);
 
-  /* --- 5. npcs ---------------------------------------------------------- */
+  /* --- 5. npcs, crews and the line in the water ------------------------- */
   G.npcs.update(dt, P);
+  G.workers.update(dt, P);
+
+  /* a swing that has reached its hit frame startles whatever is in the arc */
+  if (P.swingConnects) {
+    const n = G.workers.strike({ x: P.x, z: P.z, yaw: P.yaw }, P.swing);
+    if (n) audio.thump?.(0.6);
+  }
+
+  G.fishing.update(dt);
+  G.fishUI.update(G.fishing);
 
   /* --- 6. interaction --------------------------------------------------- */
   G.target = G.ui.busy ? null : pickTarget();
   updatePrompt();
   highlightTarget(dt);
 
-  /* --- 7. ui, audio, save ----------------------------------------------- */
+  /* --- 7. the tutorial -------------------------------------------------- */
+  if (G.quest) {
+    G.quest.update(dt);
+    G.ui.setObjective(G.quest.objective);
+    const mk = G.quest.marker;
+    if (mk && !G.ui.busy) {
+      const dx = mk.x - P.x, dz = mk.z - P.z;
+      const d = Math.hypot(dx, dz);
+      // relative to where the CAMERA is looking, not where the player faces:
+      // the arrow has to agree with the screen, not with the character
+      let a = Math.atan2(dx, dz) - rig.yaw;
+      while (a > Math.PI) a -= Math.PI * 2;
+      while (a < -Math.PI) a += Math.PI * 2;
+      G.ui.setGuide(d > 3 ? a : null, d, mk.label || '');
+    } else {
+      G.ui.setGuide(null);
+    }
+  }
+
+  /* --- 8. ui, audio, save ----------------------------------------------- */
   G.ui.update(dt);
   G.ui.setTime(sky.name, sky.night);
   G.ui.setHomeDistance(Math.hypot(P.x - WORLD.village.cx, P.z - WORLD.village.cz));
@@ -482,6 +690,7 @@ function frame() {
     G.state.pos = [P.x, P.y, P.z, P.yaw];
     G.state.dayPhase = G.world.sky.phase;
     G.state.taken = G.world.takenSticks;
+    G.state.questStep = G.quest?.id || null;
     G.state.save();
   }
 
@@ -532,6 +741,7 @@ addEventListener('beforeunload', () => {
     G.state.pos = [G.player.x, G.player.y, G.player.z, G.player.yaw];
     G.state.dayPhase = G.world.sky.phase;
     G.state.taken = G.world.takenSticks;
+    G.state.questStep = G.quest?.id || null;
     G.state.save();
   }
 });

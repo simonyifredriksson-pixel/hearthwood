@@ -19,7 +19,8 @@
    joints. Nothing rebuilds geometry, ever.
 */
 
-import { clamp, clamp01, lerp, damp, dampAngle, TAU, smoothstep, makeRng } from '../core/Util.js?v=20260920180429';
+import { clamp, clamp01, lerp, damp, dampAngle, TAU, smoothstep, makeRng } from '../core/Util.js?v=20260920201841';
+import { applyCarry, applyAttack } from './Combat.js?v=20260920201841';
 
 /* ========================================================================= */
 /* SPECIES DEFINITIONS                                                       */
@@ -77,7 +78,18 @@ export const SPECIES = {
   },
 };
 
-export const SPECIES_LIST = [SPECIES.frog, SPECIES.fox, SPECIES.bear];
+/**
+ * THE PLAYABLE ROSTER: fox and frog, and nothing else.
+ *
+ * The bear's modelling, rig and gait all still exist and are still used — it
+ * is one of the villager kinds, and Gorse Widdy is a bear — but it is no
+ * longer offered at character select. Two characters, each built and animated
+ * from scratch, is worth more than three that share a skeleton.
+ */
+export const SPECIES_LIST = [SPECIES.fox, SPECIES.frog];
+
+/** Every species the animator knows, playable or not. */
+export const ALL_SPECIES = [SPECIES.frog, SPECIES.fox, SPECIES.bear];
 
 /* ========================================================================= */
 /* STATE                                                                     */
@@ -166,6 +178,7 @@ export function poseAnimal(rig, st) {
   switch (rig.species) {
     case 'frog': poseFrog(rig, A, st, dt, speed, moving); break;
     case 'bear': poseBear(rig, A, st, dt, speed, moving); break;
+    case 'human': poseHuman(rig, A, st, dt, speed, moving); break;
     default: poseFox(rig, A, st, dt, speed, moving); break;
   }
 
@@ -250,6 +263,68 @@ function poseFrog(rig, A, st, dt, speed, moving) {
   /* head: almost no neck, so it barely moves independently */
   p.head.rotation.x = A.headPitch * 0.4 + squash * 0.18 - stretch * 0.12;
   p.head.rotation.y = A.headYaw * 0.55;
+
+  applyAction(rig, A, st, dt, 1.0);
+}
+
+/* ========================================================================= */
+/* HUMAN — a two-beat walk, and the one gait that is not an animal's         */
+/* ========================================================================= */
+
+/**
+ * The construction workers.
+ *
+ * Bipedal, upright, arms counter-swinging against the legs. It is
+ * deliberately the plainest gait in the game: every animal here moves with
+ * some character — a hop, a trot, a roll — and the humans walk like people
+ * on a job, which is exactly how they should read against the villagers.
+ *
+ * Written separately rather than reusing the fox because a human has no
+ * ears to flick, no tail to lag, and no hock: poseFox reached straight for
+ * all three and threw.
+ */
+function poseHuman(rig, A, st, dt, speed, moving) {
+  const p = rig.parts;
+
+  const stepsPerSec = moving ? lerp(1.5, 2.9, speed) : 0;
+  A.phase = moving ? (A.phase + dt * stepsPerSec) % 1 : damp(A.phase, 0, 6, dt);
+  const ph = A.phase * TAU;
+
+  // a small vertical bounce, twice per stride
+  A.bodyY = moving ? Math.abs(Math.sin(ph)) * 0.035 * speed : Math.sin(A.breathe * 0.7) * 0.006;
+
+  const lean = clamp(A.speedS * 0.20, 0, 0.26);
+  p.hip.rotation.x = lean;
+  p.hip.rotation.z = clamp(-A.turnS * 0.06, -0.18, 0.18);
+  p.torso.rotation.y = -Math.sin(ph) * 0.13 * A.speedS;
+  p.torso.rotation.x = -lean * 0.4;
+
+  /* --- legs: straight alternation, knee bends on the swing ------------- */
+  p.legs.forEach((leg, i) => {
+    const off = i === 0 ? 0 : Math.PI;
+    const s = Math.sin(ph + off);
+    const c = Math.cos(ph + off);
+    const amp = 0.62 * A.speedS;
+    leg.hip.rotation.x = s * amp;
+    leg.knee.rotation.x = Math.max(0, -c) * 0.95 * A.speedS;
+    if (leg.ankle && leg.ankle !== leg.knee) {
+      leg.ankle.rotation.x = -leg.knee.rotation.x * 0.35 + s * 0.12 * A.speedS;
+    }
+  });
+
+  /* --- arms counter-swing, which is most of what makes a walk read ----- */
+  p.arms.forEach((arm, i) => {
+    const off = i === 0 ? Math.PI : 0;       // opposite the leg on that side
+    const s = Math.sin(ph + off);
+    arm.shoulder.rotation.x = s * 0.52 * A.speedS - 0.06;
+    arm.shoulder.rotation.z = arm.side * (0.10 + 0.04 * A.speedS);
+    arm.elbow.rotation.x = -0.22 - Math.max(0, s) * 0.45 * A.speedS;
+  });
+
+  /* breathing, and a head that stays level while the body bounces */
+  p.torso.scale.set(1, 1 + Math.sin(A.breathe) * 0.010, 1);
+  if (p.neck) p.neck.rotation.x = lean * 0.5;
+  p.head.rotation.x = -lean * 0.5 - Math.abs(Math.sin(ph)) * 0.03 * A.speedS;
 
   applyAction(rig, A, st, dt, 1.0);
 }
@@ -436,11 +511,34 @@ function headLook(rig, A, st, dt) {
  * `actionT` runs 0..1 and the caller owns the clock.
  */
 function applyAction(rig, A, st, dt, weight) {
-  if (!A.action) return;
   const p = rig.parts;
+
+  /* --- CARRYING ---------------------------------------------------------
+     Applied before any action, so a swing overrides it and a pickup
+     overrides it, but simply walking about with a weapon does not leave the
+     arms swinging as if the paws were empty. */
+  if (st.weaponCls && A.action !== 'swing') {
+    const bob = Math.sin((A.phase || 0) * TAU) * (A.speedS || 0);
+    A.carryW = damp(A.carryW ?? 0, 1, 7, dt);
+    applyCarry(rig, st.weaponCls, A.carryW * weight * (A.action ? 0.35 : 1), bob);
+  } else if (!st.weaponCls) {
+    A.carryW = damp(A.carryW ?? 0, 0, 7, dt);
+  }
+
+  if (!A.action) return;
   const t = clamp01(A.actionT);
   const arm = p.arms[1];        // the right arm does everything
   const armL = p.arms[0];
+
+  /* --- SWINGING SOMETHING -----------------------------------------------
+     A weapon in the paw gets the attack that belongs to its class — a maul
+     comes down overhead, a spear goes forward, a greatsword sweeps flat.
+     The old generic swing is kept below for the empty-handed case, which is
+     what the player does before their first weapon. */
+  if (A.action === 'swing' && st.weaponCls) {
+    applyAttack(rig, st.weaponCls, t, weight);
+    return;
+  }
 
   if (A.action === 'pick') {
     /* reach down, close, bring it up to look at. The pause at the top is

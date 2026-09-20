@@ -274,19 +274,27 @@ export const WATER = {
 export const FUR = {
   /* Playable animals. Each species owns a hue family so the three read as
      different creatures from across a clearing, not as three palette swaps. */
-  frogBody: 0x6fa84a,
-  frogBelly: 0xd9e39a,
-  frogBack: 0x4f8a3c,
-  frogSpot: 0x386b33,
-  frogEye: 0xf2c341,
-  frogThroat: 0xc8dd86,
+  /* Lifted and softened to match the fox: the old greens were swamp-dark and
+     the countershading between back and belly was hard enough to read as a
+     marking rather than as a shape. */
+  frogBody: 0x8ecb63,
+  frogBelly: 0xf2f4cc,
+  frogBack: 0x6fae4d,
+  frogSpot: 0x63a045,
+  frogEye: 0xf0c85a,
+  frogThroat: 0xdceca0,
 
-  foxBody: 0xc4652c,
-  foxBelly: 0xf0e4d2,
-  foxTip: 0xf7f2e6,
-  foxSock: 0x3a2e2a,
-  foxEar: 0x8a3f22,
-  foxEye: 0x7a5a2a,
+  /* Softened and warmed. The old fox was a saturated rust-orange with almost
+     black socks, which at this size reads as a wild animal rather than as a
+     character — the contrast does the same work a hard outline does. A
+     honey-gold body against cream, with brown boots instead of black, is the
+     same fox with the harshness taken out of it. */
+  foxBody: 0xe2a049,
+  foxBelly: 0xfaf0dc,
+  foxTip: 0xfdf8ee,
+  foxSock: 0x8a6448,
+  foxEar: 0xd08a5c,
+  foxEye: 0x9a6a38,
 
   bearBody: 0x6d4f38,
   bearBelly: 0x9c7c58,

@@ -178,6 +178,14 @@ class InputSystem {
 
   get lookActive() { return !this.blocked && (this.pointerLocked || this.buttons[2]); }
 
+  /* --- mouse buttons, named -------------------------------------------
+     Combat and fishing both hang off the left button, and reaching into
+     `buttons[0]` / `clicked[0]` from gameplay code is how you end up with
+     one system quietly eating the other's input. */
+  get mouseDown() { return !this.blocked && !!this.buttons[0]; }
+  get mouseClicked() { return !this.blocked && !!this.clicked[0]; }
+  get rightDown() { return !this.blocked && !!this.buttons[2]; }
+
   down(...codes) { if (this.blocked) return false; return codes.some(c => this.keys.has(c)); }
   pressed(...codes) { if (this.blocked) return false; return codes.some(c => this.justPressed.has(c)); }
   rawDown(...codes) { return codes.some(c => this.keys.has(c)); }

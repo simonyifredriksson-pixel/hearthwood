@@ -16,12 +16,12 @@
    turning and the character walking. Nothing else needs to know menus exist.
 */
 
-import { ic } from './Icons.js?v=20260920180429';
-import { bus, EV } from '../core/Bus.js?v=20260920180429';
-import { input } from '../core/Input.js?v=20260920180429';
-import { esc, clamp, clamp01, lerp } from '../core/Util.js?v=20260920180429';
-import { RARITY, cssHex } from '../art/Palette.js?v=20260920180429';
-import { stickBlurb, stickValue } from '../data/StickData.js?v=20260920180429';
+import { ic } from './Icons.js?v=20260920201841';
+import { bus, EV } from '../core/Bus.js?v=20260920201841';
+import { input } from '../core/Input.js?v=20260920201841';
+import { esc, clamp, clamp01, lerp } from '../core/Util.js?v=20260920201841';
+import { RARITY, cssHex } from '../art/Palette.js?v=20260920201841';
+import { stickBlurb, stickValue } from '../data/StickData.js?v=20260920201841';
 
 export class UI {
   constructor({ audio = null } = {}) {
@@ -59,6 +59,20 @@ export class UI {
       <div class="hud-compass hidden" id="hud-compass">
         ${ic('home')}<span id="hud-dist">0m</span>
       </div>
+      <!-- the current objective, and the arrow that points at it. Both are
+           the tutorial's only permanent presence on screen: one line of text
+           and one chevron, and both disappear the moment there is nothing to
+           be doing. -->
+      <div class="hud-objective hidden" id="hud-objective">
+        <span class="obj-kicker">Objective</span>
+        <b id="hud-objective-text"></b>
+      </div>
+      <div class="guide hidden" id="guide">
+        <svg viewBox="0 0 40 40" aria-hidden="true">
+          <path d="M20 3 L33 30 L20 23 L7 30 Z" />
+        </svg>
+        <i id="guide-label"></i>
+      </div>
     `;
     this.elCount = document.getElementById('hud-count');
     this.elCap = document.getElementById('hud-cap');
@@ -69,6 +83,81 @@ export class UI {
     this.elClock = document.getElementById('hud-clock');
     this.elCompass = document.getElementById('hud-compass');
     this.elDist = document.getElementById('hud-dist');
+    this.elObjective = document.getElementById('hud-objective');
+    this.elObjectiveText = document.getElementById('hud-objective-text');
+    this.elGuide = document.getElementById('guide');
+    this.elGuideLabel = document.getElementById('guide-label');
+    this._objective = null;
+  }
+
+  /* ====================================================================== */
+  /* THE TUTORIAL'S TWO PIECES                                              */
+  /* ====================================================================== */
+
+  /** One line at the top of the screen, or null to clear it. */
+  setObjective(text) {
+    if (text === this._objective) return;
+    this._objective = text;
+    this.elObjective.classList.toggle('hidden', !text);
+    if (text) {
+      this.elObjectiveText.textContent = text;
+      this.elObjective.classList.remove('in');
+      void this.elObjective.offsetWidth;
+      this.elObjective.classList.add('in');
+    }
+  }
+
+  /**
+   * The guidance chevron.
+   *
+   * It is a compass needle pinned to the edge of the screen rather than a
+   * floating waypoint in the world, because a marker drawn in 3D disappears
+   * behind the first tree it is standing behind — which in this game is
+   * always. Passing null hides it.
+   *
+   * @param bearing  radians relative to the camera's facing; 0 is straight ahead
+   * @param dist     metres, shown when it is worth knowing
+   * @param label    what it is pointing at
+   */
+  setGuide(bearing, dist = 0, label = '') {
+    if (bearing === null || bearing === undefined) {
+      this.elGuide.classList.add('hidden');
+      return;
+    }
+    this.elGuide.classList.remove('hidden');
+    /* Pinned to an ellipse around the middle of the screen. Straight ahead
+       puts it near the top; behind you puts it at the bottom, which is the
+       reading every player already has from every compass they have used. */
+    const rx = 30, ry = 26;
+    const x = 50 + Math.sin(bearing) * rx;
+    const y = 50 - Math.cos(bearing) * ry;
+    this.elGuide.style.left = `${x}%`;
+    this.elGuide.style.top = `${y}%`;
+    this.elGuide.style.setProperty('--rot', `${bearing}rad`);
+    this.elGuideLabel.textContent = dist > 4 ? `${label} · ${Math.round(dist)} m` : label;
+  }
+
+  /**
+   * A full-width caption for the beats that deserve one — the first stick,
+   * the cleared camp, the end of the tutorial. Not a dialogue box: it takes
+   * no input and interrupts nothing.
+   */
+  banner({ kicker = '', title = '', sub = '', long = false, ms = 0 } = {}) {
+    const el = document.createElement('div');
+    el.className = 'banner' + (long ? ' long' : '');
+    el.innerHTML = `
+      ${kicker ? `<span class="b-kicker">${esc(kicker)}</span>` : ''}
+      <b>${esc(title)}</b>
+      ${sub ? `<i>${esc(sub).replace(/\n/g, '<br>')}</i>` : ''}`;
+    this.root.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('in'));
+    const hold = ms || (long ? 8200 : 5200);
+    setTimeout(() => {
+      el.classList.remove('in');
+      setTimeout(() => el.remove(), 700);
+    }, hold);
+    this.audio?.ui?.('open');
+    return el;
   }
 
   setSatchel(n, cap) {

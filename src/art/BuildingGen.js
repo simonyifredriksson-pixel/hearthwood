@@ -23,11 +23,11 @@
         for them: `buildHouse` returns the anchor points.
 */
 
-import * as THREE from '../../lib/three.module.js?v=20260920180429';
-import { MeshBuilder, box, hexa, beam, cylinder, lathe, blob, tube, quad, tri3, quadIdx } from './Geo.js?v=20260920180429';
-import { BUILD, METAL, MOSS, mixHex, tweak, shade } from './Palette.js?v=20260920180429';
-import { orient, lumpWarp } from './TreeGen.js?v=20260920180429';
-import { makeRng, clamp, lerp, TAU, smoothstep } from '../core/Util.js?v=20260920180429';
+import * as THREE from '../../lib/three.module.js?v=20260920201841';
+import { MeshBuilder, box, hexa, beam, cylinder, lathe, blob, tube, quad, tri3, quadIdx } from './Geo.js?v=20260920201841';
+import { BUILD, METAL, MOSS, mixHex, tweak, shade } from './Palette.js?v=20260920201841';
+import { orient, lumpWarp } from './TreeGen.js?v=20260920201841';
+import { makeRng, clamp, lerp, TAU, smoothstep } from '../core/Util.js?v=20260920201841';
 
 /* ========================================================================= */
 /* WALL PANELS                                                               */

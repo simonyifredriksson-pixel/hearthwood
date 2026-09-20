@@ -48,6 +48,57 @@ export const STICKWRIGHT = {
 };
 
 /* ========================================================================= */
+/* THE FISHERMAN                                                             */
+/* ========================================================================= */
+
+/**
+ * Barnaby Quill, who has been on that bank a very long time.
+ *
+ * He is the second named character the player meets and he exists to hand
+ * over the rod, so his first line has to do three things at once: acknowledge
+ * that the player has just been to the Stickwright, explain what he is for,
+ * and get out of the way. Everything after that is flavour he will happily
+ * repeat forever.
+ */
+export const FISHERMAN = {
+  id: 'fisherman',
+  name: 'Barnaby Quill',
+  title: 'the Fisherman',
+  kind: 'cat',
+  outfit: 'smock',
+  scale: 1.02,
+  cloth: 0x4a6272,
+  seed: 0xf15a21,
+  voice: 0.86,
+
+  /* the rod handover — this runs once, the first time you talk to him */
+  first: [
+    'Let me guess.',
+    'You just made your first weapon.',
+    'And now you need a fishing rod.',
+    'Here. Take this one. I have got plenty.',
+  ],
+  greet: [
+    'Water is the same as wood, you know. You have to wait for it.',
+    'Still biting. Always still biting.',
+    'Sit down if you like. The fish do not mind an audience.',
+    'Caught anything? No? Good. Keeps you humble.',
+  ],
+  idle: [
+    'Hold when it dives. Let go when it rises. That is the whole of it.',
+    'Eleven years I have been after one particular trout.',
+    'A patient animal never goes hungry. A very patient one does, but happily.',
+    'The moon ones only come up when you have stopped expecting them.',
+  ],
+  /* what he says once the player has actually caught something */
+  proud: [
+    'There. Now you are a fisherman. Everything else is practice.',
+    'Not bad. Not bad at all for a first go.',
+    'See? Waiting is a skill. You have got the beginnings of it.',
+  ],
+};
+
+/* ========================================================================= */
 /* THE VILLAGERS                                                             */
 /* ========================================================================= */
 

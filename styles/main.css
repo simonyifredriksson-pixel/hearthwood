@@ -690,3 +690,207 @@ kbd {
     stroke-dashoffset: 0 !important;
   }
 }
+
+/* ========================================================================= */
+/* FISHING                                                                   */
+/* ========================================================================= */
+
+/* An overlay, not a screen: the bank, the water and your character stay
+   visible behind it, because the view is half of why anyone fishes. */
+.fishing {
+  position: fixed; right: 7vw; top: 50%; transform: translateY(-50%) translateX(24px);
+  z-index: 7; pointer-events: none; opacity: 0;
+  display: flex; flex-direction: column; align-items: center; gap: .7rem;
+  font-family: var(--sans);
+  transition: opacity .3s ease, transform .35s cubic-bezier(.2, 1, .4, 1);
+}
+.fishing.in { opacity: 1; transform: translateY(-50%) translateX(0); }
+
+.fish-gauge { display: flex; align-items: stretch; gap: .5rem; height: 46vh; min-height: 17rem; }
+
+/* the float-gauge: a length of water in a wooden frame */
+.fish-track {
+  position: relative; width: 3.1rem; border-radius: 1.6rem;
+  background: linear-gradient(180deg, #2c4a52, #16303a 60%, #0e2229);
+  box-shadow:
+    inset 0 0 0 3px rgba(120, 92, 54, .85),
+    inset 0 0 22px rgba(0, 0, 0, .6),
+    0 8px 26px rgba(0, 0, 0, .45);
+  overflow: hidden;
+}
+/* a slow shimmer so the water is not a dead rectangle */
+.fish-water {
+  position: absolute; inset: 0;
+  background: repeating-linear-gradient(180deg,
+    rgba(255, 255, 255, .055) 0 2px, rgba(255, 255, 255, 0) 2px 13px);
+  animation: fishWater 5s linear infinite;
+}
+@keyframes fishWater { to { transform: translateY(13px); } }
+
+/* the brass band you steer */
+.fish-zone {
+  position: absolute; left: -2px; right: -2px;
+  border-radius: .9rem;
+  background: linear-gradient(180deg, rgba(232, 196, 106, .34), rgba(180, 138, 58, .22));
+  box-shadow: inset 0 0 0 2px rgba(240, 208, 130, .85), 0 0 14px rgba(232, 196, 106, .28);
+  transition: background .12s linear, box-shadow .12s linear;
+}
+.fish-zone i {
+  position: absolute; inset: .28rem .5rem; border-radius: .5rem;
+  border: 1px dashed rgba(255, 240, 200, .35);
+}
+.fish-zone.on {
+  background: linear-gradient(180deg, rgba(150, 214, 122, .46), rgba(96, 168, 82, .30));
+  box-shadow: inset 0 0 0 2px rgba(186, 240, 150, .95), 0 0 22px rgba(150, 214, 122, .5);
+}
+
+/* the fish itself, carved rather than a dot */
+.fish-mark {
+  position: absolute; left: 50%; width: 2.0rem; height: 1.05rem;
+  margin-left: -1rem; margin-bottom: -.52rem;
+  background: linear-gradient(180deg, #e8dcbc, #b9a274);
+  border-radius: 62% 30% 58% 30% / 58% 52% 48% 42%;
+  box-shadow: 0 2px 7px rgba(0, 0, 0, .5);
+  transition: bottom .05s linear;
+}
+.fish-mark::after {
+  content: ''; position: absolute; right: -.42rem; top: 50%;
+  width: 0; height: 0; transform: translateY(-50%);
+  border: .34rem solid transparent; border-left-color: #b9a274;
+}
+
+/* the catch meter, wound up the side like line on a reel */
+.fish-meter {
+  position: relative; width: 1.05rem; border-radius: .6rem;
+  background: rgba(20, 16, 10, .55);
+  box-shadow: inset 0 0 0 2px rgba(120, 92, 54, .8);
+  overflow: hidden;
+}
+.fish-meter b {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 30%;
+  background: linear-gradient(180deg, var(--gold-lit), var(--green));
+  transition: height .08s linear;
+}
+.fish-meter.low b { background: linear-gradient(180deg, #e08a4a, #b4442e); }
+
+.fish-say {
+  font-size: .96rem; color: var(--paper); min-height: 1.3em;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, .8); letter-spacing: .02em;
+}
+.fishing[data-state="bite"] .fish-say {
+  color: #ffd98a; font-weight: 700; animation: fishBite .28s ease-in-out infinite alternate;
+}
+@keyframes fishBite { from { transform: scale(1); } to { transform: scale(1.09); } }
+.fishing[data-state="bite"] .fish-track { box-shadow: inset 0 0 0 3px rgba(255, 217, 138, .95), inset 0 0 26px rgba(255, 180, 90, .3); }
+
+.fish-hint {
+  font-size: .72rem; letter-spacing: .1em; color: #cbbf9e; opacity: .35;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, .8); transition: opacity .3s ease;
+}
+
+/* --------------------------------------------------------- the catch card */
+
+.fish-caught {
+  position: fixed; left: 50%; top: 42%; transform: translate(-50%, -50%) scale(.92);
+  z-index: 9; width: min(26rem, 84vw); text-align: center;
+  padding: 1.5rem 1.6rem 1.3rem; border-radius: 1rem;
+  background:
+    radial-gradient(120% 130% at 50% 0%, color-mix(in srgb, var(--rare) 24%, transparent), transparent 62%),
+    linear-gradient(180deg, rgba(42, 36, 22, .95), rgba(26, 22, 12, .97));
+  border: 1px solid color-mix(in srgb, var(--rare) 50%, transparent);
+  box-shadow: var(--shadow), 0 0 60px -10px color-mix(in srgb, var(--rare) 60%, transparent);
+  opacity: 0; pointer-events: none;
+  transition: opacity .4s ease, transform .5s cubic-bezier(.2, 1.4, .4, 1);
+}
+.fish-caught.in { opacity: 1; transform: translate(-50%, -50%) scale(1); pointer-events: auto; }
+.fc-kicker {
+  font-family: var(--sans); font-size: .7rem; letter-spacing: .3em;
+  text-transform: uppercase; color: var(--rare); display: block; margin-bottom: .4rem;
+}
+.fish-caught h3 {
+  font-family: var(--display); font-size: 1.9rem; margin: 0 0 .3rem; color: var(--paper);
+  text-shadow: 0 0 22px color-mix(in srgb, var(--rare) 40%, transparent);
+}
+.fc-size { font-size: 1rem; color: #cfc2a0; margin: 0 0 .6rem; }
+.fc-size em { color: var(--gold-lit); font-style: normal; font-weight: 600; }
+.fc-blurb { font-style: italic; color: #a89b7c; line-height: 1.5; margin: 0 0 1.1rem; font-size: .92rem; }
+.fish-caught .btn { pointer-events: auto; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fish-water, .fishing[data-state="bite"] .fish-say { animation: none !important; }
+}
+
+/* ========================================================================= */
+/* THE TUTORIAL: OBJECTIVE, GUIDE, BANNER                                    */
+/* ========================================================================= */
+
+.hud-objective {
+  position: absolute; left: 50%; top: 1.6rem; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: .1rem;
+  padding: .5em 1.4em; border-radius: .6rem;
+  background: rgba(26, 22, 12, .42);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(233, 216, 178, .16);
+  text-shadow: 0 2px 5px rgba(0, 0, 0, .75);
+  max-width: min(32rem, 70vw); text-align: center;
+}
+.hud-objective.in { animation: objIn .5s cubic-bezier(.2, 1.3, .4, 1) both; }
+@keyframes objIn { from { opacity: 0; transform: translateX(-50%) translateY(-10px); } to { opacity: 1; transform: translateX(-50%); } }
+.obj-kicker {
+  font-size: .6rem; letter-spacing: .28em; text-transform: uppercase;
+  color: var(--gold-lit); opacity: .8;
+}
+.hud-objective b { font-family: var(--serif); font-weight: 600; font-size: 1.04rem; color: var(--paper); }
+
+/* the guidance chevron: pinned to an ellipse round the middle of the screen,
+   because a waypoint drawn in the world is behind a tree in this game 100%
+   of the time */
+.guide {
+  position: absolute; transform: translate(-50%, -50%);
+  display: flex; flex-direction: column; align-items: center; gap: .25rem;
+  pointer-events: none;
+  animation: guideBreathe 2.2s ease-in-out infinite;
+}
+.guide svg {
+  width: 2.1rem; height: 2.1rem;
+  transform: rotate(var(--rot, 0rad));
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .7));
+}
+.guide svg path { fill: var(--gold-lit); stroke: rgba(50, 36, 12, .55); stroke-width: 2; }
+.guide i {
+  font-style: normal; font-family: var(--sans); font-size: .72rem;
+  letter-spacing: .06em; color: var(--paper); white-space: nowrap;
+  text-shadow: 0 2px 5px rgba(0, 0, 0, .85);
+  background: rgba(26, 22, 12, .42); padding: .12em .55em; border-radius: 999px;
+}
+@keyframes guideBreathe {
+  0%, 100% { opacity: .78; }
+  50% { opacity: 1; }
+}
+
+/* the caption for the beats worth stopping on */
+.banner {
+  position: fixed; left: 50%; top: 26%; transform: translate(-50%, -50%) scale(.97);
+  z-index: 8; width: min(40rem, 88vw); text-align: center; pointer-events: none;
+  opacity: 0; transition: opacity .7s ease, transform .8s cubic-bezier(.2, 1, .3, 1);
+}
+.banner.in { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.b-kicker {
+  display: block; font-family: var(--sans); font-size: .72rem; letter-spacing: .34em;
+  text-transform: uppercase; color: var(--gold-lit); margin-bottom: .5rem;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, .9);
+}
+.banner b {
+  display: block; font-family: var(--display); font-weight: 600;
+  font-size: clamp(1.5rem, 3.6vw, 2.5rem); line-height: 1.24; color: var(--paper);
+  text-shadow: 0 3px 16px rgba(0, 0, 0, .9), 0 1px 3px rgba(0, 0, 0, .9);
+}
+.banner i {
+  display: block; margin-top: .6rem; font-size: 1.02rem; line-height: 1.55;
+  color: #d8cba8; text-shadow: 0 2px 10px rgba(0, 0, 0, .9);
+}
+.banner.long b { font-size: clamp(1.7rem, 4.2vw, 2.9rem); }
+
+@media (prefers-reduced-motion: reduce) {
+  .guide, .hud-objective.in { animation: none !important; }
+}

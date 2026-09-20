@@ -20,12 +20,13 @@
    and facing. Everything visual about how a species moves lives there.
 */
 
-import * as THREE from '../../lib/three.module.js?v=20260920180429';
-import { buildAnimal } from '../art/AnimalArt.js?v=20260920180429';
-import { poseAnimal, SPECIES } from './Anim.js?v=20260920180429';
-import { MATS } from '../art/Materials.js?v=20260920180429';
-import { PLAYER, WORLD } from '../core/Config.js?v=20260920180429';
-import { clamp, clamp01, lerp, damp, dampAngle, angleDelta, TAU, smoothstep } from '../core/Util.js?v=20260920180429';
+import * as THREE from '../../lib/three.module.js?v=20260920201841';
+import { buildAnimal } from '../art/AnimalArt.js?v=20260920201841';
+import { poseAnimal, SPECIES } from './Anim.js?v=20260920201841';
+import { carryFor, swingOf } from './Combat.js?v=20260920201841';
+import { MATS } from '../art/Materials.js?v=20260920201841';
+import { PLAYER, WORLD } from '../core/Config.js?v=20260920201841';
+import { clamp, clamp01, lerp, damp, dampAngle, angleDelta, TAU, smoothstep } from '../core/Util.js?v=20260920201841';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -102,16 +103,62 @@ export class Player {
   _mountWeapon() {
     if (!this.weapon || !this.rig?.parts?.grip) return;
     const grip = this.rig.parts.grip;
-    const s = this.S.carryScale;
+    const cls = this.weapon.cls || this.weapon.weapon?.cls;
+    /* SCALED TO THE WIELDER, not by a flat factor.
+       Sticks run from 30 cm to nearly 4 m, so a fixed multiplier gives a
+       one-metre character a three-metre pole to carry — which is not "heroic
+       weapon", it is a caber. The weapon is scaled so that its LENGTH lands
+       in a sane band against the character's own height, and short weapons
+       are left alone so a dagger does not get inflated to fill the quota. */
+    const len = this.weapon.info?.length || 1.2;
+    const hands = this.weapon.weapon?.stats?.hands || 1;
+    const want = this.height * (hands === 2 ? 1.35 : 0.82);
+    const s = Math.min(this.S.carryScale, want / Math.max(0.25, len));
+    /* NOT A UNIFORM SHRINK. Scaling a three-metre polearm down to fit also
+       scales its thickness down, and it arrives as a piece of thread. The
+       length is what has to fit; the girth should stay in the range where
+       the weapon still reads, so long weapons are fattened back up by
+       roughly as much as they were shortened. */
+    const fat = clamp(Math.pow(this.S.carryScale / s, 0.62), 1, 2.2);
+    this.weaponScale = s;
+    /* HOW IT SITS IN THE PAW IS PER WEAPON, not one angle for all of them.
+       A maul rests on the shoulder, a spear slopes with the point up, a
+       staff stands nearly upright, a dagger tucks in close. Using one
+       rotation for every class is why everything used to look like it was
+       being carried to a bin. */
+    const C = carryFor(cls);
     for (const m of this.weapon.meshes) {
-      m.scale.setScalar(s);
-      // held at an angle across the body rather than bolt upright: a stave
-      // carried perfectly vertical looks like a flagpole
-      m.rotation.set(-0.35, 0, 0.22);
-      m.position.set(0, 0, 0);
+      m.scale.set(s * fat, s, s * fat);
+      m.rotation.set(C.rot[0], C.rot[1], C.rot[2]);
+      m.position.set(C.pos[0] * s, C.pos[1] * s, C.pos[2] * s);
       grip.add(m);
     }
   }
+
+  /** The class of whatever is being carried, for the animator. */
+  get weaponClass() {
+    return this.weapon ? (this.weapon.cls || this.weapon.weapon?.cls || null) : null;
+  }
+
+  /** Begin an attack with the equipped weapon. Returns the swing, or null. */
+  attack() {
+    if (!this.weapon || this.busy) return null;
+    const sw = swingOf(this.weapon.weapon || { cls: this.weaponClass });
+    this._swing = sw;
+    this._hitDone = false;
+    this.startAction('swing', sw.duration, () => { this._swing = null; });
+    return sw;
+  }
+
+  /** True on the single frame the blow lands. */
+  get swingConnects() {
+    if (!this._swing || this.action !== 'swing' || this._hitDone) return false;
+    if (this.actionT / this.actionDur < this._swing.attack.hitAt) return false;
+    this._hitDone = true;
+    return true;
+  }
+
+  get swing() { return this._swing; }
 
   /* ====================================================================== */
   /* ACTIONS                                                                */
@@ -219,7 +266,10 @@ export class Player {
       t: this.t, dt,
       speed: rel, moving: this.moving, grounded: this.grounded,
       yaw: this.yaw, carrying: !!this.weapon,
-      action: this.action, actionT: this.actionT,
+      // the animator needs to know WHAT is being carried, not just that
+      // something is: the rest pose and the swing are both per class
+      weaponCls: this.weaponClass,
+      action: this.action, actionT: this.actionT, actionDur: this.actionDur,
       lookAt: this.lookAt,
     });
 

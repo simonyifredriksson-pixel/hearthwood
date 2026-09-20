@@ -21,18 +21,18 @@
    generated plants in it draws in two calls.
 */
 
-import * as THREE from '../../lib/three.module.js?v=20260920180429';
-import { MeshBuilder } from '../art/Geo.js?v=20260920180429';
-import { buildTree, TREES, orient } from '../art/TreeGen.js?v=20260920180429';
+import * as THREE from '../../lib/three.module.js?v=20260920201841';
+import { MeshBuilder } from '../art/Geo.js?v=20260920201841';
+import { buildTree, TREES, orient } from '../art/TreeGen.js?v=20260920201841';
 import {
   buildFern, buildBush, buildGrassTuft, buildFlower, buildMushrooms, buildReeds,
   buildWeed, buildGroundCover, buildRock, buildFallenLog, buildStump, buildBrash,
   FLOWER_NAMES, SHROOM_NAMES,
-} from '../art/PlantGen.js?v=20260920180429';
-import { PLANT, GROUND, LEAF, mixHex, tweak } from '../art/Palette.js?v=20260920180429';
-import { WORLD, GAME } from '../core/Config.js?v=20260920180429';
-import { makeRng, hash2, clamp, clamp01, lerp, TAU, smoothstep, invLerp } from '../core/Util.js?v=20260920180429';
-import { riverX, riverLevel } from './Terrain.js?v=20260920180429';
+} from '../art/PlantGen.js?v=20260920201841';
+import { PLANT, GROUND, LEAF, mixHex, tweak } from '../art/Palette.js?v=20260920201841';
+import { WORLD, GAME } from '../core/Config.js?v=20260920201841';
+import { makeRng, hash2, clamp, clamp01, lerp, TAU, smoothstep, invLerp } from '../core/Util.js?v=20260920201841';
+import { riverX, riverLevel } from './Terrain.js?v=20260920201841';
 
 /* ========================================================================= */
 /* LAYERS                                                                    */

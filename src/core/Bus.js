@@ -64,4 +64,18 @@ export const EV = {
   TOAST: 'toast',
   HINT: 'hint',
   SAVED: 'save:written',
+
+  /* --- the forest, and who is in it ----------------------------------- */
+  WORKER_SCARED: 'worker:scared',
+  CAMP_CLEARED: 'camp:cleared',
+
+  /* --- fishing --------------------------------------------------------- */
+  ROD_GIVEN: 'rod:given',
+  FISH_HOOKED: 'fish:hooked',
+  FISH_CAUGHT: 'fish:caught',
+  FISH_LOST: 'fish:lost',
+
+  /* --- the tutorial ---------------------------------------------------- */
+  QUEST_STEP: 'quest:step',
+  QUEST_DONE: 'quest:done',
 };

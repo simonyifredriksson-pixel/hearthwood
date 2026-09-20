@@ -11,13 +11,13 @@
    millisecond.
 */
 
-import { loadRaw, saveRaw, clearSave } from '../core/Save.js?v=20260920180429';
-import { bus, EV } from '../core/Bus.js?v=20260920180429';
-import { GAME } from '../core/Config.js?v=20260920180429';
-import { rollStick, stickValue, stickTags, stickTier, stickName, stickComponents, RARE } from '../data/StickData.js?v=20260920180429';
-import { forgeWeapon, WEAPON_CLASSES } from '../data/WeaponData.js?v=20260920180429';
-import { SPECIES } from './Anim.js?v=20260920180429';
-import { clamp } from '../core/Util.js?v=20260920180429';
+import { loadRaw, saveRaw, clearSave } from '../core/Save.js?v=20260920201841';
+import { bus, EV } from '../core/Bus.js?v=20260920201841';
+import { GAME } from '../core/Config.js?v=20260920201841';
+import { rollStick, stickValue, stickTags, stickTier, stickName, stickComponents, RARE } from '../data/StickData.js?v=20260920201841';
+import { forgeWeapon, WEAPON_CLASSES } from '../data/WeaponData.js?v=20260920201841';
+import { SPECIES } from './Anim.js?v=20260920201841';
+import { clamp } from '../core/Util.js?v=20260920201841';
 
 let nextUid = 1;
 
@@ -33,7 +33,10 @@ export class GameState {
     this.metRecipes = new Set(); // weapon classes the forge has produced
     this.seenWeapons = new Set();// same, for the discovery banner
     this.metNPCs = new Set();
-    this.stats = { picked: 0, crafted: 0, walked: 0, days: 0 };
+    this.stats = { picked: 0, crafted: 0, walked: 0, days: 0, fish: 0, scared: 0 };
+    this.hasRod = false;          // the Fisherman has handed it over
+    this.fish = [];               // everything caught, newest last
+    this.questStep = null;        // where the First Forge Festival got to
     this.pos = null;
     this.dayPhase = 0.70;
     this.tutorial = 0;
@@ -145,6 +148,24 @@ export class GameState {
    *  animation, which has to know the answer before the reveal shows it. */
   preview(stick) { return stick ? forgeWeapon(stick) : null; }
 
+  /** Record a fish. Kept as data rather than an object so a save is small. */
+  addFish(f) {
+    this.fish.push({ id: f.id, name: f.name, len: f.len, tier: f.tier, at: Date.now() });
+    this.stats.fish++;
+    this._dirty = true;
+    return f;
+  }
+
+  /** The biggest of a species ever landed, for the Fisherman to be smug about. */
+  bestFish(id = null) {
+    let best = null;
+    for (const f of this.fish) {
+      if (id && f.id !== id) continue;
+      if (!best || f.len > best.len) best = f;
+    }
+    return best;
+  }
+
   weaponById(uid) { return this.weapons.find(w => w.uid === uid) || null; }
 
   equip(uid) {
@@ -207,6 +228,9 @@ export class GameState {
       pos: this.pos,
       dayPhase: this.dayPhase,
       tutorial: this.tutorial,
+      hasRod: this.hasRod,
+      fish: this.fish.slice(-60),   // a long tail of catches is not worth the bytes
+      questStep: this.questStep,
       nextUid,
     };
   }
@@ -243,10 +267,13 @@ export class GameState {
       st.metRecipes = new Set(o.metRecipes || []);
       st.seenWeapons = new Set(o.seenWeapons || o.metRecipes || []);
       st.metNPCs = new Set(o.metNPCs || []);
-      st.stats = { picked: 0, crafted: 0, walked: 0, days: 0, ...(o.stats || {}) };
+      st.stats = { picked: 0, crafted: 0, walked: 0, days: 0, fish: 0, scared: 0, ...(o.stats || {}) };
       st.pos = o.pos || null;
       st.dayPhase = o.dayPhase ?? 0.70;
       st.tutorial = o.tutorial || 0;
+      st.hasRod = !!o.hasRod;
+      st.fish = Array.isArray(o.fish) ? o.fish : [];
+      st.questStep = o.questStep || null;
       nextUid = Math.max(nextUid, o.nextUid || 1);
     } catch (e) {
       console.warn('[state] save was unreadable, starting fresh', e);
