@@ -25,7 +25,7 @@
 import * as THREE from '../../lib/three.module.js';
 import { MeshBuilder, tube, blob, blade, lathe, smoothPath, rotAxis, perp, norm3 } from './Geo.js';
 import { BARK, MOSS, MUSHROOM, LEAF, mixHex, tweak, shade } from './Palette.js';
-import { SPECIES, RARE } from '../data/StickData.js';
+import { SPECIES, RARE, MATERIALS } from '../data/StickData.js';
 import { makeRng, clamp, lerp, TAU, smoothstep } from '../core/Util.js';
 
 /* ========================================================================= */
@@ -264,7 +264,14 @@ export function buildStick(spec, b, opts = {}) {
 
   const segs = Math.max(4, Math.round(lod.segs * clamp(s.length / 1.4, 0.55, 1.8)));
   const path = stickPath(s, segs, r);
-  const rad = radiusFn(s, sp, N, r);
+  /* `radiusMul` is how a weapon carves a tang. The blade has to be built
+     AROUND the shaft or the bark shows through its flats, but a blade as
+     thick as the branch it came from is not a blade — so the weapon builder
+     pinches the shaft down to a tang over the length the blade covers, and
+     everything else (moss, fungi, knots, the seam of ore) still follows the
+     same path in the same places. */
+  const base = radiusFn(s, sp, N, r);
+  const rad = opts.radiusMul ? (t => base(t) * opts.radiusMul(t)) : base;
   const radial = lod.radial;
 
   const colorAt = (t, i, ang) => barkColor(s, sp, t, ang, N);
@@ -353,6 +360,16 @@ export function buildStick(spec, b, opts = {}) {
   }
   if (lod.mossGeo && s.moss > 0.3) buildMossCushions(b, s, path, rad, r, N);
 
+  /* The special material lives HERE, in the stick builder, rather than in the
+     weapon builder — because the weapon's shaft is built by this same
+     function. Put the crystal on the stick and it is automatically on the
+     blade that stick becomes, in the same places, the same size, growing the
+     same way. That is the whole reason a finished weapon is recognisable as
+     the thing you picked up. */
+  if (s.special && s.inclusions?.length) {
+    buildInclusions(b, glow, s, path, rad, r, N, lod);
+  }
+
   return {
     length: s.length,
     path,
@@ -384,6 +401,134 @@ function frameAt(path, t) {
   const a = perp(d);
   const bb = norm3(cross(d, a));
   return { p, d, a, b: bb };
+}
+
+/* ========================================================================= */
+/* SPECIAL MATERIALS                                                         */
+/* ========================================================================= */
+
+/**
+ * Whatever got into the wood, given real geometry.
+ *
+ * Four shapes, because four is enough to make eight materials look like eight
+ * different things and a fifth would only be a variation:
+ *
+ *   shard  — crystal, growing OUT of the grain at an angle, faceted
+ *   bead   — amber, a swelling drop that has run and set
+ *   crust  — stone and rime, a flat scabbed patch lying ON the surface
+ *   seam   — ore and fire, a line running ALONG the shaft, in the wood
+ *
+ * A glowing material puts its geometry in the glow builder instead, which is
+ * the only reason any of this is ever emissive. Nothing here is a halo over
+ * the whole stick: if it glows, a specific SOLID OBJECT glows, and it is a
+ * thing you could point at.
+ */
+function buildInclusions(b, glow, s, path, rad, r, N, lod) {
+  const M = MATERIALS[s.special];
+  if (!M) return;
+  const lit = M.glow > 0.45 && glow ? glow : b;
+  const hex = M.hex;
+  const radial = lod.radial >= 5 ? 5 : 3;
+
+  for (const inc of s.inclusions) {
+    const fr = frameAt(path, inc.at);
+    const rr = rad(inc.at);
+    const roll = inc.roll;
+    // out of the shaft, in the rolled direction
+    const ox = fr.a[0] * Math.cos(roll) + fr.b[0] * Math.sin(roll);
+    const oy = fr.a[1] * Math.cos(roll) + fr.b[1] * Math.sin(roll);
+    const oz = fr.a[2] * Math.cos(roll) + fr.b[2] * Math.sin(roll);
+
+    if (M.form === 'shard') {
+      /* A cluster of faceted spikes leaning off the shaft. Lathe with a
+         hard-edged profile and very few sides is what makes it read as
+         crystal rather than as a lump. */
+      const n = r.int(2, 4);
+      for (let k = 0; k < n; k++) {
+        const len = rr * inc.size * r.range(1.6, 4.2);
+        const wid = rr * inc.size * r.range(0.22, 0.5);
+        const lean = inc.tilt + r.range(-0.5, 0.5);
+        const base = [
+          fr.p[0] + ox * rr * 0.75, fr.p[1] + oy * rr * 0.75, fr.p[2] + oz * rr * 0.75,
+        ];
+        const dir = [
+          ox + fr.d[0] * lean, oy + fr.d[1] * lean, oz + fr.d[2] * lean,
+        ];
+        const sub = new MeshBuilder();
+        sub.color(hex, 0.10, r);
+        lathe(sub, [
+          [wid * 0.9, 0], [wid, len * 0.25], [wid * 0.72, len * 0.72], [0.0005, len],
+        ], r.chance(0.5) ? 5 : 6, 0, 0);
+        lit.append(sub, orientMatrix(base, dir, r.range(0, TAU)));
+      }
+    } else if (M.form === 'bead') {
+      /* A drop that welled out and set. Slightly squashed against the wood,
+         and it catches a highlight, which is the whole appeal of amber. */
+      const sz = rr * inc.size * r.range(0.6, 1.2);
+      lit.color(hex, 0.07, r);
+      blob(b === lit ? b : lit,
+        fr.p[0] + ox * rr * 0.8, fr.p[1] + oy * rr * 0.8, fr.p[2] + oz * rr * 0.8,
+        sz, radial - 1, radial + 1, (x, y, z) => [1.15, 0.8, 1.15], 0);
+      // the run below it
+      const runN = r.int(1, 3);
+      for (let k = 1; k <= runN; k++) {
+        const t2 = clamp(inc.at - k * 0.022, 0.02, 0.98);
+        const f2 = frameAt(path, t2);
+        const r2 = rad(t2);
+        lit.color(shade(hex, -0.08), 0.06, r);
+        blob(b === lit ? b : lit,
+          f2.p[0] + ox * r2 * 0.75, f2.p[1] + oy * r2 * 0.75, f2.p[2] + oz * r2 * 0.75,
+          sz * (0.65 - k * 0.14), radial - 1, radial, null, 0);
+      }
+    } else if (M.form === 'crust') {
+      /* A scabbed patch lying flat on the bark — several overlapping plates
+         rather than one dome, so the edge is ragged the way a real crust is. */
+      const n = r.int(5, 10);
+      for (let k = 0; k < n; k++) {
+        const t2 = clamp(inc.at + r.range(-1, 1) * inc.len * 0.5, 0.02, 0.98);
+        const f2 = frameAt(path, t2);
+        const r2 = rad(t2);
+        const a2 = roll + r.range(-0.8, 0.8);
+        const o2 = [
+          f2.a[0] * Math.cos(a2) + f2.b[0] * Math.sin(a2),
+          f2.a[1] * Math.cos(a2) + f2.b[1] * Math.sin(a2),
+          f2.a[2] * Math.cos(a2) + f2.b[2] * Math.sin(a2),
+        ];
+        lit.color(tweak(hex, { l: r.range(0.82, 1.18) }), 0.09, r);
+        blob(lit,
+          f2.p[0] + o2[0] * r2 * 0.92, f2.p[1] + o2[1] * r2 * 0.92, f2.p[2] + o2[2] * r2 * 0.92,
+          r2 * inc.size * r.range(0.55, 1.15), 2, radial,
+          (x, y, z) => [1.3, 0.35, 1.3], 0);      // flattened against the shaft
+      }
+    } else {
+      /* A seam or a vein: a line running ALONG the wood, half-buried, so it
+         has to follow the path rather than sit on one point of it. */
+      const t0 = clamp(inc.at - inc.len * 0.5, 0.01, 0.97);
+      const t1 = clamp(t0 + inc.len, 0.03, 0.99);
+      const steps = 9;
+      const pts = [];
+      for (let i = 0; i <= steps; i++) {
+        const u = i / steps;
+        const t2 = lerp(t0, t1, u);
+        const f2 = frameAt(path, t2);
+        const r2 = rad(t2);
+        // it wanders round the shaft as it runs, like grain does
+        const a2 = roll + Math.sin(u * 3.1 + inc.tilt * 4) * 0.55;
+        pts.push([
+          f2.p[0] + (f2.a[0] * Math.cos(a2) + f2.b[0] * Math.sin(a2)) * r2 * 0.94,
+          f2.p[1] + (f2.a[1] * Math.cos(a2) + f2.b[1] * Math.sin(a2)) * r2 * 0.94,
+          f2.p[2] + (f2.a[2] * Math.cos(a2) + f2.b[2] * Math.sin(a2)) * r2 * 0.94,
+        ]);
+      }
+      lit.color(hex, 0.08, r);
+      tube(lit, {
+        pts,
+        radius: u => rad(lerp(t0, t1, u)) * inc.size * 0.30 * (0.45 + Math.sin(u * Math.PI) * 0.85),
+        radial: 4, capStart: true, capEnd: true, sway: () => 0,
+        color: u => shade(hex, Math.sin(u * 9) * 0.10),
+      });
+    }
+  }
 }
 
 /** A direction that leaves the shaft at angle `ang`, rolled to `roll`. */

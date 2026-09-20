@@ -629,10 +629,14 @@ export function buildFallenLog(b, { seed = 1, len = 4, rad = 0.28, lod = 0, moss
       ring.push(b.vert(p[0] + dir[0] * rr * 0.1, p[1] + Math.cos(a) * rr * 0.92, p[2] + Math.sin(a) * rr * 0.92, 0));
     }
     const c0 = b.vert(p[0] + dir[0] * rr * 0.16, p[1], p[2], 0);
+    const mark = b.mark;
     for (let i = 0; i < radial; i++) {
       const j = (i + 1) % radial;
-      if (end === 1) b.tri(c0, ring[i], ring[j]); else b.tri(c0, ring[j], ring[i]);
+      b.tri(c0, ring[i], ring[j]);
     }
+    // the cap is a disc on the end of a log lying along X, so 'outward' is
+    // simply away from the log's middle
+    b.orientOutward(mark, 0, p[1], p[2]);
   }
 
   /* brackets, mushrooms and moss cushions along the top */
@@ -706,9 +710,15 @@ export function buildStump(b, { seed = 1, rad = 0.4, h = 0.6, lod = 0, mossy = 0
       const lift = k === rings ? Math.sin(a * 3 + r.range(0, 1)) * rad * jag * 0.35 : 0;
       row.push(b.vert(top[0] + Math.cos(a) * rr, top[1] + lift + (1 - u) * rad * 0.03, top[2] + Math.sin(a) * rr, 0));
     }
-    if (prev) for (let i = 0; i < radial; i++) {
-      const j = (i + 1) % radial;
-      b.quad(prev[i], prev[j], row[j], row[i]);
+    // rings on the sawn top: settled by orienting them away from a point
+    // inside the stump rather than by reasoning about the winding
+    if (prev) {
+      const m = b.mark;
+      for (let i = 0; i < radial; i++) {
+        const j = (i + 1) % radial;
+        b.quad(prev[i], row[i], row[j], prev[j]);
+      }
+      b.orientOutward(m, top[0], top[1] - rad * 2, top[2]);
     }
     prev = row;
   }

@@ -24,7 +24,7 @@
 */
 
 import * as THREE from '../../lib/three.module.js';
-import { MeshBuilder, box, hexa, beam, cylinder, lathe, blob, tube, quad } from './Geo.js';
+import { MeshBuilder, box, hexa, beam, cylinder, lathe, blob, tube, quad, tri3, quadIdx } from './Geo.js';
 import { BUILD, METAL, MOSS, mixHex, tweak, shade } from './Palette.js';
 import { orient, lumpWarp } from './TreeGen.js';
 import { makeRng, clamp, lerp, TAU, smoothstep } from '../core/Util.js';
@@ -217,28 +217,30 @@ export function gableRoof(b, {
     buildTiledRoof(b, { W, D, y, ridgeY, seed, sag, r, kind });
   }
 
-  /* --- the gable ends: the triangle of wall under the slope ------------ */
+  /* --- the gable ends: the triangle of wall under the slope ------------
+     Built as a SLAB with thickness rather than as a single triangle with a
+     hand-wound copy behind it. A slab cannot be one-sided, cannot be wound
+     the wrong way round, and has a visible edge under the barge board, which
+     is what a real gable has. */
   const gableHex = kind === 'thatch' ? BUILD.daubWarm : BUILD.daub;
+  const apexY = ridgeY - overhang * Math.tan(pitch) * 0.4;
   for (const s of [-1, 1]) {
     const gx = s * (w / 2);
+    const inner = gx - s * 0.10;
     b.color(tweak(gableHex, { l: r.range(0.92, 1.05) }), 0.03, r);
-    const eps = 0.02;
     const yy = y - 0.02;
-    // a triangle, as two degenerate-free tris
-    const a = b.vert(gx, yy, -d / 2, 0);
-    const c = b.vert(gx, yy, d / 2, 0);
-    const e = b.vert(gx, ridgeY - overhang * Math.tan(pitch) * 0.4, 0, 0);
-    if (s > 0) b.tri(a, c, e); else b.tri(a, e, c);
-    // and its inner face so it is not one-sided from inside the eaves
-    const a2 = b.vert(gx - s * eps, yy, -d / 2, 0);
-    const c2 = b.vert(gx - s * eps, yy, d / 2, 0);
-    const e2 = b.vert(gx - s * eps, ridgeY - overhang * Math.tan(pitch) * 0.4, 0, 0);
-    if (s > 0) b.tri(a2, e2, c2); else b.tri(a2, c2, e2);
+    const out = [s, 0, 0];
+    const A = [gx, yy, -d / 2], C = [gx, yy, d / 2], E = [gx, apexY, 0];
+    const A2 = [inner, yy, -d / 2], C2 = [inner, yy, d / 2], E2 = [inner, apexY, 0];
+    tri3(b, A, C, E, 0, out);                       // outer face
+    tri3(b, A2, C2, E2, 0, [-s, 0, 0]);             // inner face
+    quad(b, A, C, C2, A2, 0, [0, -1, 0]);           // the sill edge
+    quad(b, C, E, E2, C2, 0, [0, 0.5, 0.86]);       // the two rake edges
+    quad(b, E, A, A2, E2, 0, [0, 0.5, -0.86]);
     // barge boards along the gable edge
     b.color(BUILD.beam, 0.05, r);
     for (const sd of [-1, 1]) {
-      beam(b, gx, ridgeY - overhang * Math.tan(pitch) * 0.4, 0,
-        gx, y - 0.05, sd * D / 2, 0.09, 0.14, [1, 0, 0]);
+      beam(b, gx, apexY, 0, gx, y - 0.05, sd * D / 2, 0.09, 0.14, [1, 0, 0]);
     }
   }
 
@@ -277,19 +279,69 @@ function buildThatch(b, { W, D, y, ridgeY, seed, sag, r }) {
       }
       grid.push(row);
     }
+    /* The slope faces UP and AWAY from the ridge. Deriving the winding from
+       the geometry rather than from which side we happen to be building
+       means a roof cannot come out inside-out, which is precisely what both
+       slopes of every thatched roof in the village were doing. */
+    const slope = Math.atan2(Math.max(0.01, ridgeY - y), D / 2);
+    const face = [0, Math.cos(slope), side * Math.sin(slope)];
     for (let j = 0; j < rows; j++) {
       for (let i = 0; i < cols; i++) {
-        if (side > 0) b.quad(grid[j][i], grid[j][i + 1], grid[j + 1][i + 1], grid[j + 1][i]);
-        else b.quad(grid[j][i + 1], grid[j][i], grid[j + 1][i], grid[j + 1][i + 1]);
+        quadIdx(b, grid[j][i], grid[j][i + 1], grid[j + 1][i + 1], grid[j + 1][i], face);
       }
     }
     // the eaves lip: the thick cut edge of the straw
-    for (let i = 0; i < cols; i++) {
-      const a = grid[rows][i], c = grid[rows][i + 1];
+    const lip = [];
+    for (let i = 0; i <= cols; i++) {
+      const a = grid[rows][i];
       b.color(BUILD.thatchOld, 0.06, r);
-      const a2 = b.vert(b.pos[a * 3], b.pos[a * 3 + 1] - depth, b.pos[a * 3 + 2] - side * depth * 0.25, 0);
-      const c2 = b.vert(b.pos[c * 3], b.pos[c * 3 + 1] - depth, b.pos[c * 3 + 2] - side * depth * 0.25, 0);
-      if (side > 0) b.quad(a, c, c2, a2); else b.quad(c, a, a2, c2);
+      lip.push(b.vert(b.pos[a * 3], b.pos[a * 3 + 1] - depth, b.pos[a * 3 + 2] - side * depth * 0.25, 0));
+    }
+    for (let i = 0; i < cols; i++) quadIdx(b, grid[rows][i], grid[rows][i + 1], lip[i + 1], lip[i], [0, 0.35, side]);
+
+    /* THE SOFFIT — the underside of the roof.
+       A roof built as a single sheet has no underside, and since the eaves
+       oversail the walls by half a metre, anyone standing beside the house
+       is looking UP at a surface that does not exist: you see straight
+       through the roof into the sky. It reads exactly like "one side of the
+       roof is invisible", which is what it was. A roof has a thickness, so
+       it gets one. */
+    const under = [];
+    for (let j = 0; j <= rows; j++) {
+      const t = j / rows;
+      const row = [];
+      for (let i = 0; i <= cols; i++) {
+        const a = grid[j][i];
+        b.color(shade(BUILD.thatchOld, -0.28), 0.04, r);
+        row.push(b.vert(
+          b.pos[a * 3],
+          b.pos[a * 3 + 1] - depth * lerp(0.42, 1.0, t),
+          b.pos[a * 3 + 2] - side * depth * lerp(0, 0.25, t), 0));
+      }
+      under.push(row);
+    }
+    for (let j = 0; j < rows; j++) {
+      for (let i = 0; i < cols; i++) {
+        quadIdx(b, under[j][i], under[j][i + 1], under[j + 1][i + 1], under[j + 1][i],
+          [0, -Math.cos(slope), -side * Math.sin(slope)]);
+      }
+    }
+    // and close the gap between the soffit and the eaves lip
+    for (let i = 0; i < cols; i++) {
+      quadIdx(b, under[rows][i], under[rows][i + 1], lip[i + 1], lip[i], [0, -0.5, side * 0.86]);
+    }
+
+    /* THE ENDS. The roof oversails the gable, so at x = +/-W/2 there is a cut
+       edge between the top surface and the soffit. Leaving it open is a
+       hairline of missing roof running down the rake of every building in
+       the village, which is subtle, permanent, and exactly what you notice. */
+    for (const end of [0, cols]) {
+      const ex = end === 0 ? -1 : 1;
+      b.color(shade(BUILD.thatchOld, -0.12), 0.05, r);
+      for (let j = 0; j < rows; j++) {
+        quadIdx(b, grid[j][end], grid[j + 1][end], under[j + 1][end], under[j][end], [ex, 0, 0]);
+      }
+      quadIdx(b, grid[rows][end], lip[end], under[rows][end], under[rows][end], [ex, 0, 0]);
     }
   }
 
@@ -334,36 +386,92 @@ function buildTiledRoof(b, { W, D, y, ridgeY, seed, sag, r, kind }) {
   const oldHex = clay ? BUILD.tileClayOld : BUILD.shingleMoss;
   const courses = Math.max(5, Math.round((D / 2) / 0.30));
   const cols = Math.max(4, Math.round(W / 0.75));
+  const LIFT = 0.035;
+  /* every course oversails the one below it, and the bottom one therefore
+     oversails the eaves — the soffit has to reach that far too */
+  const over = 0.09 / courses;
+  const drop = 0.11;
 
   for (const side of [-1, 1]) {
+    const ang = Math.atan2(ridgeY - y, D / 2);
+    const faceDir = [0, Math.cos(ang), side * Math.sin(ang)];
     for (let j = 0; j < courses; j++) {
       const t0 = j / courses, t1 = (j + 1) / courses;
+      /* ONE set of column edges per course, shared by neighbours.
+         Each slab used to jitter its own left and right edge independently,
+         so the right edge of one tile and the left edge of the next landed up
+         to 2 cm apart — a full-height slit between every pair of tiles, all
+         the way down the roof. From the ground they read as a roof you can
+         see daylight through. The ends are pinned to +/-W/2 exactly so the
+         gable closure below meets them with nothing in between. */
+      const xs = [], yAs = [], yBs = [];
+      const ridgeSag = lerp(ridgeY, y, t0), eaveSag = lerp(ridgeY, y, t1 + over);
+      for (let i = 0; i <= cols; i++) {
+        const x = i === 0 ? -W / 2 : i === cols ? W / 2
+          : lerp(-W / 2, W / 2, i / cols) + r.range(-0.01, 0.01);
+        xs.push(x);
+        /* The sag is evaluated at the edge's OWN x. It used to be evaluated
+           once per slab from its left edge and applied to both, so every slab
+           sat a millimetre or two off its neighbour and the seam between them
+           was open. Sharing the edge is only watertight if the height on that
+           edge is shared too. */
+        const u = (x + W / 2) / W;
+        const s = Math.sin(u * Math.PI) * sag;
+        yAs.push(ridgeSag - s * (1 - t0));
+        yBs.push(eaveSag - s * (1 - t1));
+      }
+      const zA = side * (D / 2) * t0, zB = side * (D / 2) * (t1 + over);
       // each course is a thin slab that overhangs the one below it
       for (let i = 0; i < cols; i++) {
-        const u0 = i / cols, u1 = (i + 1) / cols;
-        const x0 = lerp(-W / 2, W / 2, u0) + r.range(-0.01, 0.01);
-        const x1 = lerp(-W / 2, W / 2, u1) + r.range(-0.01, 0.01);
+        const x0 = xs[i], x1 = xs[i + 1];
         const hex = mixHex(baseHex, oldHex, Math.pow(r(), 1.5) * 0.85);
         b.color(hex, 0.055, r);
-        const yA = lerp(ridgeY, y, t0) - Math.sin(u0 * Math.PI) * sag * (1 - t0);
-        const yB = lerp(ridgeY, y, t1 + 0.09 / courses) - Math.sin(u0 * Math.PI) * sag * (1 - t1);
-        const zA = side * (D / 2) * t0, zB = side * (D / 2) * (t1 + 0.09 / courses);
-        const lift = 0.035;
         const p = [
-          [x0, yA + lift, zA], [x1, yA + lift, zA],
-          [x1, yB + lift * 0.4, zB], [x0, yB + lift * 0.4, zB],
+          [x0, yAs[i] + LIFT, zA], [x1, yAs[i + 1] + LIFT, zA],
+          [x1, yBs[i + 1] + LIFT * 0.4, zB], [x0, yBs[i] + LIFT * 0.4, zB],
         ];
-        if (side > 0) quad(b, p[0], p[1], p[2], p[3]);
-        else quad(b, p[1], p[0], p[3], p[2]);
+        quad(b, p[0], p[1], p[2], p[3], 0, faceDir);
         // the visible lip of the course below
         const lp = [
-          [x0, yB + lift * 0.4, zB], [x1, yB + lift * 0.4, zB],
-          [x1, yB, zB], [x0, yB, zB],
+          [x0, yBs[i] + LIFT * 0.4, zB], [x1, yBs[i + 1] + LIFT * 0.4, zB],
+          [x1, yBs[i + 1], zB], [x0, yBs[i], zB],
         ];
         b.color(shade(hex, -0.3), 0.04, r);
-        if (side > 0) quad(b, lp[0], lp[1], lp[2], lp[3]);
-        else quad(b, lp[1], lp[0], lp[3], lp[2]);
+        quad(b, lp[0], lp[1], lp[2], lp[3], 0, [0, 0.4, side]);
       }
+    }
+  }
+
+  /* The soffit. See the note in buildThatch: a roof with no underside is a
+     roof you can see the sky through from under the eaves. */
+  for (const side of [-1, 1]) {
+    const ang = Math.atan2(ridgeY - y, D / 2);
+    /* The eaves line the soffit has to reach is the BOTTOM COURSE's edge, not
+       the nominal eaves: the courses each oversail by `over`, so the lowest
+       one hangs past y / D/2 and its underside was open sky. */
+    const eaveY = lerp(ridgeY, y, 1 + over);
+    const eaveZ = side * (D / 2) * (1 + over);
+    /* And the gable closure has to reach the top of the TILES, which sit LIFT
+       above the bare rafter line it used to be drawn to — a 3.5 cm slit down
+       the whole length of both rakes. LIFT is added at BOTH ends rather than
+       only at the ridge, because the tile surface is a staircase: it returns
+       to full LIFT at the start of every course, so a closure that tapers
+       back to the rafter line is under the tiles again by mid-slope. The
+       sliver of closure standing proud of the tiles is a barge board, which
+       is what a real rake has anyway. */
+    b.color(shade(BUILD.beam, 0.10), 0.04, r);
+    quad(b, [-W / 2, ridgeY - drop, 0], [W / 2, ridgeY - drop, 0],
+      [W / 2, eaveY - drop, eaveZ], [-W / 2, eaveY - drop, eaveZ],
+      0, [0, -Math.cos(ang), -side * Math.sin(ang)]);
+    // the cut edge of the roof at the eaves
+    b.color(shade(clay ? BUILD.tileClayOld : BUILD.shingle, -0.3), 0.04, r);
+    quad(b, [-W / 2, eaveY, eaveZ], [W / 2, eaveY, eaveZ],
+      [W / 2, eaveY - drop, eaveZ], [-W / 2, eaveY - drop, eaveZ],
+      0, [0, -0.3, side]);
+    // and the ends, where the roof oversails the gable
+    for (const ex of [-1, 1]) {
+      quad(b, [ex * W / 2, ridgeY + LIFT, 0], [ex * W / 2, eaveY + LIFT, eaveZ],
+        [ex * W / 2, eaveY - drop, eaveZ], [ex * W / 2, ridgeY - drop, 0], 0, [ex, 0, 0]);
     }
   }
 

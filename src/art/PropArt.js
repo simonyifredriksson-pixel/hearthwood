@@ -14,7 +14,7 @@
 */
 
 import * as THREE from '../../lib/three.module.js';
-import { MeshBuilder, box, hexa, beam, cylinder, lathe, blob, tube, quad, blade } from './Geo.js';
+import { MeshBuilder, box, hexa, beam, cylinder, lathe, blob, tube, quad, blade, sheet } from './Geo.js';
 import { BUILD, METAL, MOSS, PLANT, LEAF, BARK, GROUND, mixHex, tweak, shade } from './Palette.js';
 import { orient, lumpWarp } from './TreeGen.js';
 import { makeRng, clamp, lerp, TAU } from '../core/Util.js';
@@ -149,10 +149,11 @@ export function buildWell(b, { seed = 1, r: R = 0.9 } = {}) {
   /* the coping and the dark water below it */
   b.color(BUILD.stoneDark, 0.05, r);
   lathe(b, [[R * 0.78, 0.86], [R * 1.12, 0.90], [R * 1.12, 0.98], [R * 0.78, 0.99]], 14);
+  // discs seen from above: authored outer-to-inner so the lathe winds up
   b.color(0x121a1c, 0.03, r);
-  lathe(b, [[0.001, 0.40], [R * 0.76, 0.42]], 12);
+  { const m = b.mark; lathe(b, [[R * 0.76, 0.42], [0.001, 0.40]], 12); b.orientOutward(m, 0, -1, 0); }
   b.color(0x2f4a4e, 0.05, r);
-  lathe(b, [[0.001, 0.46], [R * 0.7, 0.45]], 12);
+  { const m = b.mark; lathe(b, [[R * 0.7, 0.45], [0.001, 0.46]], 12); b.orientOutward(m, 0, -1, 0); }
 
   /* moss in the joints */
   for (let i = 0; i < 10; i++) {
@@ -168,8 +169,11 @@ export function buildWell(b, { seed = 1, r: R = 0.9 } = {}) {
 
   b.color(BUILD.shingle, 0.06, r);
   for (const s of [-1, 1]) {
-    quad(b, [-R * 1.2, 2.24, 0], [R * 1.2, 2.24, 0], [R * 1.2, 1.95, s * R * 1.25], [-R * 1.2, 1.95, s * R * 1.25]);
-    quad(b, [R * 1.2, 2.24, 0], [-R * 1.2, 2.24, 0], [-R * 1.2, 1.95, s * R * 1.25], [R * 1.2, 1.95, s * R * 1.25]);
+    // The reverse of quad(a,b,c,d) is quad(a,d,c,b), NOT quad(b,a,d,c) —
+    // the latter is a different pair of triangles and leaves the surface
+    // one-sided with two stray faces. That mistake is in every hand-made
+    // back face below, so they are all written the same way now.
+    sheet(b, [-R * 1.2, 2.24, 0], [R * 1.2, 2.24, 0], [R * 1.2, 1.95, s * R * 1.25], [-R * 1.2, 1.95, s * R * 1.25], 0.05);
   }
   b.color(BUILD.shingleMoss, 0.05, r);
   box(b, 0, 2.28, 0, R * 2.5, 0.08, 0.14);
@@ -264,7 +268,7 @@ export function buildFirePit(b, { seed = 1, r: R = 0.6, glow = null, cauldron = 
       r.range(0.11, 0.21), 3, 5, lumpWarp(r, 3, 0.35), 0);
   }
   b.color(0x241c16, 0.06, r);
-  lathe(b, [[0.001, 0.02], [R * 0.85, 0.01]], 10);
+  { const m = b.mark; lathe(b, [[R * 0.85, 0.01], [0.001, 0.02]], 10); b.orientOutward(m, 0, -1, 0); }
   // charred logs leaning into the middle
   for (let i = 0; i < r.int(3, 5); i++) {
     const a = r.range(0, TAU);
@@ -276,7 +280,7 @@ export function buildFirePit(b, { seed = 1, r: R = 0.6, glow = null, cauldron = 
   }
   const target = glow || b;
   target.color(BUILD.ember, 0.1, r);
-  lathe(target, [[0.001, 0.09], [R * 0.55, 0.05]], 8);
+  { const m = target.mark; lathe(target, [[R * 0.55, 0.05], [0.001, 0.09]], 8); target.orientOutward(m, 0, -1, 0); }
   for (let i = 0; i < 5; i++) {
     const a = r.range(0, TAU), rr = r.range(0, R * 0.4);
     target.color(i % 2 ? BUILD.fire : BUILD.fireHot, 0.08, r);
@@ -414,8 +418,7 @@ export function buildStall(b, { seed = 1, w = 2.6, d = 1.5, goods = 'produce' } 
   }
   // a cloth skirt at the front
   b.color(r.pick([BUILD.clothRed, BUILD.clothBlue, BUILD.clothGreen, BUILD.clothCream]), 0.05, r);
-  quad(b, [-w / 2, h - 0.04, d / 2], [w / 2, h - 0.04, d / 2], [w / 2, 0.06, d / 2 + 0.03], [-w / 2, 0.06, d / 2 + 0.03]);
-  quad(b, [w / 2, h - 0.04, d / 2], [-w / 2, h - 0.04, d / 2], [-w / 2, 0.06, d / 2 + 0.03], [w / 2, 0.06, d / 2 + 0.03]);
+  sheet(b, [-w / 2, h - 0.04, d / 2], [w / 2, h - 0.04, d / 2], [w / 2, 0.06, d / 2 + 0.03], [-w / 2, 0.06, d / 2 + 0.03]);
 
   /* the awning: four poles and a striped, sagging cloth */
   const ah = 2.25;
@@ -439,8 +442,7 @@ export function buildStall(b, { seed = 1, w = 2.6, d = 1.5, goods = 'produce' } 
         [lerp(-w / 2, w / 2, u1) * 1.08, yAt(u1, v1), lerp(-d / 2, d / 2, v1) * 1.35],
         [lerp(-w / 2, w / 2, u0) * 1.08, yAt(u0, v1), lerp(-d / 2, d / 2, v1) * 1.35],
       ];
-      quad(b, p[0], p[1], p[2], p[3]);
-      quad(b, p[1], p[0], p[3], p[2]);
+      sheet(b, p[0], p[1], p[2], p[3], 0.018);
     }
   }
 
@@ -724,10 +726,8 @@ export function buildScarecrow(b, { seed = 1, h = 1.8 } = {}) {
     const u0 = i / 5, u1 = (i + 1) / 5;
     const x0 = lerp(-cw / 2, cw / 2, u0), x1 = lerp(-cw / 2, cw / 2, u1);
     const sagA = Math.sin(u0 * Math.PI) * 0.1, sagB = Math.sin(u1 * Math.PI) * 0.1;
-    quad(b, [x0, armY + 0.06, 0.02], [x1, armY + 0.06, 0.02],
-      [x1, armY - ch - sagB, 0.06], [x0, armY - ch - sagA, 0.06]);
-    quad(b, [x1, armY + 0.06, 0.02], [x0, armY + 0.06, 0.02],
-      [x0, armY - ch - sagA, 0.06], [x1, armY - ch - sagB, 0.06]);
+    sheet(b, [x0, armY + 0.06, 0.02], [x1, armY + 0.06, 0.02],
+      [x1, armY - ch - sagB, 0.06], [x0, armY - ch - sagA, 0.06], 0.015);
   }
   const sub = new MeshBuilder();
   buildSack(sub, { seed, s: 0.17 });
@@ -764,8 +764,7 @@ export function buildWashingLine(b, { seed = 1, len = 4.5, h = 2.0 } = {}) {
         const u0 = a / cols, u1 = (a + 1) / cols, v0 = c / rows, v1 = (c + 1) / rows;
         const wob = (u, v) => Math.sin(u * 5 + v * 3 + i) * 0.03 * v;
         const P = (u, v) => [x + lerp(-cw / 2, cw / 2, u), y - 0.02 - v * ch, wob(u, v)];
-        quad(b, P(u0, v0), P(u1, v0), P(u1, v1), P(u0, v1));
-        quad(b, P(u1, v0), P(u0, v0), P(u0, v1), P(u1, v1));
+        sheet(b, P(u0, v0), P(u1, v0), P(u1, v1), P(u0, v1), 0.01);
         // sway grows toward the bottom of the cloth
         for (let k = b.sway.length - 8; k < b.sway.length; k++) if (k >= 0) b.sway[k] = 0.25 + v1 * 0.6;
       }
@@ -784,12 +783,17 @@ export function buildBeehives(b, { seed = 1, n = 3 } = {}) {
     const x = lerp(-(n - 1) * 0.31, (n - 1) * 0.31, n === 1 ? 0.5 : i / (n - 1));
     const hex = mixHex(BUILD.thatch, BUILD.thatchOld, r() * 0.7);
     b.color(hex, 0.07, r);
-    // coiled straw: a stack of tori read as the coils
-    for (let k = 0; k < 7; k++) {
-      const t = k / 6;
-      const rr = 0.24 * Math.sqrt(1 - t * t * 0.92);
-      lathe(b, [[rr * 0.94, 0.36 + t * 0.42], [rr, 0.36 + t * 0.42 + 0.035], [rr * 0.94, 0.36 + t * 0.42 + 0.06]], 9, x, 0);
+    /* ONE solid dome with coil ridges on it, not a stack of separate
+       rings: a stack has a gap between every pair of rings and you can see
+       the inside of the skep through each one. */
+    const prof = [];
+    for (let k = 0; k <= 12; k++) {
+      const t = k / 12;
+      const rr = 0.24 * Math.sqrt(Math.max(0.001, 1 - t * t * 0.985));
+      const ridge = 1 + 0.10 * Math.abs(Math.sin(t * Math.PI * 6));
+      prof.push([rr * ridge, 0.36 + t * 0.44]);
     }
+    lathe(b, prof, 11, x, 0, 0, t => shade(hex, (0.5 - Math.abs(t - 0.5)) * 0.10));
     b.color(0x241c16, 0.04, r);
     box(b, x, 0.42, 0.23, 0.09, 0.035, 0.04);
   }
@@ -1100,24 +1104,36 @@ export function buildGrindstone(b, { seed = 1 } = {}) {
 export function buildPlanter(b, { seed = 1, R = 0.32 } = {}) {
   const r = makeRng(seed ^ 0x914a);
   const half = r.chance(0.5);
+
+  /* A POT HAS NO INSIDE, because it is full of soil.
+     Modelling the inner wall means a surface whose correct facing reverses
+     half way along the profile, and every attempt to state that reversal
+     left a ring of inside-out geometry around the rim. The soil disc sits
+     just under the rim and seals it, so the inside never existed and never
+     needed to. */
+  const rimY = 0.355, soilY = 0.315;
+  const shellHex = half ? BUILD.plankOld : mixHex(BUILD.tileClay, 0x8a5a3a, r());
+  b.color(shellHex, 0.07, r);
   if (half) {
-    b.color(BUILD.plankOld, 0.07, r);
-    lathe(b, [[R * 0.8, 0], [R, 0.34], [R * 0.94, 0.35], [R * 0.74, 0.02]], 10);
+    lathe(b, [[R * 0.8, 0], [R, 0.34], [R * 0.96, rimY]], 10);
     b.color(METAL.ironRust, 0.05, r);
     lathe(b, [[R * 1.01, 0.28], [R * 1.02, 0.32]], 10);
   } else {
-    b.color(mixHex(BUILD.tileClay, 0x8a5a3a, r()), 0.07, r);
-    lathe(b, [[R * 0.62, 0], [R * 0.95, 0.32], [R, 0.36], [R * 0.86, 0.35]], 10);
+    lathe(b, [[R * 0.62, 0], [R * 0.95, 0.32], [R, 0.36], [R * 0.96, rimY]], 10);
   }
+
+  // the rim, and the soil that seals the pot: both discs, both stated
+  b.color(shade(shellHex, -0.14), 0.05, r);
+  { const m = b.mark; lathe(b, [[R * 0.96, rimY], [R * 0.84, rimY - 0.004]], 10); b.orientOutward(m, 0, -1, 0); }
   b.color(GROUND.farmSoil, 0.06, r);
-  lathe(b, [[0.001, 0.30], [R * 0.86, 0.32]], 9);
+  { const m = b.mark; lathe(b, [[R * 0.86, soilY], [0.001, soilY - 0.02]], 9); b.orientOutward(m, 0, -1, 0); }
+
   for (let i = 0; i < r.int(5, 11); i++) {
     const a = r.range(0, TAU), rr = r.range(0, R * 0.75);
     b.color(r.pick([0xd2503f, 0xf2cf54, 0xe098b4, 0x9a72c0, 0xf6f4e8, 0xe89347]), 0.10, r);
-    blob(b, Math.cos(a) * rr, 0.36 + r.range(0.02, 0.16), Math.sin(a) * rr,
+    blob(b, Math.cos(a) * rr, soilY + r.range(0.03, 0.17), Math.sin(a) * rr,
       r.range(0.03, 0.055), 2, 5, null, 0.4);
-  }
-  b.color(0x4e7a2e, 0.10, r);
+  }  b.color(0x4e7a2e, 0.10, r);
   for (let i = 0; i < 6; i++) {
     const sub = new MeshBuilder();
     sub.curColor = b.curColor;

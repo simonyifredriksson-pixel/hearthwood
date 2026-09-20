@@ -55,7 +55,7 @@ export class Player {
     this.actionDur = 0;
     this.onActionDone = null;
 
-    this.weapon = null;           // {meshes, recipe, sticks, info}
+    this.weapon = null;           // {meshes, weapon, cls, info}
     this.lookAt = null;
     this._blockers = [];
   }

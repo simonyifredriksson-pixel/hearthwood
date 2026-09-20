@@ -14,7 +14,7 @@
 */
 
 import { makeRng, clamp, lerp, hash2, TAU } from '../core/Util.js';
-import { BARK, MOSS, MUSHROOM, LEAF } from '../art/Palette.js';
+import { BARK, MOSS, MUSHROOM, LEAF, RARITY } from '../art/Palette.js';
 
 /* ========================================================================= */
 /* SPECIES — the wood itself                                                 */
@@ -198,6 +198,140 @@ export const RARE = {
 export const RARE_LIST = Object.values(RARE);
 
 /* ========================================================================= */
+/* SPECIAL MATERIALS — the thing that got INTO the wood                      */
+/* ========================================================================= */
+
+/**
+ * These are the components that survive the forge.
+ *
+ * A special material is not a tint and not an aura: it is a substance with a
+ * place in the wood — a seam, a crust, a set of nodules — and when the
+ * Stickwright works the stick into a weapon he works AROUND it, so the same
+ * crystal that grew through the branch is still growing through the blade.
+ * That is the whole promise of the system, so every entry here carries the
+ * numbers the mesh needs (`hex`, `glow`, `hard`), not just a label.
+ *
+ * `w` is a weight among specials, not an absolute rate — `specialChance`
+ * below decides how often a stick has one at all, and it is deliberately low.
+ */
+export const MATERIALS = {
+  amber: {
+    name: 'amber', label: 'Amber', w: 14, hex: 0xd9932c, glow: 0.20, hard: 0.6,
+    form: 'bead', likes: { resin: 1.9 },
+    note: 'Old resin, run out of a wound and set hard as honey-coloured glass.',
+  },
+  ironvein: {
+    /* Cool grey, not brown. The first version was 0x6d6055, which is very
+       nearly oak bark — a seam of ore you cannot see is not a component. */
+    name: 'ironvein', label: 'Ironvein', w: 12, hex: 0x5b646f, glow: 0, hard: 1.9,
+    form: 'seam', likes: { high: 1.4 },
+    note: 'A seam of ore drawn up through the heart, thin as a wire and twice as stubborn.',
+  },
+  crystal: {
+    name: 'crystal', label: 'Crystal', w: 10, hex: 0x9fd8ef, glow: 0.35, hard: 1.5,
+    form: 'shard', likes: { deep: 1.6, high: 1.3 },
+    note: 'Quartz has grown out through the grain in clean blue-white shards.',
+  },
+  oldstone: {
+    name: 'oldstone', label: 'Ancient Stone', w: 9, hex: 0xa7a396, glow: 0, hard: 1.7,
+    form: 'crust', likes: { deep: 1.4 },
+    note: 'Where it lay, the wood gave up being wood. It is stone now, and heavy.',
+  },
+  rime: {
+    name: 'rime', label: 'Rimefrost', w: 8, hex: 0xcfe6f2, glow: 0.18, hard: 0.8,
+    form: 'crust', likes: { high: 2.2, wet: 1.3 },
+    note: 'A frost that has not melted since the wood fell, and does not intend to.',
+  },
+  ember: {
+    name: 'ember', label: 'Emberheart', w: 5, hex: 0xe2662a, glow: 0.60, hard: 1.1,
+    form: 'seam', likes: { burnt: 2.6 },
+    note: 'There is a heat still in it. Not much. It has simply never gone out.',
+  },
+  wisplight: {
+    name: 'wisplight', label: 'Wisplight', w: 4, hex: 0x8ff0c4, glow: 0.85, hard: 0.7,
+    form: 'vein', likes: { deep: 2.0, wet: 1.5 },
+    note: 'Something pale moves under the bark, slowly, and never quite the same way twice.',
+  },
+  emberflow: {
+    name: 'emberflow', label: 'Emberflow', w: 1, hex: 0xff5a1e, glow: 1.0, hard: 1.3,
+    form: 'vein', likes: { deep: 2.4, burnt: 2.0 },
+    note: 'It runs. Very slowly, and only when nobody is watching, but it runs.',
+  },
+};
+
+export const MATERIAL_LIST = Object.values(MATERIALS);
+
+/* ========================================================================= */
+/* RARE EFFECTS — the eighth component, and the one nobody expects           */
+/* ========================================================================= */
+
+export const EFFECTS = {
+  hollow: {
+    name: 'hollow', label: 'Hollowed', w: 12,
+    note: 'Empty down the middle. Put it to your ear and the wood is still saying something.',
+  },
+  everdamp: {
+    name: 'everdamp', label: 'Everdamp', w: 11,
+    note: 'It has not been rained on for a month and it is still wet. Nobody knows why.',
+  },
+  foxfire: {
+    name: 'foxfire', label: 'Foxfire', w: 10,
+    note: 'In daylight it is a pale branch. After dusk it is a reason to walk faster.',
+  },
+  runemark: {
+    name: 'runemark', label: 'Rune-marked', w: 7,
+    note: 'Beetle-tracks, probably. They repeat, though, and beetles do not repeat.',
+  },
+  starlit: {
+    name: 'starlit', label: 'Starlit', w: 6,
+    note: 'Flecks in the grain that catch light there is no source for.',
+  },
+  petrified: {
+    name: 'petrified', label: 'Petrified', w: 5,
+    note: 'It has been turning to stone for a very long time and is nearly finished.',
+  },
+  singing: {
+    name: 'singing', label: 'Singing', w: 3,
+    note: 'Hold it into the wind and it finds a note. Always the same note.',
+  },
+};
+
+export const EFFECT_LIST = Object.values(EFFECTS);
+
+/* ========================================================================= */
+/* BARK                                                                      */
+/* ========================================================================= */
+
+export const BARKS = {
+  /* `plain` means "not worth calling a component". Most bark is just bark:
+     a ridged oak and a dark elder are the normal state of those trees, and
+     listing them would put a component on nearly every stick in the wood. */
+  rough: { name: 'rough', label: 'Rough bark', plain: true },
+  smooth: { name: 'smooth', label: 'Smooth bark', plain: true },
+  ridged: { name: 'ridged', label: 'Deep-ridged bark', plain: true },
+  dark: { name: 'dark', label: 'Dark bark', plain: true },
+  cracked: { name: 'cracked', label: 'Cracked bark' },
+  papery: { name: 'papery', label: 'Papery bark' },
+  stripped: { name: 'stripped', label: 'Bark stripped away' },
+  charred: { name: 'charred', label: 'Charred bark' },
+};
+
+/* ========================================================================= */
+/* NATURAL FEATURES — the small living things riding along                   */
+/* ========================================================================= */
+
+export const NATURE = {
+  leaves: { name: 'leaves', label: 'Clinging leaves', w: 16 },
+  vines: { name: 'vines', label: 'Wound with vine', w: 12 },
+  thorns: { name: 'thorns', label: 'Thorned', w: 10 },
+  flowers: { name: 'flowers', label: 'Small flowers', w: 7 },
+  roots: { name: 'roots', label: 'Trailing rootlets', w: 9 },
+  ivy: { name: 'ivy', label: 'Ivy-clad', w: 8 },
+};
+
+export const NATURE_LIST = Object.values(NATURE);
+
+/* ========================================================================= */
 /* BROKEN ENDS                                                               */
 /* ========================================================================= */
 
@@ -339,6 +473,86 @@ export function rollStick(seed, ctx = {}) {
   /* --- leaves still clinging --------------------------------------------- */
   const leaves = r.chance(0.22) ? r.range(0.3, 1) : 0;
 
+  /* --- bark condition ---------------------------------------------------- */
+  /* Derived, not rolled blind: a stick that has been in the river is stripped,
+     a struck one is charred, birch is papery. Only the middle of the range is
+     left to chance, because that is the only part that is genuinely arbitrary. */
+  let bark;
+  if (charred > 0.3) bark = BARKS.charred;
+  else if (pale > 0.72) bark = BARKS.stripped;
+  else if (species.papery) bark = BARKS.papery;
+  else if (species.ridge > 0.6) bark = r.chance(0.6) ? BARKS.ridged : BARKS.rough;
+  else if (species.ridge < 0.25) bark = r.chance(0.6) ? BARKS.smooth : BARKS.rough;
+  else if (r.chance(0.18)) bark = BARKS.cracked;
+  else if (r.chance(0.16)) bark = BARKS.dark;
+  else bark = r.chance(0.5) ? BARKS.rough : BARKS.smooth;
+
+  /* --- a small living thing riding along ---------------------------------- */
+  let nature = null;
+  const natureDrive = clamp(0.10 + shade * 0.22 + wetness * 0.16, 0, 0.55);
+  if (r.chance(natureDrive)) {
+    nature = r.weighted(NATURE_LIST, n => {
+      if (n === NATURE.thorns) return species.thorny ? n.w * 6 : n.w * 0.35;
+      if (n === NATURE.roots) return form.name === 'root' ? n.w * 5 : n.w * 0.5;
+      if (n === NATURE.leaves) return leaves > 0 ? n.w * 2.2 : n.w * 0.4;
+      if (n === NATURE.flowers) return n.w * (1 - shade * 0.7);
+      return n.w;
+    });
+  }
+
+  /* --- a special material, and this is the rare one ----------------------- */
+  /* Kept genuinely scarce: about one stick in a hundred near the village and
+     one in fourteen at the far edge of the map. It has to stay an event. */
+  let special = null;
+  const specialChance = lerp(0.008, 0.070, Math.pow(remote, 1.35));
+  if (r.chance(specialChance)) {
+    const bias = {
+      deep: remote, high: clamp((ctx.altitude ?? 0) / 160, 0, 1),
+      wet: wetness, burnt: charred > 0 ? 1 : 0,
+      resin: species.name === 'pine' ? 1 : 0,
+    };
+    special = r.weighted(MATERIAL_LIST, m => {
+      let w = m.w;
+      for (const k in (m.likes || {})) w *= lerp(1, m.likes[k], bias[k] ?? 0);
+      return w;
+    });
+  }
+
+  /* --- and the eighth component, rarer still ------------------------------ */
+  let effect = null;
+  const effectChance = lerp(0.005, 0.048, Math.pow(remote, 1.5));
+  if (r.chance(effectChance)) {
+    effect = r.weighted(EFFECT_LIST, e => {
+      if (e === EFFECTS.foxfire) return e.w * (1 + shade * 2);
+      if (e === EFFECTS.everdamp) return e.w * (0.3 + wetness * 2.4);
+      if (e === EFFECTS.hollow) return e.w * (species.hollowProne ? 3.5 : 1);
+      if (e === EFFECTS.petrified) return e.w * (0.4 + remote * 1.8);
+      return e.w;
+    });
+  }
+  if (rare === RARE.moonpale && !effect) effect = EFFECTS.foxfire;
+
+  /* --- where the special material sits on the shaft ----------------------- */
+  const inclusions = [];
+  if (special) {
+    const n = special.form === 'bead' ? r.int(2, 6)
+      : special.form === 'shard' ? r.int(2, 5)
+        : special.form === 'crust' ? r.int(1, 3) : r.int(1, 2);
+    for (let i = 0; i < n; i++) {
+      inclusions.push({
+        at: r.range(0.08, 0.94), roll: r.range(0, TAU),
+        /* Generous, deliberately. These are measured in SHAFT RADII, and a
+           shaft radius is a centimetre — an inclusion at 0.5 radii is four
+           millimetres of stone on a branch and it is simply not visible from
+           anywhere a player stands. The crystal worked at the first attempt
+           because shards stick out; everything that lies flat needs the size
+           to carry it instead. */
+        size: r.range(1.0, 2.2), len: r.range(0.22, 0.55),
+        tilt: r.range(-0.6, 0.6),
+      });
+    }
+  }
+
   /* --- how it came off the tree ------------------------------------------ */
   let brokenEnd = r.pick(BREAKS);
   if (rare === RARE.lightningsplit) brokenEnd = 'splinter';
@@ -396,6 +610,11 @@ export function rollStick(seed, ctx = {}) {
     length, thick, taper, curve, curvePlane, wobble, kinks,
     forks, twigs, knots, fungi,
     moss, mossSide, lichen, wet, pale, charred, leaves,
+    bark: bark.name,
+    nature: nature ? nature.name : null,
+    special: special ? special.name : null,
+    effect: effect ? effect.name : null,
+    inclusions,
     brokenEnd, brokenButt,
     extra,
     hue: r.range(-0.035, 0.035),
@@ -403,6 +622,7 @@ export function rollStick(seed, ctx = {}) {
   };
 
   spec.tags = stickTags(spec);
+  spec.parts = stickComponents(spec);
   spec.tier = stickTier(spec);
   spec.name = stickName(spec);
   return spec;
@@ -453,6 +673,15 @@ export function stickTags(s) {
   if (sp.thorny) t.add('thorned');
   t.add('wood:' + s.species);
 
+  if (s.special) { t.add('special'); t.add('mat:' + s.special); }
+  if (s.effect) { t.add('effect'); t.add('fx:' + s.effect); }
+  if (s.effect === 'foxfire') { t.add('foxfire'); t.add('glowing'); }
+  if (s.nature) t.add('nat:' + s.nature);
+  if (s.nature === 'thorns') t.add('thorned');
+  if (s.bark) t.add('bark:' + s.bark);
+  if (s.bark === 'charred') t.add('charred');
+  if (s.bark === 'stripped') t.add('pale');
+
   if (s.rare) {
     const R = RARE[s.rare];
     if (R) for (const x of R.tags) t.add(x);
@@ -463,18 +692,142 @@ export function stickTags(s) {
 
 export const hasTag = (s, tag) => (s.tags || stickTags(s)).includes(tag);
 
-/** 0 common .. 4 storied. Drives the name colour, the chime, and the value. */
+/* ========================================================================= */
+/* COMPONENTS — the stick's DNA, and the whole basis of the forge            */
+/* ========================================================================= */
+
+/**
+ * Eight slots. A stick has a component in a slot only when that axis is
+ * REMARKABLE — every stick has a length, but only an unusual length is a
+ * component. That is what makes the count mean something: the ordinary branch
+ * you tread on has one or two, and the thing you cross a valley for has all
+ * eight. It is also what the Stickwright reads when he decides what to make,
+ * what ends up physically on the finished weapon, and what the rarity is.
+ *
+ * `weight` is that slot's contribution to rarity. Shape and size are cheap —
+ * plenty of sticks are long — while a special material or a rare effect is
+ * most of the reason a weapon turns out to be worth a name.
+ *
+ * @returns {Array<{slot,key,label,note,weight}>}
+ */
+export function stickComponents(s) {
+  const out = [];
+  const sp = SPECIES[s.species] || SPECIES.oak;
+  const add = (slot, key, label, note, weight) => out.push({ slot, key, label, note, weight });
+
+  const bend = s.curve + s.wobble * 0.5 + s.kinks * 0.35;
+
+  /* 1 — SHAPE ------------------------------------------------------------- */
+  if (s.rare) {
+    const R = RARE[s.rare];
+    add('shape', s.rare, R.label, R.desc, 2.6);
+  } else if (s.forks.length >= 3) {
+    add('shape', 'branching', 'Many-branched', 'It forked, and then the forks forked.', 1.4);
+  } else if (s.forks.length >= 2) {
+    add('shape', 'forked', 'Forked', 'A clean fork, grown not broken.', 0.9);
+  } else if (bend < 0.16 && s.length > 1.4) {
+    add('shape', 'true', 'Perfectly straight', 'Straight enough to sight along, which almost nothing is.', 1.5);
+  } else if (bend > 1.55) {
+    add('shape', 'crooked', 'Strongly curved', 'A long deliberate bend, like something drawn.', 1.2);
+  } else if (bend > 1.20) {
+    add('shape', 'curved', 'Curved', 'It leans away from straight and keeps leaning.', 0.7);
+  }
+
+  /* 2 — LENGTH ------------------------------------------------------------ */
+  if (s.length > 3.2) add('length', 'giant', 'Enormous', `${s.length.toFixed(2)} m — taller than most doors.`, 1.6);
+  else if (s.length > 2.6) add('length', 'long', 'Very long', `${s.length.toFixed(2)} m.`, 0.9);
+  else if (s.length < 0.34) add('length', 'tiny', 'Very short', `${(s.length * 100).toFixed(0)} cm — barely a hand span.`, 0.8);
+
+  /* 3 — THICKNESS --------------------------------------------------------- */
+  if (s.thick > 0.098) add('girth', 'colossal', 'Enormously thick', `${(s.thick * 200).toFixed(0)} mm across.`, 1.5);
+  else if (s.thick > 0.072) add('girth', 'thick', 'Thick', `${(s.thick * 200).toFixed(0)} mm across.`, 0.8);
+  else if (s.thick < 0.0095) add('girth', 'fine', 'Very fine', `${(s.thick * 200).toFixed(0)} mm across.`, 0.7);
+
+  /* 4 — MOSS -------------------------------------------------------------- */
+  if (s.moss > 0.82) add('moss', 'ancient', 'Ancient moss', 'Deep enough to sink a thumb into. It has been there for years.', 1.3);
+  else if (s.moss > 0.64) add('moss', 'deep', 'Deep moss', 'Green the whole way down one side.', 0.8);
+  else if (s.moss > 0.46) add('moss', 'moss', 'Mossed', 'A patch of green where it lay against the ground.', 0.4);
+  else if (s.lichen > 0.70) add('moss', 'lichen', 'Lichened', 'Grey-green rosettes, flat to the bark.', 0.4);
+
+  /* 5 — BARK -------------------------------------------------------------- */
+  {
+    const B = BARKS[s.bark] || BARKS.rough;
+    if (!B.plain) {
+      const note = {
+        charred: 'Black and crazed down one side. It still smells of the storm.',
+        stripped: 'No bark at all. Sun and water took it.',
+        papery: 'Peeling off in pale sheets.',
+        ridged: 'Ridged deep enough to catch a fingernail.',
+        cracked: 'Cracked into plates that shift when you hold it.',
+        dark: 'Almost black, and it does not lighten when it dries.',
+      }[B.name] || '';
+      add('bark', B.name, B.label, note, B.name === 'charred' ? 1.1 : 0.5);
+    }
+  }
+
+  /* 6 — SPECIAL MATERIAL --------------------------------------------------- */
+  if (s.special && MATERIALS[s.special]) {
+    const M = MATERIALS[s.special];
+    add('material', M.name, M.label, M.note, 2.4 + (M.glow > 0.5 ? 1.2 : 0));
+  }
+
+  /* 7 — NATURAL FEATURE ---------------------------------------------------- */
+  if (s.fungi.length && s.fungi.some(f => f.kind === 'glow')) {
+    add('nature', 'glowcap', 'Glowing fungi', 'Small caps along the top, and they are not reflecting anything.', 1.8);
+  } else if (s.fungi.length >= 4) {
+    add('nature', 'fungal', 'Bracket fungi', 'A row of little shelves down the length of it.', 0.8);
+  } else if (s.nature && NATURE[s.nature]) {
+    const N = NATURE[s.nature];
+    add('nature', N.name, N.label, {
+      vines: 'A vine wound round it and never let go.',
+      thorns: 'Armed the whole way along.',
+      flowers: 'Something small and pale is still flowering on it.',
+      roots: 'Fine rootlets trailing off it like hair.',
+      ivy: 'Ivy has taken it.',
+      leaves: 'Leaves still clinging, brown and dry.',
+    }[N.name] || '', 0.5);
+  }
+
+  /* 8 — RARE EFFECT --------------------------------------------------------- */
+  if (s.effect && EFFECTS[s.effect]) {
+    const E = EFFECTS[s.effect];
+    add('effect', E.name, E.label, E.note, 2.2);
+  }
+
+  /* the wood itself is not a component, but it does colour the rest */
+  if (sp.w <= 6 && out.length) out[0].wood = sp.label;
+
+  return out;
+}
+
+/** The total weight of a stick's components — the number rarity is read from. */
+export const componentScore = s =>
+  (s.parts || stickComponents(s)).reduce((n, c) => n + c.weight, 0);
+
+/**
+ * 0 Common .. 6 ???. Drives the name colour, the chime, the value and what
+ * the forge is willing to attempt.
+ *
+ * The thresholds are not guesses: test_world rolls forty thousand sticks and
+ * checks the real distribution against RARITY[].share. If everything is
+ * Legendary then nothing is, so most sticks must come out at 0 or 1 — and
+ * they do, because most sticks have one unremarkable component or none.
+ */
+/* Measured with tools/probe_rarity.mjs against RARITY[].share — these are the
+   score quantiles of sixty thousand rolls, not guesses. Re-run it after
+   touching any component weight. */
+export const TIER_CUTS = [1.40, 2.30, 3.40, 4.50, 5.70, 7.30];
+
 export function stickTier(s) {
-  if (s.rare) return RARE[s.rare]?.tier ?? 3;
-  let score = 0;
-  if (s.length > 2.4) score += 1;
-  if (s.thick > 0.062) score += 1;
-  if (s.moss > 0.7) score += 1;
-  if (s.fungi.length >= 3) score += 1;
-  if (s.forks.length >= 3) score += 1;
-  if (s.curve + s.wobble < 0.28 && s.length > 1.6) score += 1;   // a true stave
-  if ((SPECIES[s.species]?.w ?? 20) <= 7) score += 1;            // uncommon wood
-  return clamp(Math.floor(score / 2), 0, 2);
+  const score = componentScore(s);
+  const n = (s.parts || stickComponents(s)).length;
+  let tier = 0;
+  while (tier < TIER_CUTS.length && score >= TIER_CUTS[tier]) tier++;
+  /* The last tier is not reachable by stacking two enormous properties: it
+     wants a stick that is remarkable in several ways at once, which is the
+     only kind that deserves to come up nameless. */
+  if (tier >= 6 && n < 5) tier = 5;
+  return clamp(tier, 0, RARITY.length - 1);
 }
 
 /** What the Stickwright will pay, and what the satchel tooltip shows. */
@@ -482,8 +835,10 @@ export function stickValue(s) {
   const sp = SPECIES[s.species] || SPECIES.oak;
   let v = 2 + s.length * 3 + s.thick * 90;
   v *= sp.hardness;
-  v *= 1 + s.moss * 0.4 + s.fungi.length * 0.12 + s.forks.length * 0.1;
-  if (s.rare) v *= 2.2 + (RARE[s.rare]?.tier ?? 3) * 0.6;
+  v *= 1 + componentScore(s) * 0.34;
+  if (s.special) v *= 1.8;
+  if (s.effect) v *= 1.6;
+  if (s.rare) v *= 1.9;
   return Math.max(1, Math.round(v));
 }
 

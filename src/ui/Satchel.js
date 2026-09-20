@@ -11,7 +11,7 @@ import { MeshBuilder } from '../art/Geo.js';
 import { buildStick } from '../art/StickGen.js';
 import { buildWeapon } from '../art/WeaponArt.js';
 import { MATS } from '../art/Materials.js';
-import { RECIPE_BY_ID } from '../data/WeaponData.js';
+
 import { stickBlurb, stickValue, SPECIES as WOOD } from '../data/StickData.js';
 import { RARITY } from '../art/Palette.js';
 import { ic } from './Icons.js';
@@ -74,11 +74,11 @@ export class Turntable {
   }
 
   /** Show a finished weapon. */
-  showWeapon(recipe, sticks) {
+  showWeapon(weapon) {
     this.clear();
-    if (!recipe || !sticks?.length) return;
+    if (!weapon || !weapon.design || !weapon.stick) return;
     const glow = new MeshBuilder();
-    const out = buildWeapon(recipe, sticks, { lod: 0, glow });
+    const out = buildWeapon(weapon, { lod: 0, glow });
     this._add(out.builder.build({ flat: false }), MATS.item);
     if (!glow.isEmpty) this._add(glow.build({ flat: false }), MATS.glow);
     this._frame();
@@ -176,7 +176,7 @@ export class SatchelScreen {
       this.tt.showStick(this.state.stickById(uid));
     } else {
       const w = this.state.weaponById(uid);
-      if (w) this.tt.showWeapon(RECIPE_BY_ID[w.recipeId], w.sticks);
+      if (w) this.tt.showWeapon(w);
     }
     this.render();
   }
@@ -251,14 +251,14 @@ export class SatchelScreen {
   }
 
   _weaponRow(w) {
-    const t = clamp(w.stats?.tier ?? 0, 0, 4);
+    const t = clamp(w.tier ?? w.stats?.tier ?? 0, 0, RARITY.length - 1);
     const R = RARITY[t];
     const on = this.state.equipped === w.uid;
     return `<button class="row stick-row${w.uid === this.sel ? ' sel' : ''}" data-uid="${w.uid}">
       <span class="swatch" style="--c:${R.css}">${ic('sword')}</span>
       <span class="row-main">
         <b style="color:${t >= 2 ? R.css : 'inherit'}">${esc(w.name)}</b>
-        <i>${esc(RECIPE_BY_ID[w.recipeId]?.cls || '')} · ${w.stats.length.toFixed(2)} m · heft ${w.stats.heft}</i>
+        <i>${esc(w.label || w.cls)} · ${R.name} · ${w.stats.length.toFixed(2)} m</i>
       </span>
       <span class="row-tags">${on ? `<em class="lit">carried</em>` : ''}</span>
     </button>`;
@@ -266,19 +266,39 @@ export class SatchelScreen {
 
   _weaponDetail(w) {
     if (!w) return '<div class="detail empty">Nothing selected.</div>';
-    const rec = RECIPE_BY_ID[w.recipeId];
-    const t = clamp(w.stats?.tier ?? 0, 0, 4);
+    const t = clamp(w.tier ?? w.stats?.tier ?? 0, 0, RARITY.length - 1);
+    const R = RARITY[t];
+    const st = w.stats;
+    const src = w.stick;
+    /* Bars rather than bare numbers. "bite 31" tells the player nothing on
+       its own; a bar tells them where this weapon sits against every other
+       weapon they could be holding, which is the only question they have. */
+    const bar = (label, v, max) => `<div class="stat">
+      <span>${label}</span>
+      <em style="--w:${clamp(v / max, 0, 1) * 100}%"></em>
+      <b>${typeof v === 'number' ? (v < 10 ? v.toFixed(2) : Math.round(v)) : v}</b>
+    </div>`;
     return `<div class="detail">
-      <h3 style="color:${RARITY[t].css}">${esc(w.name)}</h3>
-      <p class="blurb">${esc(rec?.desc || '')}</p>
+      <h3 style="color:${R.css}">${esc(w.name)}</h3>
+      <p class="kind"><span style="color:${R.css}">${esc(R.name)}</span> · ${esc(w.label || w.cls)}
+        · ${st.hands === 2 ? 'two hands' : 'one hand'}</p>
+      ${w.blurb ? `<p class="blurb">&ldquo;${esc(w.blurb)}&rdquo;</p>` : ''}
+      <div class="stats">
+        ${bar('damage', st.bite, 60)}
+        ${bar('speed', st.speed, 3)}
+        ${bar('reach', st.reach, 3.2)}
+        ${bar('heft', st.heft, 6)}
+      </div>
+      ${w.traits?.length ? `<ul class="traits">${w.traits.map(tr =>
+        `<li><b>${esc(tr.label)}</b><i>${esc(tr.note)}</i></li>`).join('')}</ul>` : ''}
       <dl>
-        <dt>kind</dt><dd>${esc(rec?.cls || '')}</dd>
-        <dt>length</dt><dd>${w.stats.length.toFixed(2)} m</dd>
-        <dt>heft</dt><dd>${w.stats.heft}</dd>
-        <dt>reach</dt><dd>${w.stats.reach} m</dd>
-        <dt>wood</dt><dd>${esc(w.stats.material)}</dd>
+        <dt>length</dt><dd>${st.length.toFixed(2)} m</dd>
+        <dt>wood</dt><dd>${esc(st.material)}</dd>
+        ${st.special ? `<dt>material</dt><dd>${esc(st.special)}</dd>` : ''}
       </dl>
-      <p class="made">made from ${w.sticks.map(s => `<em>${esc(s.name)}</em>`).join(' and ')}</p>
+      ${src ? `<p class="made">from <em>${esc(src.name)}</em> —
+        ${src.length.toFixed(2)} m, ${(src.thick * 200).toFixed(0)} mm across,
+        ${src.parts?.length || 0} notable ${(src.parts?.length || 0) === 1 ? 'feature' : 'features'}</p>` : ''}
     </div>`;
   }
 }

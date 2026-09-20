@@ -104,6 +104,8 @@ export class UI {
   update(dt) {
     if (this._satchelPulse > 0) this._satchelPulse = Math.max(0, this._satchelPulse - dt * 0.5);
     this.elSatchel.style.opacity = String(lerp(0.42, 1, clamp01(this._satchelPulse * 2.2 + 0.2)));
+    // a screen may be running something on real time — the forge sequence is
+    for (const s of this.screens) s.update?.(dt);
   }
 
   /* ====================================================================== */
@@ -143,7 +145,7 @@ export class UI {
   discovery({ title, sub, tier = 3 }) {
     const el = document.createElement('div');
     el.className = 'discovery';
-    el.style.setProperty('--rare', RARITY[clamp(tier, 0, 4)].css);
+    el.style.setProperty('--rare', RARITY[clamp(tier, 0, RARITY.length - 1)].css);
     el.innerHTML = `<span class="d-kicker">a find</span>
       <b>${esc(title)}</b>${sub ? `<i>${esc(sub)}</i>` : ''}`;
     this.toastBox.appendChild(el);
@@ -242,8 +244,12 @@ export class UI {
     }
     if (this.screens.length) {
       const top = this.screens[this.screens.length - 1];
+      /* A screen can refuse to be closed. The forge sequence does, because
+         closing it half way through would consume the stick and hand back
+         nothing — and because the player pressing Escape during a cutscene
+         usually means "get on with it", not "throw my branch away". */
       if (input.rawPressed('Escape') || (top.closeKey && input.rawPressed(top.closeKey))) {
-        this.pop();
+        if (!top.busy) this.pop();
         return true;
       }
       top.onKeys?.();
@@ -289,7 +295,7 @@ export class UI {
 
 /** A stick as a row in a list. Used by the satchel and the workshop. */
 export function stickRow(s, { selected = false, dim = false } = {}) {
-  const tier = clamp(s.tier ?? 0, 0, 4);
+  const tier = clamp(s.tier ?? 0, 0, RARITY.length - 1);
   const R = RARITY[tier];
   return `<button class="row stick-row${selected ? ' sel' : ''}${dim ? ' dim' : ''}" data-uid="${s.uid}">
     <span class="swatch" style="--c:${R.css}">${ic('stick')}</span>
@@ -301,21 +307,36 @@ export function stickRow(s, { selected = false, dim = false } = {}) {
   </button>`;
 }
 
-/** The detail panel for one stick. */
+/**
+ * The detail panel for one stick.
+ *
+ * Components, not tags. The old panel printed the raw tag vocabulary —
+ * "sound", "whippy", "wood:hazel" — which is what the generator calls things,
+ * not what a person would. The components are the same information said once,
+ * in a sentence, with the reason it matters.
+ */
 export function stickDetail(s) {
   if (!s) return '<div class="detail empty">Nothing selected.</div>';
-  const tier = clamp(s.tier ?? 0, 0, 4);
+  const tier = clamp(s.tier ?? 0, 0, RARITY.length - 1);
   const R = RARITY[tier];
+  const parts = s.parts || [];
+  const bend = s.curve + s.wobble * 0.5 + s.kinks * 0.35;
+  const shape = bend < 0.22 ? 'dead straight' : bend < 0.6 ? 'a gentle lean'
+    : bend < 1.1 ? 'a real curve' : bend < 1.6 ? 'a strong bend' : 'a hook';
   return `<div class="detail">
     <h3 style="color:${R.css}">${esc(s.name)}</h3>
+    <p class="kind"><span style="color:${R.css}">${esc(R.name)}</span>
+      &middot; ${parts.length || 'no'} notable ${parts.length === 1 ? 'feature' : 'features'}</p>
     <p class="blurb">${esc(stickBlurb(s))}</p>
-    <dl>
-      <dt>length</dt><dd>${s.length.toFixed(2)} m</dd>
-      <dt>thickness</dt><dd>${(s.thick * 200).toFixed(1)} cm</dd>
-      <dt>wood</dt><dd>${esc(s.species)}</dd>
-      <dt>worth</dt><dd>${stickValue(s)}</dd>
-    </dl>
-    <div class="tags">${(s.tags || []).map(t => `<em>${esc(t.replace(/^(wood|rare):/, ''))}</em>`).join('')}</div>
+    <div class="measures">
+      <span><b>${s.length.toFixed(2)} m</b><i>length</i></span>
+      <span><b>${(s.thick * 200).toFixed(0)} mm</b><i>across</i></span>
+      <span><b>${esc(shape)}</b><i>shape</i></span>
+      <span><b>${esc(s.species)}</b><i>wood</i></span>
+    </div>
+    ${parts.length ? `<ul class="parts">${parts.map(c =>
+      `<li class="p-${esc(c.slot)}"><b>${esc(c.label)}</b>${c.note ? `<i>${c.note}</i>` : ''}</li>`
+    ).join('')}</ul>` : ''}
   </div>`;
 }
 

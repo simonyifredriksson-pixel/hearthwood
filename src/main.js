@@ -28,7 +28,7 @@ import { NPCs } from './game/NPCs.js';
 import { GameState } from './game/State.js';
 import { SPECIES } from './game/Anim.js';
 import { weaponMeshes } from './art/WeaponArt.js';
-import { RECIPE_BY_ID } from './data/WeaponData.js';
+import { WEAPON_CLASSES } from './data/WeaponData.js';
 import { RARITY } from './art/Palette.js';
 import { STICKWRIGHT } from './data/VillagerData.js';
 import { RARE } from './data/StickData.js';
@@ -229,7 +229,7 @@ function updatePrompt() {
   const t = G.target;
   if (!t) { G.ui.setPrompt(null); return; }
   if (t.kind === 'stick') {
-    const tier = clamp(t.stick.spec.tier ?? 0, 0, 4);
+    const tier = clamp(t.stick.spec.tier ?? 0, 0, RARITY.length - 1);
     G.ui.setPrompt(t.stick.spec.name, {
       key: 'E', icon: 'stick', tone: tier >= 2 ? 'rare' : '',
     });
@@ -258,7 +258,7 @@ function doInteract() {
       if (!spec) return;
       const res = G.state.addStick(spec, s.key);
       if (!res.ok) return;
-      const tier = clamp(spec.tier ?? 0, 0, 4);
+      const tier = clamp(spec.tier ?? 0, 0, RARITY.length - 1);
       audio.pickup(tier);
       G.ui.setSatchel(G.state.sticks.length, G.state.capacity);
       if (res.discovery) {
@@ -339,9 +339,13 @@ function openWorkshop() {
   if (G.ui.busy) return;
   const s = new WorkshopScreen(G.state, G.ui, G.turntable, {
     audio,
-    onCraft: (weapon, recipe) => {
+    onCraft: (weapon) => {
       G.ui.setSatchel(G.state.sticks.length, G.state.capacity);
-      G.ui.toast({ text: weapon.name, sub: 'made at the bench', icon: 'hammer', tone: 'rare', ms: 5200 });
+      G.ui.toast({
+        text: weapon.name,
+        sub: `${weapon.label} · ${RARITY[clamp(weapon.tier, 0, RARITY.length - 1)].name}`,
+        icon: 'hammer', tone: 'rare', ms: 5600,
+      });
       if (!G.state.equipped) { G.state.equip(weapon.uid); equipFromState(); }
       G.state.save();
     },
@@ -354,10 +358,9 @@ function openWorkshop() {
 function equipFromState() {
   const w = G.state.equippedWeapon;
   if (!w) { G.player?.unequip(); G.ui.setWeapon(null); return; }
-  const rec = RECIPE_BY_ID[w.recipeId];
-  if (!rec) return;
-  const built = weaponMeshes(rec, w.sticks, MATS, { lod: 0 });
-  G.player.equip({ ...built, recipe: rec, weapon: w });
+  if (!w.design || !w.stick) return;
+  const built = weaponMeshes(w, MATS, { lod: 0 });
+  G.player.equip({ ...built, weapon: w, cls: w.cls });
   G.ui.setWeapon(w);
 }
 
@@ -420,9 +423,8 @@ function frame() {
     if (input.rawPressed('Escape')) { /* nothing open: ignore */ }
     if (input.rawPressed('KeyE')) doInteract();
     if (input.rawPressed('KeyF') && G.player?.weapon && !G.player.busy) {
-      audio.swing(G.player.weapon.recipe ? (G.player.weapon.info?.length || 1) : 1);
-      G.player.startAction('swing', G.player.weapon.recipe
-        ? (G.state.equippedWeapon?.stats.swingTime || 0.7) : 0.7);
+      audio.swing(G.player.weapon.info?.length || 1);
+      G.player.startAction('swing', G.state.equippedWeapon?.stats.swingTime || 0.7);
     }
     if (input.rawPressed('KeyV')) {
       rig.applyPreset(rig.presetName === 'vista' ? 'roam' : 'vista');

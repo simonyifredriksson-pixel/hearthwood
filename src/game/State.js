@@ -4,17 +4,18 @@
    of sticks already taken out of the world.
 
    A SAVE IS THE SEEDS, NOT THE OBJECTS. A stick in the satchel is stored as
-   the numbers it was rolled from, and a weapon as its recipe plus the specs
-   that went into it — a couple of hundred bytes, from which the exact mesh is
-   regenerated. The alternative, storing geometry, would be megabytes of
-   localStorage for something the generator can rebuild in a millisecond.
+   the numbers it was rolled from, and a weapon as the stick it came from plus
+   the genome the forge rolled — a couple of hundred bytes, from which the
+   exact mesh is regenerated. The alternative, storing geometry, would be
+   megabytes of localStorage for something the generator rebuilds in a
+   millisecond.
 */
 
 import { loadRaw, saveRaw, clearSave } from '../core/Save.js';
 import { bus, EV } from '../core/Bus.js';
 import { GAME } from '../core/Config.js';
-import { rollStick, stickValue, stickTags, stickTier, stickName, RARE } from '../data/StickData.js';
-import { RECIPE_BY_ID, weaponStats, weaponName } from '../data/WeaponData.js';
+import { rollStick, stickValue, stickTags, stickTier, stickName, stickComponents, RARE } from '../data/StickData.js';
+import { forgeWeapon, WEAPON_CLASSES } from '../data/WeaponData.js';
 import { SPECIES } from './Anim.js';
 import { clamp } from '../core/Util.js';
 
@@ -24,12 +25,13 @@ export class GameState {
   constructor() {
     this.species = null;
     this.sticks = [];            // stick specs, each with a .uid
-    this.weapons = [];           // {uid, recipeId, sticks:[spec], name, stats}
+    this.weapons = [];           // {uid, cls, design, stick, name, tier, traits, stats}
     this.equipped = null;        // uid of the equipped weapon
     this.taken = new Set();      // stick slot keys already collected
     this.seenForms = new Set();  // rare forms discovered
     this.seenSpecies = new Set();// woods discovered
-    this.metRecipes = new Set(); // recipes the Stickwright has shown you
+    this.metRecipes = new Set(); // weapon classes the forge has produced
+    this.seenWeapons = new Set();// same, for the discovery banner
     this.metNPCs = new Set();
     this.stats = { picked: 0, crafted: 0, walked: 0, days: 0 };
     this.pos = null;
@@ -101,34 +103,47 @@ export class GameState {
   /* ====================================================================== */
 
   /**
-   * Consume the sticks and make the weapon.
+   * Put a stick on the bench and take a weapon off it.
+   *
+   * ONE STICK IN, ONE WEAPON OUT, ALWAYS. There is no failure case and no
+   * "this stick cannot be used" — the only way this returns a failure is if
+   * the stick is not in the satchel, which is a bug rather than an outcome.
+   *
    * @returns {{ok:boolean, weapon?:object, reason?:string}}
    */
-  craft(recipe, sticks) {
-    if (!recipe || !sticks || sticks.some(s => !s)) return { ok: false, reason: 'incomplete' };
-    // every stick must still be in the satchel, and each may only be used once
-    const uids = sticks.map(s => s.uid);
-    if (new Set(uids).size !== uids.length) return { ok: false, reason: 'duplicate' };
-    for (const u of uids) if (!this.stickById(u)) return { ok: false, reason: 'missing' };
+  craft(stick) {
+    if (!stick) return { ok: false, reason: 'incomplete' };
+    if (!this.stickById(stick.uid)) return { ok: false, reason: 'missing' };
 
-    const specs = sticks.map(s => ({ ...s }));
-    for (const u of uids) this.removeStick(u);
+    const spec = { ...stick };
+    this.removeStick(stick.uid);
 
+    const forged = forgeWeapon(spec);
     const w = {
       uid: nextUid++,
-      recipeId: recipe.id,
-      sticks: specs,
-      name: weaponName(recipe, specs),
-      stats: weaponStats(recipe, specs),
+      cls: forged.cls,
+      label: forged.label,
+      design: forged.design,
+      stick: spec,
+      name: forged.name,
+      tier: forged.tier,
+      traits: forged.traits,
+      blurb: forged.blurb,
+      stats: forged.stats,
       madeAt: Date.now(),
     };
     this.weapons.push(w);
-    this.metRecipes.add(recipe.id);
+    this.metRecipes.add(forged.cls);
+    if (!this.seenWeapons.has(forged.cls)) this.seenWeapons.add(forged.cls);
     this.stats.crafted++;
     this._dirty = true;
-    bus.emit(EV.WEAPON_CRAFTED, { weapon: w, recipe });
+    bus.emit(EV.WEAPON_CRAFTED, { weapon: w, stick: spec });
     return { ok: true, weapon: w };
   }
+
+  /** What this stick WOULD become, without consuming it. Used by the bench
+   *  animation, which has to know the answer before the reveal shows it. */
+  preview(stick) { return stick ? forgeWeapon(stick) : null; }
 
   weaponById(uid) { return this.weapons.find(w => w.uid === uid) || null; }
 
@@ -156,29 +171,37 @@ export class GameState {
        shaded) and that context is not recoverable from the seed alone. They
        are small: a couple of hundred bytes each. */
     const slim = s => ({
-      v: 1, seed: s.seed, species: s.species, form: s.form, rare: s.rare,
+      v: 2, seed: s.seed, species: s.species, form: s.form, rare: s.rare,
       length: s.length, thick: s.thick, taper: s.taper, curve: s.curve,
       curvePlane: s.curvePlane, wobble: s.wobble, kinks: s.kinks,
       forks: s.forks, twigs: s.twigs, knots: s.knots, fungi: s.fungi,
       moss: s.moss, mossSide: s.mossSide, lichen: s.lichen, wet: s.wet,
       pale: s.pale, charred: s.charred, leaves: s.leaves,
+      bark: s.bark, nature: s.nature, special: s.special, effect: s.effect,
+      inclusions: s.inclusions,
       brokenEnd: s.brokenEnd, brokenButt: s.brokenButt, extra: s.extra,
       hue: s.hue, lum: s.lum, tags: s.tags, tier: s.tier, name: s.name,
       uid: s.uid,
     });
     return {
-      v: 1,
+      v: 2,
       species: this.species,
       sticks: this.sticks.map(slim),
+      /* A weapon is stored as its stick plus its genome. The genome is
+         reproducible from the stick — forgeWeapon is a pure function of it —
+         but storing it makes the save immune to a later balance change
+         silently turning somebody's greatsword into a broom. */
       weapons: this.weapons.map(w => ({
-        uid: w.uid, recipeId: w.recipeId, sticks: w.sticks.map(slim),
-        name: w.name, stats: w.stats,
+        uid: w.uid, cls: w.cls, label: w.label, design: w.design,
+        stick: slim(w.stick), name: w.name, tier: w.tier,
+        traits: w.traits, blurb: w.blurb, stats: w.stats,
       })),
       equipped: this.equipped,
       taken: [...this.taken],
       seenForms: [...this.seenForms],
       seenSpecies: [...this.seenSpecies],
       metRecipes: [...this.metRecipes],
+      seenWeapons: [...this.seenWeapons],
       metNPCs: [...this.metNPCs],
       stats: this.stats,
       pos: this.pos,
@@ -193,16 +216,32 @@ export class GameState {
     if (!o || typeof o !== 'object') return st;
     try {
       st.species = o.species || null;
-      st.sticks = (o.sticks || []).map(s => ({ ...s, tags: s.tags || stickTags(s), tier: s.tier ?? stickTier(s), name: s.name || stickName(s) }));
-      st.weapons = (o.weapons || []).map(w => ({
-        ...w,
-        sticks: (w.sticks || []).map(s => ({ ...s, tags: s.tags || stickTags(s) })),
-      }));
+      const revive = s => ({
+        ...s,
+        tags: s.tags || stickTags(s),
+        parts: s.parts || stickComponents(s),
+        tier: s.tier ?? stickTier(s),
+        name: s.name || stickName(s),
+      });
+      st.sticks = (o.sticks || []).map(revive);
+      /* A save written before the forge existed has weapons with `sticks` and
+         a `recipeId` and no genome. Rather than drop them — which would take
+         somebody's collection away — re-forge each one from the stick it was
+         made of. It may come out as a different weapon than it was, which is
+         the honest outcome: the old recipe it was built from is gone. */
+      st.weapons = (o.weapons || []).map(w => {
+        if (w.design && w.stick) return { ...w, stick: revive(w.stick) };
+        const src = revive((w.sticks && w.sticks[0]) || {});
+        if (!src.seed) return null;
+        const f = forgeWeapon(src);
+        return { uid: w.uid, ...f, stick: src, madeAt: w.madeAt };
+      }).filter(Boolean);
       st.equipped = o.equipped ?? null;
       st.taken = new Set(o.taken || []);
       st.seenForms = new Set(o.seenForms || []);
       st.seenSpecies = new Set(o.seenSpecies || []);
       st.metRecipes = new Set(o.metRecipes || []);
+      st.seenWeapons = new Set(o.seenWeapons || o.metRecipes || []);
       st.metNPCs = new Set(o.metNPCs || []);
       st.stats = { picked: 0, crafted: 0, walked: 0, days: 0, ...(o.stats || {}) };
       st.pos = o.pos || null;

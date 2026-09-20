@@ -20,6 +20,7 @@ import { MeshBuilder } from '../art/Geo.js';
 import { WORLD } from '../core/Config.js';
 import { riverX, riverLevel } from './Terrain.js';
 import { WATER, mixHex } from '../art/Palette.js';
+import { Fields } from './Scatter.js';
 import { clamp, clamp01, lerp, invLerp } from '../core/Util.js';
 
 /** Vertices along a tile edge, by LOD. LOD 0 is 2.5 m steps. */
@@ -63,6 +64,9 @@ export function buildTerrainTile(T, tx, tz, lod, tileSize = WORLD.tile, resOverr
     }
   }
 
+  // one coarse field grid for the whole tile, shared by every vertex colour
+  const F = new Fields(T, x0, z0, size, size >= 128 ? 16 : 4, size);
+
   const b = new MeshBuilder();
   const idx = new Int32Array(n * n);
 
@@ -82,7 +86,7 @@ export function buildTerrainTile(T, tx, tz, lod, tileSize = WORLD.tile, resOverr
       const dx = (hl - hr) / (2 * step), dz = (hd - hu) / (2 * step);
       const slope = 1 - 1 / Math.sqrt(1 + dx * dx + dz * dz);
 
-      b.color(T.groundColor(x, z, h, slope));
+      b.color(T.groundColor(x, z, h, slope, F));
       idx[j * n + i] = b.vert(x - x0, h, z - z0, 0);
     }
   }

@@ -422,13 +422,20 @@ export class Terrain {
    * the fields above. This runs per terrain vertex, so it is written to be a
    * chain of cheap mixes rather than anything clever.
    */
-  groundColor(x, z, hIn = null, slopeIn = null) {
+  groundColor(x, z, hIn = null, slopeIn = null, F = null) {
     const h = hIn !== null ? hIn : this.heightC(x, z);
     const alt = h - this.V.datum;
     const slope = slopeIn !== null ? slopeIn : this.slope(x, z, 1.8);
-    const wet = this.wetness(x, z);
-    const forest = this.forestDensity(x, z);
-    const vill = this.villageness(x, z);
+    /* These three lookups are several octaves of noise each, and forestDensity
+       calls the other two on the way. At one call per terrain vertex they were
+       most of the cost of building a tile — and the cost of building a tile is
+       a hitch you feel as you walk into new ground. F is the same coarse
+       interpolated grid the scatterer uses; these fields vary far more slowly
+       than the 2.5 m vertex spacing, so nothing visible is lost.
+       pathInfluence below stays EXACT: a path edge has to stay sharp. */
+    const wet = F ? F.wetAt(x, z) : this.wetness(x, z);
+    const forest = F ? F.forestAt(x, z) : this.forestDensity(x, z);
+    const vill = F ? F.villAt(x, z) : this.villageness(x, z);
     // fast enough to vary within a few paces: litter is patchy at the scale
     // of a footstep, not at the scale of a field
     const n1 = this.nSoil.fbm01(x * 0.085, z * 0.085, 3);

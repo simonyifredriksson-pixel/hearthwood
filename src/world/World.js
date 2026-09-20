@@ -37,6 +37,18 @@ import { clamp, clamp01, lerp, now, Budget, TAU } from '../core/Util.js';
 /** A far block is exactly 2x2 near tiles — see _rebuildWishlist. */
 export const FAR_BLOCK = WORLD.tile * 2;
 const FAR_RES = 16;
+/**
+ * Far blocks sit a hand's width below true ground.
+ *
+ * For the few frames while a block's near tiles are still arriving, both
+ * resolutions are drawn over the same square. At 8 m spacing against 2.5 m
+ * they interpenetrate, and you get a shimmering patchwork. Dropping the whole
+ * far block — ground AND its trees, so it stays internally consistent — makes
+ * the near mesh win that argument everywhere, every time. Nothing is ever
+ * closer than a block away when it is the visible ground, and at that range
+ * 30 cm is nothing.
+ */
+const FAR_DROP = 0.3;
 /** How many far blocks out from the player get full near tiles. */
 const NEAR_BLOCKS = 1;
 
@@ -333,21 +345,64 @@ export class World {
       }
     }
     this.activeBlocks = activeBlocks;
+    this.wantTiles = want;
 
     for (const [key] of this.tiles) if (!want.has(key)) this._dropTile(key);
 
+    /* Queue only the parts that are actually MISSING.
+       Re-queueing 'bulk' and 'floor' for a tile that already had them added a
+       second copy of every tree and every blade of grass to the same tile,
+       every time the player crossed a block boundary. Nothing was ever
+       removed, so the scene grew without limit and the frame rate fell away
+       as you walked. That was the lag. */
     const jobs = [];
     for (const [key, w] of want) {
       const have = this.tiles.get(key);
-      if (have && have.lod === w.lod && have.detail === w.detail && have.complete) continue;
-      // ground first, everywhere, then bulk, then floor detail: you would
-      // much rather walk onto bare correct terrain than onto a hole
-      if (!have || have.lod !== w.lod || have.detail !== w.detail) jobs.push({ ...w, part: 'terrain', prio: 0 });
-      jobs.push({ ...w, part: 'bulk', prio: 1 });
-      jobs.push({ ...w, part: 'floor', prio: 2 });
+      const stale = have && (have.lod !== w.lod || have.detail !== w.detail);
+      if (stale) { this._dropTile(key); }
+      const rec = stale ? null : have;
+      if (!rec) {
+        jobs.push({ ...w, part: 'terrain', prio: 0 });
+        jobs.push({ ...w, part: 'bulk', prio: 1 });
+        jobs.push({ ...w, part: 'floor', prio: 2 });
+        continue;
+      }
+      if (!rec.parts.terrain) jobs.push({ ...w, part: 'terrain', prio: 0 });
+      if (!rec.parts.bulk) jobs.push({ ...w, part: 'bulk', prio: 1 });
+      if (!rec.parts.floor) jobs.push({ ...w, part: 'floor', prio: 2 });
     }
     jobs.sort((a, b) => (a.prio - b.prio) || (a.dist - b.dist));
     this.pending = jobs;
+
+    /* GROUND IS NOT OPTIONAL, so the tiles closest to the player get their
+       terrain right now rather than dribbled out over the next second.
+       It is deliberately a time budget and not "all of them": a block
+       crossing can want a dozen new tiles, and building the lot in one frame
+       is a visible stutter. The rest is safe to stream because a far block
+       stays switched on until all four of its tiles have ground under them
+       (_blockCovered) and sits just below the near mesh (FAR_DROP), so the
+       worst a late tile costs you is a moment of coarse ground — never a
+       hole, and never a flickering fight between the two resolutions. */
+    const t0 = now();
+    const keep = [];
+    for (const j of this.pending) {
+      if (j.part === 'terrain' && now() - t0 < 24) this._buildTile(j);
+      else keep.push(j);
+    }
+    this.pending = keep;
+  }
+
+  /** True once every near tile inside this far block has its ground. */
+  _blockCovered(key) {
+    const TPB = FAR_BLOCK / WORLD.tile;
+    const [bx, bz] = key.split(',').map(Number);
+    for (let tj = 0; tj < TPB; tj++) {
+      for (let ti = 0; ti < TPB; ti++) {
+        const rec = this.tiles.get(`${bx * TPB + ti},${bz * TPB + tj}`);
+        if (!rec || !rec.parts.terrain) return false;
+      }
+    }
+    return true;
   }
 
   /**
@@ -370,11 +425,14 @@ export class World {
       tm.receiveShadow = true;
       tm.castShadow = false;
       this.gTerrain.add(tm);
-      this.tiles.set(key, { ...job, meshes: [tm], blockers: [] });
+      this.tiles.set(key, {
+        ...job, meshes: [tm], blockers: [],
+        parts: { terrain: true, bulk: false, floor: false },
+      });
       return;
     }
 
-    if (!rec) return;      // its terrain was dropped under it; the wishlist will requeue
+    // its terrain was dropped under it; the wishlist will requeue the lot\n    if (!rec || !rec.parts) return;\n    if (rec.parts[job.part]) return;   // already built: never add it twice
 
     const add = (builder, mat, cast) => {
       if (builder.isEmpty) return;
@@ -396,6 +454,7 @@ export class World {
       add(s.solid, MATS.solid, job.detail === 0);
       add(s.flora, MATS.foliage, job.detail === 0);
       rec.blockers = s.blockers;
+      rec.parts.bulk = true;
     } else {
       const s = scatterTile(this.terrain, job.tx, job.tz, job.detail, WORLD.tile,
         job.detail === 0 ? SCATTER_PASS_B.concat('grass') : SCATTER_PASS_B);
@@ -405,7 +464,7 @@ export class World {
       // grass never casts a shadow: a very large amount of fill rate for a
       // mottling the ground's own detail already provides
       if (job.detail === 0) add(s.grass, MATS.grass, false);
-      rec.complete = true;
+      rec.parts.floor = true;
     }
   }
 
@@ -413,7 +472,7 @@ export class World {
   _buildFarBlock(job) {
     const key = `${job.bx},${job.bz}`;
     if (this.blocks.has(key)) return;
-    const offset = new THREE.Vector3(job.bx * FAR_BLOCK, 0, job.bz * FAR_BLOCK);
+    const offset = new THREE.Vector3(job.bx * FAR_BLOCK, -FAR_DROP, job.bz * FAR_BLOCK);
     const meshes = [];
 
     const g = buildTerrainTile(this.terrain, job.bx, job.bz, 3, FAR_BLOCK, FAR_RES);
@@ -439,11 +498,17 @@ export class World {
     }
   }
 
-  /** Switch off exactly the blocks the detailed ring has taken over. */
+  /**
+   * Switch off exactly the blocks the detailed ring has taken over — but
+   * ONLY once the near tiles that replace them actually exist. Hiding a
+   * block the instant it becomes 'active' leaves a square hole in the world
+   * for as long as the near tiles take to build, which is what 'the ground
+   * is invisible' was.
+   */
   _hideCoveredBlocks() {
     if (!this.activeBlocks) return;
     for (const [key, b] of this.blocks) {
-      const vis = !this.activeBlocks.has(key);
+      const vis = !(this.activeBlocks.has(key) && this._blockCovered(key));
       if (b.visible !== vis) {
         b.visible = vis;
         for (const m of b.meshes) m.visible = vis;

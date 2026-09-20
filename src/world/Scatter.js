@@ -88,7 +88,7 @@ const DETAIL = [
  * is the single biggest performance decision in the world builder: it took a
  * near tile from 770 ms to well under a hundred.
  */
-class Fields {
+export class Fields {
   constructor(T, x0, z0, size, step = 4, hStep = 2) {
     this.T = T;
     this.x0 = x0 - step; this.z0 = z0 - step;

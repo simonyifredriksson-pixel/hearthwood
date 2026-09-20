@@ -349,13 +349,25 @@ export const UI = {
   wondrous: 0xe0a8f0,
 };
 
-/** Rarity colours, indexed by tier. Used by the UI and by the pickup glow. */
+/**
+ * Rarity, indexed by tier. Used by the UI, the pickup chime and the glow.
+ *
+ * Seven tiers, and the share each one is MEANT to be — if everything is
+ * Legendary then nothing is, so the roll is tuned against this table and
+ * test_world asserts the real distribution against it. The last tier has no
+ * name on purpose: you will see perhaps one, and it should not have a word
+ * that tells you how it ranks.
+ */
 export const RARITY = [
-  { name: 'Common', hex: 0xcfc6ae, css: '#cfc6ae' },
-  { name: 'Notable', hex: 0x8fc46a, css: '#8fc46a' },
-  { name: 'Rare', hex: 0x6fb6e0, css: '#6fb6e0' },
-  { name: 'Wondrous', hex: 0xd79ae8, css: '#d79ae8' },
-  { name: 'Storied', hex: 0xf2c159, css: '#f2c159' },
+  { name: 'Common', hex: 0xcfc6ae, css: '#cfc6ae', share: 0.52 },
+  { name: 'Uncommon', hex: 0x8fc46a, css: '#8fc46a', share: 0.26 },
+  { name: 'Rare', hex: 0x6fb6e0, css: '#6fb6e0', share: 0.13 },
+  { name: 'Epic', hex: 0xb08ae8, css: '#b08ae8', share: 0.060 },
+  { name: 'Legendary', hex: 0xf2c159, css: '#f2c159', share: 0.023 },
+  { name: 'Mythic', hex: 0xf4746a, css: '#f4746a', share: 0.006 },
+  { name: '???', hex: 0xd8fbff, css: '#d8fbff', share: 0.001 },
 ];
+
+export const MAX_TIER = RARITY.length - 1;
 
 export const cssHex = h => '#' + (h >>> 0).toString(16).padStart(6, '0');

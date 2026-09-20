@@ -20,7 +20,7 @@
 */
 
 import * as THREE from '../../lib/three.module.js';
-import { MeshBuilder, tube, blob, lathe, blade, box, quad } from './Geo.js';
+import { MeshBuilder, tube, blob, lathe, blade, box, quad, sheet, wedge } from './Geo.js';
 import { FUR, CLOTH, BUILD, METAL, mixHex, tweak, shade } from './Palette.js';
 import { MATS } from './Materials.js';
 import { makeRng, clamp, lerp, TAU } from '../core/Util.js';
@@ -178,17 +178,18 @@ export function buildVillager({ kind = 'rabbit', outfit = 'smock', seed = 1, sca
       if (O.skirt > 0.02) {
         const sk = H * O.skirt;
         b.color(clothHex, 0.05, r);
+        // the hem turns back under, so a skirt is a shell and not an open
+        // cone you can see the inside of from any low angle
         lathe(b, [
           [R * 0.96 * B, -H * 0.02], [R * 1.18 * B, -sk * 0.55], [R * 1.30 * B, -sk],
+          [R * 1.22 * B, -sk * 0.97], [R * 1.05 * B, -sk * 0.5],
         ], 11, 0, 0, 0, t => shade(clothHex, -t * 0.22));
       }
       if (O.apron) {
         b.color(mixHex(BUILD.clothCream, 0xd8cfb0, r()), 0.05, r);
         const w = R * 1.0 * B;
-        quad(b, [-w, H * 0.18, R * 0.92], [w, H * 0.18, R * 0.92],
-          [w * 1.25, -H * O.skirt * 0.95, R * 1.0], [-w * 1.25, -H * O.skirt * 0.95, R * 1.0]);
-        quad(b, [w, H * 0.18, R * 0.92], [-w, H * 0.18, R * 0.92],
-          [-w * 1.25, -H * O.skirt * 0.95, R * 1.0], [w * 1.25, -H * O.skirt * 0.95, R * 1.0]);
+        sheet(b, [-w, H * 0.18, R * 0.92], [w, H * 0.18, R * 0.92],
+          [w * 1.25, -H * O.skirt * 0.95, R * 1.0], [-w * 1.25, -H * O.skirt * 0.95, R * 1.0], 0.01);
       }
       // a belt
       b.color(0x4a3628, 0.05, r);
@@ -266,13 +267,10 @@ export function buildVillager({ kind = 'rabbit', outfit = 'smock', seed = 1, sca
       } else if (K.ear === 'tall' || K.ear === 'tuft' || K.ear === 'leaf') {
         const tip = [side * L * 0.25, L, -L * 0.1];
         const wid = K.ear === 'leaf' ? W * 1.5 : W;
-        quad(b, [-wid, 0, W * 0.2], [wid, 0, W * 0.2], tip, tip);
-        quad(b, [wid, 0, W * 0.2], [-wid, 0, W * 0.2], tip, tip);
-        quad(b, [-wid, 0, -W * 0.2], [wid, 0, -W * 0.2], tip, tip);
-        quad(b, [wid, 0, -W * 0.2], [-wid, 0, -W * 0.2], tip, tip);
+        wedge(b, [-wid, 0, 0], [wid, 0, 0], tip, W * 0.22);
         b.color(mixHex(innerHex, 0xd8b8a8, 0.3));
-        quad(b, [-wid * 0.6, W * 0.2, W * 0.22], [wid * 0.6, W * 0.2, W * 0.22],
-          [side * L * 0.22, L * 0.82, -L * 0.06], [side * L * 0.22, L * 0.82, -L * 0.06]);
+        wedge(b, [-wid * 0.6, W * 0.2, W * 0.16], [wid * 0.6, W * 0.2, W * 0.16],
+          [side * L * 0.22, L * 0.82, W * 0.1], W * 0.05);
         if (K.ear === 'tuft') {
           b.color(shade(furHex, -0.2));
           for (let i = 0; i < 4; i++) {
@@ -472,9 +470,8 @@ export function buildCritter({ kind = 'chicken', seed = 1 } = {}) {
     blob(b, 0, H * 0.62, 0, H * 0.24, 5, 8, (x, y, z) => [0.78, 0.82, 1.55]);
     blob(b, 0, H * 0.80, H * 0.34, H * 0.15, 4, 7);
     for (const s of [-1, 1]) {
-      const tip = [s * H * 0.10, H * 1.05, H * 0.30];
-      quad(b, [s * H * 0.02, H * 0.90, H * 0.34], [s * H * 0.17, H * 0.90, H * 0.30], tip, tip);
-      quad(b, [s * H * 0.17, H * 0.90, H * 0.30], [s * H * 0.02, H * 0.90, H * 0.34], tip, tip);
+      wedge(b, [s * H * 0.02, H * 0.90, H * 0.34], [s * H * 0.17, H * 0.90, H * 0.30],
+        [s * H * 0.10, H * 1.05, H * 0.30], H * 0.018);
     }
     b.color(0x9ac47a, 0.05, r);
     for (const s of [-1, 1]) blob(b, s * H * 0.06, H * 0.83, H * 0.46, H * 0.030, 3, 5);

@@ -330,10 +330,20 @@ kbd {
 
 .sat-cols, .shop-cols { display: grid; gap: 1.2rem; }
 .sat-cols { grid-template-columns: 1.15fr .85fr; }
-.shop-cols { grid-template-columns: .9fr 1fr .9fr; }
+/* Two columns, not three: the wood you have, and the piece in his hands.
+   The third column used to be the recipe list, and there is no recipe list. */
+.shop-cols { grid-template-columns: .95fr 1.05fr; }
 @media (max-width: 900px) {
   .sat-cols, .shop-cols { grid-template-columns: 1fr; }
 }
+.shop-list h4 {
+  font-family: var(--sans); font-size: .72rem; letter-spacing: .15em;
+  text-transform: uppercase; color: var(--ink-soft);
+  margin: 0 0 .5rem; display: flex; align-items: center; gap: .4em;
+}
+.shop-list h4 b { color: var(--gold); }
+.shop-list h4 svg { width: 1em; height: 1em; }
+.shop-list .rows { max-height: 52vh; overflow: auto; padding-right: .3rem; }
 .sat-list, .shop-list { max-height: 58vh; overflow: auto; padding-right: .3rem; }
 .sat-view, .shop-view, .shop-mid { min-width: 0; }
 .empty { color: var(--ink-soft); font-style: italic; padding: 1.2rem .3rem; line-height: 1.6; }
@@ -482,4 +492,201 @@ kbd {
   .cs-stage { min-height: 26vh; }
   #toasts { width: 62vw; right: .8rem; }
   .hud-satchel { left: .8rem; bottom: .8rem; }
+}
+
+/* ========================================================================= */
+/* THE STICKWRIGHT                                                           */
+/* ========================================================================= */
+
+.detail .kind {
+  font-family: var(--sans); font-size: .74rem; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--ink-soft); margin: -.1rem 0 .7rem;
+}
+
+/* the four headline numbers, which are what a player actually compares */
+.measures {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: .4rem;
+  margin: 0 0 .9rem;
+}
+.measures span {
+  display: flex; flex-direction: column; align-items: center; gap: .1rem;
+  padding: .45rem .2rem; border-radius: .35rem;
+  background: rgba(110, 90, 50, .09);
+  box-shadow: inset 0 0 0 1px rgba(110, 90, 50, .14);
+}
+.measures b { font-size: .98rem; font-weight: 600; text-align: center; line-height: 1.15; }
+.measures i {
+  font-style: normal; font-family: var(--sans); font-size: .62rem;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--ink-soft);
+}
+
+/* the stick's components: the eight slots, but only the ones it has */
+.parts { list-style: none; margin: 0 0 .8rem; padding: 0; display: grid; gap: .3rem; }
+.parts li {
+  padding: .4rem .6rem; border-radius: .35rem;
+  background: rgba(110, 90, 50, .08);
+  border-left: 3px solid rgba(110, 90, 50, .3);
+}
+.parts li b { display: block; font-size: .93rem; font-weight: 600; }
+.parts li i { display: block; font-style: italic; font-size: .84rem; color: var(--ink-soft); line-height: 1.45; }
+.parts .p-material { border-left-color: var(--rare-mat, #6fb6e0); background: rgba(111, 182, 224, .1); }
+.parts .p-effect { border-left-color: #b08ae8; background: rgba(176, 138, 232, .1); }
+.parts .p-shape { border-left-color: var(--green); }
+.parts .p-moss { border-left-color: #7fa64e; }
+.plain { font-size: .9rem; color: var(--ink-soft); font-style: italic; line-height: 1.55; margin: 0 0 .8rem; }
+
+.hint {
+  font-size: .92rem; line-height: 1.5; margin: 0;
+  padding: .55rem .7rem; border-radius: .38rem;
+  background: rgba(200, 163, 74, .12);
+  box-shadow: inset 0 0 0 1px rgba(200, 163, 74, .25);
+  display: flex; gap: .5em; align-items: flex-start;
+}
+.hint svg { width: 1.1em; height: 1.1em; flex: none; margin-top: .15em; opacity: .8; }
+
+/* stat bars in the satchel's weapon panel */
+.stats { display: grid; gap: .28rem; margin: 0 0 .8rem; }
+.stat { display: grid; grid-template-columns: 4.2rem 1fr 2.6rem; align-items: center; gap: .5rem; }
+.stat span {
+  font-family: var(--sans); font-size: .68rem; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--ink-soft);
+}
+.stat em {
+  display: block; height: .42rem; border-radius: .21rem;
+  background: rgba(110, 90, 50, .16); position: relative;
+}
+.stat em::after {
+  content: ''; position: absolute; inset: 0 auto 0 0; width: var(--w, 0%);
+  border-radius: .21rem; background: linear-gradient(90deg, var(--green), var(--gold));
+}
+.stat b { font-size: .9rem; font-weight: 600; text-align: right; }
+
+.traits { list-style: none; margin: 0 0 .8rem; padding: 0; display: grid; gap: .25rem; }
+.traits li { padding: .35rem .6rem; border-radius: .35rem; background: rgba(110, 90, 50, .08); }
+.traits li b { font-size: .9rem; }
+.traits li i { display: block; font-size: .82rem; color: var(--ink-soft); font-style: italic; }
+
+/* ------------------------------------------------------------ the forge */
+
+.forge {
+  display: grid; grid-template-rows: 1fr auto; gap: 1rem;
+  min-height: 24rem; align-content: center;
+}
+.forge-art {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  min-height: 17rem;
+}
+.forge-art .tt-slot { width: 100%; max-width: 30rem; height: 17rem; margin: 0; }
+.draw-svg, .anvil-svg { width: 100%; max-width: 26rem; height: auto; }
+
+.forge-text { text-align: center; min-height: 3.4rem; }
+.forge-stage {
+  font-family: var(--sans); font-size: .68rem; letter-spacing: .2em;
+  text-transform: uppercase; color: var(--ink-soft); display: block; margin-bottom: .35rem;
+}
+.forge-line {
+  font-family: var(--display); font-size: 1.22rem; line-height: 1.5;
+  margin: 0; color: var(--ink); opacity: 0;
+}
+.forge-line.in { animation: forgeLine .55s ease forwards; }
+@keyframes forgeLine { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* the pencil, and an ink line that draws itself */
+.draw-hand { animation: drawHand 1.9s ease-in-out infinite; transform-origin: 0 0; }
+@keyframes drawHand {
+  0%   { transform: translate(112px, 118px) rotate(-16deg); }
+  50%  { transform: translate(196px, 96px) rotate(-10deg); }
+  100% { transform: translate(112px, 118px) rotate(-16deg); }
+}
+.draw-ink { stroke-dasharray: 300; stroke-dashoffset: 300; animation: drawInk 2.4s ease forwards; }
+.draw-ink.d2 { animation-delay: .5s; stroke-dasharray: 120; stroke-dashoffset: 120; }
+@keyframes drawInk { to { stroke-dashoffset: 0; } }
+
+/* the hammer, the heat and the sparks */
+.forge-hammer { animation: forgeSwing .52s cubic-bezier(.3,.1,.2,1) infinite; transform-origin: 0 0; }
+@keyframes forgeSwing {
+  0%   { transform: translate(222px, 92px) rotate(-52deg); }
+  45%  { transform: translate(222px, 108px) rotate(6deg); }
+  100% { transform: translate(222px, 92px) rotate(-52deg); }
+}
+.forge-glow { animation: forgeBreathe 1.7s ease-in-out infinite; transform-origin: 74px 132px; }
+@keyframes forgeBreathe { 0%,100% { opacity: .75; transform: scale(1); } 50% { opacity: 1; transform: scale(1.09); } }
+.forge-work { animation: forgeHeat 1.3s ease-in-out infinite; }
+@keyframes forgeHeat { 0%,100% { fill: #ff9a42; } 50% { fill: #ffe0a0; } }
+
+.forge-sparks { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.forge-sparks i {
+  position: absolute; left: var(--x); top: 58%;
+  width: 3px; height: 3px; border-radius: 50%;
+  background: #ffd98a; box-shadow: 0 0 6px 2px rgba(255, 180, 90, .55);
+  animation: spark var(--d, .8s) ease-out forwards;
+}
+@keyframes spark {
+  from { opacity: 1; transform: translate(0, 0) scale(1); }
+  to   { opacity: 0; transform: translate(var(--dx, 40px), -70px) scale(.3); }
+}
+
+/* ------------------------------------------------------------ the reveal */
+
+.reveal {
+  display: grid; grid-template-columns: 1.1fr .9fr; gap: 1.4rem;
+  align-items: center; min-height: 24rem;
+  animation: revealIn .7s ease both;
+}
+@media (max-width: 820px) { .reveal { grid-template-columns: 1fr; } }
+@keyframes revealIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* the room goes quiet: the sheet darkens so the only lit thing is the work */
+.screen:has(.reveal) .sheet {
+  background: linear-gradient(180deg, #1b1712, #12100d);
+  color: #e8dcc0; box-shadow: 0 30px 90px rgba(0, 0, 0, .7);
+}
+.screen:has(.reveal) header h2,
+.screen:has(.reveal) header .kicker { color: #b9a679; }
+.reveal .tt-slot {
+  height: 22rem; margin: 0;
+  background: radial-gradient(60% 60% at 50% 45%,
+    color-mix(in srgb, var(--rare) 26%, transparent), rgba(0, 0, 0, .55) 72%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rare) 30%, transparent),
+              inset 0 0 60px rgba(0, 0, 0, .6);
+  animation: revealLift 1.1s cubic-bezier(.2,.8,.25,1) both;
+}
+@keyframes revealLift { from { transform: scale(.88); opacity: 0; } to { transform: none; opacity: 1; } }
+
+.reveal-card { animation: revealCard .8s ease .55s both; }
+@keyframes revealCard { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.reveal-card h3 {
+  font-family: var(--display); font-size: 2rem; line-height: 1.15;
+  margin: 0 0 .35rem; color: var(--rare);
+  text-shadow: 0 0 26px color-mix(in srgb, var(--rare) 45%, transparent);
+}
+.reveal-kind {
+  font-family: var(--sans); font-size: .8rem; letter-spacing: .26em;
+  color: #cbbb92; margin: 0 0 .15rem;
+}
+.reveal-rare {
+  font-family: var(--sans); font-size: .72rem; letter-spacing: .3em;
+  text-transform: uppercase; color: var(--rare); margin: 0 0 1rem;
+}
+.reveal-traits { list-style: none; padding: 0; margin: 0 0 1rem; display: grid; gap: .2rem; }
+.reveal-traits li { font-size: .96rem; color: #ddd0ac; }
+.reveal-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: .5rem; margin: 0 0 1rem; }
+.reveal-stats span {
+  display: flex; flex-direction: column; align-items: center;
+  padding: .5rem .2rem; border-radius: .35rem; background: rgba(255, 240, 200, .07);
+}
+.reveal-stats b { font-size: 1.1rem; color: #f0e4c2; }
+.reveal-stats i {
+  font-style: normal; font-family: var(--sans); font-size: .6rem;
+  letter-spacing: .14em; text-transform: uppercase; color: #9c8d69;
+}
+.reveal-say { font-style: italic; color: #b6a781; margin: 0 0 1.1rem; line-height: 1.55; }
+
+@media (prefers-reduced-motion: reduce) {
+  .draw-hand, .draw-ink, .forge-hammer, .forge-glow, .forge-work,
+  .forge-sparks i, .reveal, .reveal .tt-slot, .reveal-card, .forge-line.in {
+    animation: none !important;
+    opacity: 1 !important;
+    stroke-dashoffset: 0 !important;
+  }
 }

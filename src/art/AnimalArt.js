@@ -27,7 +27,7 @@
 */
 
 import * as THREE from '../../lib/three.module.js';
-import { MeshBuilder, tube, blob, lathe, blade, box, quad } from './Geo.js';
+import { MeshBuilder, tube, blob, lathe, blade, box, quad, wedge } from './Geo.js';
 import { FUR, BUILD, mixHex, tweak, shade } from './Palette.js';
 import { MATS } from './Materials.js';
 import { makeRng, clamp, lerp, TAU } from '../core/Util.js';
@@ -384,16 +384,11 @@ export function buildFox({ seed = 1, palette = null } = {}) {
     b.color(P.body);
     // outer shell
     const tip = [side * 0.018 * S, H, -0.012 * S];
-    quad(b, [-W / 2, 0, 0.012 * S], [W / 2, 0, 0.012 * S], tip, tip);
-    quad(b, [W / 2, 0, 0.012 * S], [-W / 2, 0, 0.012 * S], tip, tip);
-    quad(b, [-W / 2, 0, -0.015 * S], [W / 2, 0, -0.015 * S], tip, tip);
-    quad(b, [W / 2, 0, -0.015 * S], [-W / 2, 0, -0.015 * S], tip, tip);
-    quad(b, [-W / 2, 0, 0.012 * S], [-W / 2, 0, -0.015 * S], tip, tip);
-    quad(b, [W / 2, 0, -0.015 * S], [W / 2, 0, 0.012 * S], tip, tip);
+    wedge(b, [-W / 2, 0, 0], [W / 2, 0, 0], tip, 0.0135 * S);
     // the pale inner cup
     b.color(mixHex(P.belly, 0xd8b8a0, 0.4));
-    quad(b, [-W * 0.34, 0.012 * S, 0.014 * S], [W * 0.34, 0.012 * S, 0.014 * S],
-      [side * 0.014 * S, H * 0.88, -0.006 * S], [side * 0.014 * S, H * 0.88, -0.006 * S]);
+    wedge(b, [-W * 0.34, 0.012 * S, 0.016 * S], [W * 0.34, 0.012 * S, 0.016 * S],
+      [side * 0.014 * S, H * 0.88, 0.010 * S], 0.004 * S);
     // the black tip every fox has
     b.color(0x2a211c);
     blob(b, side * 0.016 * S, H * 0.92, -0.010 * S, 0.016 * S, 3, 5, (x, y, z) => [1, 1.4, 0.6]);

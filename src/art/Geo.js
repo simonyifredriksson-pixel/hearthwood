@@ -177,6 +177,34 @@ export class MeshBuilder {
     return this;
   }
 
+  /**
+   * Flip every triangle added since `from` whose face normal points TOWARD
+   * `centre`, so a lump of geometry ends up facing consistently outward.
+   *
+   * This is the escape hatch for shapes where getting the winding right by
+   * hand is fiddly and getting it wrong is invisible: the top of a plant
+   * pot's soil, the ash disc in a fire, the growth rings on a stump. It is
+   * only correct for shapes that are convex about `centre`, which is exactly
+   * the set of shapes it is used on.
+   */
+  orientOutward(from, cx = 0, cy = 0, cz = 0, sign = 1) {
+    for (let t = from; t < this.idx.length; t += 3) {
+      const a = this.idx[t], b2 = this.idx[t + 1], c = this.idx[t + 2];
+      const ax = this.pos[a * 3], ay = this.pos[a * 3 + 1], az = this.pos[a * 3 + 2];
+      const ux = this.pos[b2 * 3] - ax, uy = this.pos[b2 * 3 + 1] - ay, uz = this.pos[b2 * 3 + 2] - az;
+      const vx = this.pos[c * 3] - ax, vy = this.pos[c * 3 + 1] - ay, vz = this.pos[c * 3 + 2] - az;
+      const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+      const mx = (ax + this.pos[b2 * 3] + this.pos[c * 3]) / 3 - cx;
+      const my = (ay + this.pos[b2 * 3 + 1] + this.pos[c * 3 + 1]) / 3 - cy;
+      const mz = (az + this.pos[b2 * 3 + 2] + this.pos[c * 3 + 2]) / 3 - cz;
+      if ((nx * mx + ny * my + nz * mz) * sign < 0) { this.idx[t + 1] = c; this.idx[t + 2] = b2; }
+    }
+    return this;
+  }
+
+  /** Index into `idx` right now — pass to orientOutward as `from`. */
+  get mark() { return this.idx.length; }
+
   /** Axis-aligned bounds of what has been built. */
   bounds() {
     if (!this.pos.length) return { min: [0, 0, 0], max: [0, 0, 0] };
@@ -427,8 +455,14 @@ export function beam(b, ax, ay, az, bx, by, bz, w, h, up = [0, 1, 0], sway = nul
   _v1.divideScalar(len);
   _v2.set(up[0], up[1], up[2]);
   if (Math.abs(_v1.dot(_v2)) > 0.97) _v2.set(_v1.y === 0 ? 0 : 1, 0, _v1.y === 0 ? 1 : 0);
-  const side = new THREE.Vector3().crossVectors(_v1, _v2).normalize();
-  const vert = new THREE.Vector3().crossVectors(side, _v1).normalize();
+  /* (side, vert, dir) MUST be right-handed, because hexa() lays its corners
+     out in that frame using box()'s winding convention. The first version
+     used side = dir x up, which gives a LEFT-handed frame and quietly turned
+     every beam in the game inside out — every fence, every rafter, every
+     bridge rail, invisible from outside and only visible from within. It
+     survived because the test rasteriser was drawing back faces. */
+  const side = new THREE.Vector3().crossVectors(_v2, _v1).normalize();
+  const vert = new THREE.Vector3().crossVectors(_v1, side).normalize();
   const hw = w / 2, hh = h / 2;
   const corner = (px, py, pz, s, u) => [
     px + side.x * s + vert.x * u,
@@ -451,17 +485,31 @@ export function cylinder(b, x, z, y0, y1, r0, r1, seg = 8, sway = null, swayTop 
     bot.push(b.vert(x + Math.cos(a) * r0, y0, z + Math.sin(a) * r0, sway));
     top.push(b.vert(x + Math.cos(a) * r1, y1, z + Math.sin(a) * r1, swayTop === null ? sway : swayTop));
   }
+  /* Angle runs anticlockwise in XZ seen from BELOW, so the outward-facing
+     winding for the wall is bottom -> top -> top+1 -> bottom+1, and the caps
+     are the other way round from what reads naturally. Getting this backwards
+     turns every cylinder in the game inside out.
+     `y1 < y0` is legal and happens, so the winding follows the direction
+     rather than assuming it. */
+  const up = y1 >= y0;
   for (let i = 0; i < seg; i++) {
     const j = (i + 1) % seg;
-    b.quad(bot[i], bot[j], top[j], top[i]);
+    if (up) b.quad(bot[i], top[i], top[j], bot[j]);
+    else b.quad(bot[i], bot[j], top[j], top[i]);
   }
   if (r0 > 1e-5) {
     const c = b.vert(x, y0, z, sway);
-    for (let i = 0; i < seg; i++) b.tri(c, bot[(i + 1) % seg], bot[i]);
+    for (let i = 0; i < seg; i++) {
+      if (up) b.tri(c, bot[i], bot[(i + 1) % seg]);
+      else b.tri(c, bot[(i + 1) % seg], bot[i]);
+    }
   }
   if (r1 > 1e-5) {
     const c = b.vert(x, y1, z, swayTop === null ? sway : swayTop);
-    for (let i = 0; i < seg; i++) b.tri(c, top[i], top[(i + 1) % seg]);
+    for (let i = 0; i < seg; i++) {
+      if (up) b.tri(c, top[(i + 1) % seg], top[i]);
+      else b.tri(c, top[i], top[(i + 1) % seg]);
+    }
   }
   return { bot, top };
 }
@@ -484,14 +532,34 @@ export function lathe(b, profile, seg = 10, cx = 0, cz = 0, sway = null, colorAt
     }
     rings.push(ring);
   }
+  /* Same handedness trap as cylinder(): the surface faces outward when it
+     runs ring -> next ring -> next angle.
+     AND the profile may be written either way up — a mushroom cap is authored
+     from its tip downward, a barrel from its base upward — so the winding is
+     chosen from the profile's actual direction rather than assumed. Leaving
+     that assumption implicit is how half the lathed props in the game ended
+     up inside out while the other half were fine. */
+  /* ONE winding for the whole profile, chosen from its overall direction.
+     A lathe is a shell, and a fixed winding makes the normal follow the
+     profile — so a pot authored as "up the outside, across the rim, down the
+     inside" gets an outward outer wall and an inward inner wall for free.
+     Deciding per segment instead forces every segment to face away from the
+     axis, which turns the inside of every pot, bucket and well inside out. */
+  const up = profile[profile.length - 1][1] >= profile[0][1];
   for (let p = 0; p < rings.length - 1; p++) {
     for (let i = 0; i < seg; i++) {
       const j = (i + 1) % seg;
       const a = rings[p][i], c = rings[p][j], d = rings[p + 1][j], e = rings[p + 1][i];
       if (a === c && d === e) continue;
-      if (a === c) b.tri(a, d, e);
-      else if (d === e) b.tri(a, c, d);
-      else b.quad(a, c, d, e);
+      if (up) {
+        if (a === c) b.tri(a, e, d);
+        else if (d === e) b.tri(a, d, c);
+        else b.quad(a, e, d, c);
+      } else {
+        if (a === c) b.tri(a, d, e);
+        else if (d === e) b.tri(a, c, d);
+        else b.quad(a, c, d, e);
+      }
     }
   }
   return rings;
@@ -534,14 +602,125 @@ export function blob(b, cx, cy, cz, r, rings = 6, seg = 9, warp = null, sway = n
   return grid;
 }
 
-/** A flat quad in 3D from four corners. */
-export function quad(b, p0, p1, p2, p3, sway = null) {
+/**
+ * A flat quad in 3D from four corners.
+ *
+ * `outward` is the direction the quad is MEANT to face. Give it, and the
+ * winding is corrected to match; leave it out and the corner order decides,
+ * as before. This exists because a roof slope, an awning or a gable end is
+ * authored by walking its corners in whatever order reads naturally in the
+ * loop that produces them, and remembering the handedness of each of those
+ * loops is how you end up with one side of every roof in the village
+ * invisible from outside.
+ */
+export function quad(b, p0, p1, p2, p3, sway = null, outward = null) {
+  if (outward) {
+    const ux = p1[0] - p0[0], uy = p1[1] - p0[1], uz = p1[2] - p0[2];
+    const vx = p2[0] - p0[0], vy = p2[1] - p0[1], vz = p2[2] - p0[2];
+    const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    if (nx * outward[0] + ny * outward[1] + nz * outward[2] < 0) {
+      const t = p1; p1 = p3; p3 = t;
+    }
+  }
   const a = b.vert(p0[0], p0[1], p0[2], sway);
   const c = b.vert(p1[0], p1[1], p1[2], sway);
   const d = b.vert(p2[0], p2[1], p2[2], sway);
   const e = b.vert(p3[0], p3[1], p3[2], sway);
   b.quad(a, c, d, e);
   return [a, c, d, e];
+}
+
+/**
+ * The same correction for four vertices that have ALREADY been added — used
+ * where a surface is built as a grid of shared vertices and only the faces
+ * are being stitched.
+ */
+export function quadIdx(b, a, c, d, e, outward = null) {
+  if (outward) {
+    const ax = b.pos[a * 3], ay = b.pos[a * 3 + 1], az = b.pos[a * 3 + 2];
+    const ux = b.pos[c * 3] - ax, uy = b.pos[c * 3 + 1] - ay, uz = b.pos[c * 3 + 2] - az;
+    const vx = b.pos[d * 3] - ax, vy = b.pos[d * 3 + 1] - ay, vz = b.pos[d * 3 + 2] - az;
+    const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    if (nx * outward[0] + ny * outward[1] + nz * outward[2] < 0) { const t = c; c = e; e = t; }
+  }
+  b.quad(a, c, d, e);
+}
+
+/**
+ * A piece of cloth: a quad with real thickness, so it is visible from both
+ * sides without needing a double-sided material.
+ *
+ * Two coplanar quads wound opposite ways does NOT work — they are at exactly
+ * the same depth, so the one drawn second loses the depth test and the sheet
+ * is one-sided after all. Every hand-made "back face" in this game was that
+ * bug. Giving the cloth a centimetre of thickness costs four triangles and
+ * removes the whole problem.
+ */
+export function sheet(b, p0, p1, p2, p3, thick = 0.012, sway = null) {
+  const ux = p1[0] - p0[0], uy = p1[1] - p0[1], uz = p1[2] - p0[2];
+  const vx = p3[0] - p0[0], vy = p3[1] - p0[1], vz = p3[2] - p0[2];
+  let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+  const l = Math.hypot(nx, ny, nz) || 1;
+  nx = (nx / l) * thick; ny = (ny / l) * thick; nz = (nz / l) * thick;
+  const off = p => [p[0] - nx, p[1] - ny, p[2] - nz];
+  const q0 = off(p0), q1 = off(p1), q2 = off(p2), q3 = off(p3);
+  const out = [nx, ny, nz];
+  quad(b, p0, p1, p2, p3, sway, out);
+  quad(b, q0, q1, q2, q3, sway, [-nx, -ny, -nz]);
+  // the four edges, so the sheet has a visible thickness at its border
+  quad(b, p0, p1, q1, q0, sway, [uy * nz - uz * ny, uz * nx - ux * nz, ux * ny - uy * nx]);
+  quad(b, p2, p3, q3, q2, sway, [-(uy * nz - uz * ny), -(uz * nx - ux * nz), -(ux * ny - uy * nx)]);
+  quad(b, p1, p2, q2, q1, sway, [vy * nz - vz * ny, vz * nx - vx * nz, vx * ny - vy * nx]);
+  quad(b, p3, p0, q0, q3, sway, [-(vy * nz - vz * ny), -(vz * nx - vx * nz), -(vx * ny - vy * nx)]);
+}
+
+/**
+ * A closed triangular prism — an ear, a fin, a blade of a weathervane.
+ *
+ * Ears used to be two coplanar triangles wound opposite ways, which is the
+ * same z-fighting trap as the cloth: the second one loses the depth test and
+ * the ear is one-sided anyway. A prism has no such problem and it catches the
+ * light on its edge, which a zero-thickness ear cannot.
+ */
+export function wedge(b, base0, base1, tip, thick = 0.01, sway = null) {
+  const ux = base1[0] - base0[0], uy = base1[1] - base0[1], uz = base1[2] - base0[2];
+  const vx = tip[0] - base0[0], vy = tip[1] - base0[1], vz = tip[2] - base0[2];
+  let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+  const l = Math.hypot(nx, ny, nz) || 1;
+  nx = (nx / l) * thick; ny = (ny / l) * thick; nz = (nz / l) * thick;
+  const A = [base0[0] + nx, base0[1] + ny, base0[2] + nz];
+  const B = [base1[0] + nx, base1[1] + ny, base1[2] + nz];
+  const T = [tip[0] + nx, tip[1] + ny, tip[2] + nz];
+  const A2 = [base0[0] - nx, base0[1] - ny, base0[2] - nz];
+  const B2 = [base1[0] - nx, base1[1] - ny, base1[2] - nz];
+  const T2 = [tip[0] - nx, tip[1] - ny, tip[2] - nz];
+  const cx = (A[0] + B[0] + T[0] + A2[0] + B2[0] + T2[0]) / 6;
+  const cy = (A[1] + B[1] + T[1] + A2[1] + B2[1] + T2[1]) / 6;
+  const cz = (A[2] + B[2] + T[2] + A2[2] + B2[2] + T2[2]) / 6;
+  const m = b.mark;
+  b.tri(b.vert(A[0], A[1], A[2], sway), b.vert(B[0], B[1], B[2], sway), b.vert(T[0], T[1], T[2], sway));
+  b.tri(b.vert(A2[0], A2[1], A2[2], sway), b.vert(B2[0], B2[1], B2[2], sway), b.vert(T2[0], T2[1], T2[2], sway));
+  quad(b, A, B, B2, A2, sway);
+  quad(b, B, T, T2, B2, sway);
+  quad(b, T, A, A2, T2, sway);
+  b.orientOutward(m, cx, cy, cz);
+}
+
+/** A triangle whose winding is corrected to face `outward`. */
+export function tri3(b, p0, p1, p2, sway = null, outward = null) {
+  if (outward) {
+    const ux = p1[0] - p0[0], uy = p1[1] - p0[1], uz = p1[2] - p0[2];
+    const vx = p2[0] - p0[0], vy = p2[1] - p0[1], vz = p2[2] - p0[2];
+    const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    if (nx * outward[0] + ny * outward[1] + nz * outward[2] < 0) {
+      const t = p1; p1 = p2; p2 = t;
+    }
+  }
+  const a = b.vert(p0[0], p0[1], p0[2], sway);
+  const c = b.vert(p1[0], p1[1], p1[2], sway);
+  const d = b.vert(p2[0], p2[1], p2[2], sway);
+  b.tri(a, c, d);
+  return [a, c, d];
 }
 
 /**
