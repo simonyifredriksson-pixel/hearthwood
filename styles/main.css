@@ -346,6 +346,15 @@ kbd {
    arrow, a ring and a name. Everything on it is either the ground you
    have walked or a thing you have found. */
 
+/* THE SPECIFICITY TRAP. `#ui > *` sets pointer-events:auto at (1,0,0);
+   a bare `.mmap` rule is (0,1,0) and loses, so anything full-bleed added
+   under #ui silently becomes a sheet of glass over the game. `#ui > .x`
+   is (1,1,0) and wins. The components also set it inline, which beats
+   every selector — this pair is here so the intent is visible in the
+   stylesheet too. */
+#ui > .mmap,
+#ui > .cfx { pointer-events: none; }
+
 .mmap {
   position: fixed; top: 1.1rem; right: 1.1rem; z-index: 6;
   width: 168px; height: 168px; pointer-events: none;

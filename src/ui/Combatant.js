@@ -20,8 +20,8 @@
    resolution rather than a rendered billboard.
 */
 
-import * as THREE from '../../lib/three.module.js?v=1790019740';
-import { clamp, clamp01 } from '../core/Util.js?v=1790019740';
+import * as THREE from '../../lib/three.module.js?v=1790020991';
+import { clamp, clamp01 } from '../core/Util.js?v=1790020991';
 
 const NUM_POOL = 14;
 const BAR_POOL = 8;
@@ -34,6 +34,22 @@ export class Combatant {
     this.el = document.createElement('div');
     this.el.id = 'combat-fx';
     this.el.className = 'cfx';
+    /*
+     * SET INLINE, NOT IN THE STYLESHEET, and this is not belt-and-braces.
+     *
+     * `#ui > * { pointer-events: auto; }` has been in main.css since the
+     * HUD was written, and it has ID specificity (1,0,0). A `.cfx` rule
+     * saying `pointer-events: none` is (0,1,0) and LOSES. This layer is
+     * `position: fixed; inset: 0` — it covers the entire screen — so it
+     * quietly became a sheet of glass over the whole game: right-drag to
+     * look stopped working, and clicks never reached the canvas so
+     * pointer lock could not engage either.
+     *
+     * An inline style beats any selector, so the component guarantees
+     * its own transparency instead of depending on the cascade going its
+     * way. Any future full-bleed overlay added under #ui needs the same.
+     */
+    this.el.style.pointerEvents = 'none';
     root.appendChild(this.el);
 
     this.nums = [];

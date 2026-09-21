@@ -22,11 +22,11 @@
    that says it is 2.1 m long is 2.1 m of wood, however crooked it is.
 */
 
-import * as THREE from '../../lib/three.module.js?v=1790019740';
-import { MeshBuilder, tube, blob, blade, lathe, smoothPath, rotAxis, perp, norm3 } from './Geo.js?v=1790019740';
-import { BARK, MOSS, MUSHROOM, LEAF, mixHex, tweak, shade } from './Palette.js?v=1790019740';
-import { SPECIES, RARE, MATERIALS } from '../data/StickData.js?v=1790019740';
-import { makeRng, clamp, lerp, TAU, smoothstep } from '../core/Util.js?v=1790019740';
+import * as THREE from '../../lib/three.module.js?v=1790020991';
+import { MeshBuilder, tube, blob, blade, lathe, smoothPath, rotAxis, perp, norm3 } from './Geo.js?v=1790020991';
+import { BARK, MOSS, MUSHROOM, LEAF, mixHex, tweak, shade } from './Palette.js?v=1790020991';
+import { SPECIES, RARE, MATERIALS } from '../data/StickData.js?v=1790020991';
+import { makeRng, clamp, lerp, TAU, smoothstep } from '../core/Util.js?v=1790020991';
 
 /* ========================================================================= */
 /* LEVELS OF DETAIL                                                          */

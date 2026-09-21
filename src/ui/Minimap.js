@@ -26,10 +26,10 @@
    every frame, the ground does not.
 */
 
-import { buildMapImage, FOG_CELL } from '../game/MapData.js?v=1790019740';
-import { WORLD } from '../core/Config.js?v=1790019740';
-import { VILLAGES } from '../data/VillageData.js?v=1790019740';
-import { clamp, clamp01, TAU } from '../core/Util.js?v=1790019740';
+import { buildMapImage, FOG_CELL } from '../game/MapData.js?v=1790020991';
+import { WORLD } from '../core/Config.js?v=1790020991';
+import { VILLAGES } from '../data/VillageData.js?v=1790020991';
+import { clamp, clamp01, TAU } from '../core/Util.js?v=1790020991';
 
 const SIZE = 168;          // css pixels
 const SPAN = 240;          // metres across the window
@@ -44,6 +44,10 @@ export class Minimap {
     this.el = document.createElement('div');
     this.el.id = 'minimap';
     this.el.className = 'mmap';
+    /* inline, because `#ui > *` sets pointer-events:auto at ID
+       specificity and would otherwise make the dial a click-eater in
+       the corner of the screen — see the note in Combatant.js */
+    this.el.style.pointerEvents = 'none';
     this.el.innerHTML = `
       <canvas class="mmap-c"></canvas>
       <div class="mmap-ring"></div>
@@ -64,16 +68,24 @@ export class Minimap {
     /* the whole-world terrain image, built once and sampled from. It is
        small (260 px for 1800 m) which is exactly right here: the minimap
        wants an impression of the ground, not its contours. */
+    /* THE WHOLE THING IS OPTIONAL. If the terrain image cannot be built
+       or a 2D context cannot be had, the dial draws a flat green disc
+       and the arrow — which is still a useful compass — rather than
+       throwing and taking the HUD down with it. */
     this.world = null;
-    try { this.world = buildMapImage(G.world?.terrain, 300); } catch (e) { this.world = null; }
-    if (this.world) {
-      this.tile = document.createElement('canvas');
-      this.tile.width = this.world.size;
-      this.tile.height = this.world.size;
-      const tctx = this.tile.getContext('2d');
+    this.tile = null;
+    try {
+      this.world = buildMapImage(G.world?.terrain, 300);
+      const t = document.createElement('canvas');
+      t.width = this.world.size;
+      t.height = this.world.size;
+      const tctx = t.getContext('2d');
       const img = tctx.createImageData(this.world.size, this.world.size);
       img.data.set(this.world.px);
       tctx.putImageData(img, 0, 0);
+      this.tile = t;
+    } catch (e) {
+      this.tile = null;
     }
 
     this._lastCell = '';

@@ -29,13 +29,13 @@
    map does not leak wolves.
 */
 
-import * as THREE from '../../lib/three.module.js?v=1790019740';
-import { buildBeast } from '../art/BeastArt.js?v=1790019740';
-import { BEASTS, BEAST_LIST, beastsForBand, beastBudget } from '../data/BeastData.js?v=1790019740';
-import { dangerBand, zoneAt, VILLAGES } from '../data/VillageData.js?v=1790019740';
-import { targetsInArc } from './Combat.js?v=1790019740';
-import { bus, EV } from '../core/Bus.js?v=1790019740';
-import { makeRng, clamp, clamp01, lerp, damp, dampAngle, TAU, smoothstep } from '../core/Util.js?v=1790019740';
+import * as THREE from '../../lib/three.module.js?v=1790020991';
+import { buildBeast } from '../art/BeastArt.js?v=1790020991';
+import { BEASTS, BEAST_LIST, beastsForBand, beastBudget } from '../data/BeastData.js?v=1790020991';
+import { dangerBand, zoneAt, VILLAGES } from '../data/VillageData.js?v=1790020991';
+import { targetsInArc } from './Combat.js?v=1790020991';
+import { bus, EV } from '../core/Bus.js?v=1790020991';
+import { makeRng, clamp, clamp01, lerp, damp, dampAngle, TAU, smoothstep } from '../core/Util.js?v=1790020991';
 
 const SPAWN_MIN = 34;      // never appear closer than this
 

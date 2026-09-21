@@ -25,9 +25,9 @@
    UI layer reads this state and draws it.
 */
 
-import { rollFish, fishTier, rarityOf } from '../data/FishData.js?v=1790019740';
-import { bus, EV } from '../core/Bus.js?v=1790019740';
-import { clamp, clamp01, lerp, makeRng } from '../core/Util.js?v=1790019740';
+import { rollFish, fishTier, rarityOf } from '../data/FishData.js?v=1790020991';
+import { bus, EV } from '../core/Bus.js?v=1790020991';
+import { clamp, clamp01, lerp, makeRng } from '../core/Util.js?v=1790020991';
 
 /*
  * THE ZONE MUST BE ABLE TO OUTRUN THE FISH.

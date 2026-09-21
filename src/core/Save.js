@@ -2,7 +2,7 @@
    A save that fails must never break the game; the worst case is that you
    start a fresh morning in Hearthwood. */
 
-import { SAVE_KEY } from './Config.js?v=1790019740';
+import { SAVE_KEY } from './Config.js?v=1790020991';
 
 export function loadRaw() {
   try {

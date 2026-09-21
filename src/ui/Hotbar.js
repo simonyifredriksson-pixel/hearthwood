@@ -20,10 +20,10 @@
    themselves, and it fades down when nothing has changed for a while.
 */
 
-import { ic } from './Icons.js?v=1790019740';
-import { rarityOf, MUTATION_BY_ID, catchValue, fishTitle } from '../data/FishData.js?v=1790019740';
-import { RARITY } from '../art/Palette.js?v=1790019740';
-import { esc, clamp, clamp01 } from '../core/Util.js?v=1790019740';
+import { ic } from './Icons.js?v=1790020991';
+import { rarityOf, MUTATION_BY_ID, catchValue, fishTitle } from '../data/FishData.js?v=1790020991';
+import { RARITY } from '../art/Palette.js?v=1790020991';
+import { esc, clamp, clamp01 } from '../core/Util.js?v=1790020991';
 
 const money = n => '$' + Math.round(n).toLocaleString('en-US');
 
