@@ -19,11 +19,11 @@
    They are built standing, arms down, and posed by NPCs.js.
 */
 
-import * as THREE from '../../lib/three.module.js?v=20260921163240';
-import { MeshBuilder, tube, blob, lathe, blade, box, quad, sheet, wedge } from './Geo.js?v=20260921163240';
-import { FUR, CLOTH, BUILD, METAL, mixHex, tweak, shade } from './Palette.js?v=20260921163240';
-import { MATS } from './Materials.js?v=20260921163240';
-import { makeRng, clamp, lerp, TAU } from '../core/Util.js?v=20260921163240';
+import * as THREE from '../../lib/three.module.js?v=20260921164117';
+import { MeshBuilder, tube, blob, lathe, blade, box, quad, sheet, wedge } from './Geo.js?v=20260921164117';
+import { FUR, CLOTH, BUILD, METAL, mixHex, tweak, shade } from './Palette.js?v=20260921164117';
+import { MATS } from './Materials.js?v=20260921164117';
+import { makeRng, clamp, lerp, TAU } from '../core/Util.js?v=20260921164117';
 
 /* ========================================================================= */
 /* SPECIES                                                                   */

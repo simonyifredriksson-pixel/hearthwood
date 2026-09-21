@@ -25,11 +25,11 @@
    test_faces.mjs renders one of every species with back faces in magenta.
 */
 
-import * as THREE from '../../lib/three.module.js?v=20260921163240';
-import { MeshBuilder, blob, tube, quad } from './Geo.js?v=20260921163240';
-import { FISH, MUTATION_BY_ID } from '../data/FishData.js?v=20260921163240';
-import { mixHex, shade } from './Palette.js?v=20260921163240';
-import { makeRng, clamp, clamp01, lerp, smoothstep, TAU } from '../core/Util.js?v=20260921163240';
+import * as THREE from '../../lib/three.module.js?v=20260921164117';
+import { MeshBuilder, blob, tube, quad } from './Geo.js?v=20260921164117';
+import { FISH, MUTATION_BY_ID } from '../data/FishData.js?v=20260921164117';
+import { mixHex, shade } from './Palette.js?v=20260921164117';
+import { makeRng, clamp, clamp01, lerp, smoothstep, TAU } from '../core/Util.js?v=20260921164117';
 
 /* ========================================================================= */
 /* BODY PROFILES                                                             */

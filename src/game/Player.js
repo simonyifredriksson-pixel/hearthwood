@@ -20,13 +20,13 @@
    and facing. Everything visual about how a species moves lives there.
 */
 
-import * as THREE from '../../lib/three.module.js?v=20260921163240';
-import { buildAnimal } from '../art/AnimalArt.js?v=20260921163240';
-import { poseAnimal, SPECIES } from './Anim.js?v=20260921163240';
-import { carryFor, swingOf, chargeStage, chargeProgress, CHARGE, CHARGE_STAGE_SECONDS, COMBO, COMBO_WINDOW } from './Combat.js?v=20260921163240';
-import { MATS } from '../art/Materials.js?v=20260921163240';
-import { PLAYER, WORLD } from '../core/Config.js?v=20260921163240';
-import { clamp, clamp01, lerp, damp, dampAngle, angleDelta, TAU, smoothstep } from '../core/Util.js?v=20260921163240';
+import * as THREE from '../../lib/three.module.js?v=20260921164117';
+import { buildAnimal } from '../art/AnimalArt.js?v=20260921164117';
+import { poseAnimal, SPECIES } from './Anim.js?v=20260921164117';
+import { carryFor, swingOf, chargeStage, chargeProgress, CHARGE, CHARGE_STAGE_SECONDS, COMBO, COMBO_WINDOW } from './Combat.js?v=20260921164117';
+import { MATS } from '../art/Materials.js?v=20260921164117';
+import { PLAYER, WORLD } from '../core/Config.js?v=20260921164117';
+import { clamp, clamp01, lerp, damp, dampAngle, angleDelta, TAU, smoothstep } from '../core/Util.js?v=20260921164117';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -151,7 +151,11 @@ export class Player {
 
   /** The class of whatever is being carried, for the animator. */
   get weaponClass() {
-    return this.weapon ? (this.weapon.cls || this.weapon.weapon?.cls || null) : null;
+    if (!this.weapon) return null;
+    /* a rod is carried, not swung: the combat tables have no entry for it
+       and asking for one would hand back a club's attack */
+    if (this.weapon.cls === 'rod') return null;
+    return this.weapon.cls || this.weapon.weapon?.cls || null;
   }
 
   /* ====================================================================== */
@@ -170,7 +174,7 @@ export class Player {
    * @param charge  0 for a normal hit, 1..3 for a released heavy attack
    */
   attack(charge = 0) {
-    if (!this.weapon || this.busy) return null;
+    if (!this.weapon || this.weapon.cls === 'rod' || this.busy) return null;
     /* the string times out rather than resetting on any miss: a cozy game
        should not punish someone for pausing to look at a tree */
     if (this.t - this._lastSwingAt > COMBO_WINDOW) this._combo = 0;
@@ -196,7 +200,7 @@ export class Player {
    * can fire the flash, and null otherwise.
    */
   holdAttack(dt) {
-    if (!this.weapon) return null;
+    if (!this.weapon || this.weapon.cls === 'rod') return null;
     if (this.busy && this.action !== 'charge') return null;
     if (!this.charging) {
       this.charging = true;

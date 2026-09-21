@@ -19,16 +19,16 @@
    half a metre above their own foundations.
 */
 
-import * as THREE from '../../lib/three.module.js?v=20260921163240';
-import { MeshBuilder, box, beam, cylinder, blob, quad, tube } from '../art/Geo.js?v=20260921163240';
-import { buildHouse, buildWorkshop, buildBarn, buildMill } from '../art/BuildingGen.js?v=20260921163240';
-import * as P from '../art/PropArt.js?v=20260921163240';
-import { buildTree } from '../art/TreeGen.js?v=20260921163240';
-import { buildBush, buildFlower, buildGrassTuft, buildGroundCover } from '../art/PlantGen.js?v=20260921163240';
-import { BUILD, GROUND, PLANT, MOSS, BARK, METAL, mixHex, tweak, shade } from '../art/Palette.js?v=20260921163240';
-import { WORLD } from '../core/Config.js?v=20260921163240';
-import { makeRng, clamp, lerp, TAU, segDist, smoothstep } from '../core/Util.js?v=20260921163240';
-import { riverX, riverLevel } from './Terrain.js?v=20260921163240';
+import * as THREE from '../../lib/three.module.js?v=20260921164117';
+import { MeshBuilder, box, beam, cylinder, blob, quad, tube } from '../art/Geo.js?v=20260921164117';
+import { buildHouse, buildWorkshop, buildBarn, buildMill } from '../art/BuildingGen.js?v=20260921164117';
+import * as P from '../art/PropArt.js?v=20260921164117';
+import { buildTree } from '../art/TreeGen.js?v=20260921164117';
+import { buildBush, buildFlower, buildGrassTuft, buildGroundCover } from '../art/PlantGen.js?v=20260921164117';
+import { BUILD, GROUND, PLANT, MOSS, BARK, METAL, mixHex, tweak, shade } from '../art/Palette.js?v=20260921164117';
+import { WORLD } from '../core/Config.js?v=20260921164117';
+import { makeRng, clamp, lerp, TAU, segDist, smoothstep } from '../core/Util.js?v=20260921164117';
+import { riverX, riverLevel } from './Terrain.js?v=20260921164117';
 
 const UP = new THREE.Vector3(0, 1, 0);
 

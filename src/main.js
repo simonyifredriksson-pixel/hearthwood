@@ -13,38 +13,42 @@
      7. ui, then render
 */
 
-import * as THREE from '../lib/three.module.js?v=20260921163240';
-import { input } from './core/Input.js?v=20260921163240';
-import { CameraRig } from './core/CameraRig.js?v=20260921163240';
-import { audio } from './core/Audio.js?v=20260921163240';
-import { bus, EV } from './core/Bus.js?v=20260921163240';
-import { BUILD, RENDER, WORLD, GAME, PLAYER } from './core/Config.js?v=20260921163240';
-import { clamp, clamp01, lerp, now, Rolling } from './core/Util.js?v=20260921163240';
+import * as THREE from '../lib/three.module.js?v=20260921164117';
+import { input } from './core/Input.js?v=20260921164117';
+import { CameraRig } from './core/CameraRig.js?v=20260921164117';
+import { audio } from './core/Audio.js?v=20260921164117';
+import { bus, EV } from './core/Bus.js?v=20260921164117';
+import { BUILD, RENDER, WORLD, GAME, PLAYER } from './core/Config.js?v=20260921164117';
+import { clamp, clamp01, lerp, now, Rolling } from './core/Util.js?v=20260921164117';
 
-import { MATS } from './art/Materials.js?v=20260921163240';
-import { World } from './world/World.js?v=20260921163240';
-import { Player } from './game/Player.js?v=20260921163240';
-import { NPCs } from './game/NPCs.js?v=20260921163240';
-import { GameState } from './game/State.js?v=20260921163240';
-import { SPECIES } from './game/Anim.js?v=20260921163240';
-import { weaponMeshes } from './art/WeaponArt.js?v=20260921163240';
-import { WEAPON_CLASSES } from './data/WeaponData.js?v=20260921163240';
-import { RARITY } from './art/Palette.js?v=20260921163240';
-import { STICKWRIGHT, FISHERMAN } from './data/VillagerData.js?v=20260921163240';
-import { RARE } from './data/StickData.js?v=20260921163240';
-import { STARTER_ROD } from './data/RodData.js?v=20260921163240';
+import { MATS } from './art/Materials.js?v=20260921164117';
+import { World } from './world/World.js?v=20260921164117';
+import { Player } from './game/Player.js?v=20260921164117';
+import { NPCs } from './game/NPCs.js?v=20260921164117';
+import { GameState } from './game/State.js?v=20260921164117';
+import { SPECIES } from './game/Anim.js?v=20260921164117';
+import { weaponMeshes } from './art/WeaponArt.js?v=20260921164117';
+import { rodMeshes } from './art/RodArt.js?v=20260921164117';
+import { WEAPON_CLASSES } from './data/WeaponData.js?v=20260921164117';
+import { RARITY } from './art/Palette.js?v=20260921164117';
+import { STICKWRIGHT, FISHERMAN } from './data/VillagerData.js?v=20260921164117';
+import { RARE } from './data/StickData.js?v=20260921164117';
+import { STARTER_ROD } from './data/RodData.js?v=20260921164117';
 
-import { UI } from './ui/UI.js?v=20260921163240';
-import { Effects } from './game/Effects.js?v=20260921163240';
-import { SatchelScreen, Turntable } from './ui/Satchel.js?v=20260921163240';
-import { WorkshopScreen, RevealScreen } from './ui/Workshop.js?v=20260921163240';
-import { ForgeScene } from './game/Forge.js?v=20260921163240';
-import { Workers } from './game/Workers.js?v=20260921163240';
-import { Fishing, FISH_STATE } from './game/Fishing.js?v=20260921163240';
-import { FishingUI } from './ui/FishingUI.js?v=20260921163240';
-import { Quest, FESTIVAL_SPEECH } from './game/Quest.js?v=20260921163240';
-import { CHARGE } from './game/Combat.js?v=20260921163240';
-import { ic } from './ui/Icons.js?v=20260921163240';
+import { UI } from './ui/UI.js?v=20260921164117';
+import { Talk } from './ui/Talk.js?v=20260921164117';
+import { RodShop } from './ui/RodShop.js?v=20260921164117';
+import { Hotbar } from './ui/Hotbar.js?v=20260921164117';
+import { Effects } from './game/Effects.js?v=20260921164117';
+import { SatchelScreen, Turntable } from './ui/Satchel.js?v=20260921164117';
+import { WorkshopScreen, RevealScreen } from './ui/Workshop.js?v=20260921164117';
+import { ForgeScene } from './game/Forge.js?v=20260921164117';
+import { Workers } from './game/Workers.js?v=20260921164117';
+import { Fishing, FISH_STATE } from './game/Fishing.js?v=20260921164117';
+import { FishingUI } from './ui/FishingUI.js?v=20260921164117';
+import { Quest, FESTIVAL_SPEECH } from './game/Quest.js?v=20260921164117';
+import { CHARGE } from './game/Combat.js?v=20260921164117';
+import { ic } from './ui/Icons.js?v=20260921164117';
 
 /* ========================================================================= */
 
@@ -79,6 +83,7 @@ input.attach(canvas);
 const G = {
   state: null, world: null, player: null, npcs: null, ui: null,
   workers: null, fishing: null, fishUI: null, quest: null, forge: null,
+  talk: null, rodShop: null, hotbar: null,
   fx: null, turntable: null,
   /* the cutscene director needs these two by name */
   scene, rig,
@@ -122,6 +127,7 @@ async function boot() {
   G.audio = audio;
   G.forge = new ForgeScene(G);
   G.fx = new Effects(scene);
+  G.talk = new Talk(document.getElementById('ui'), { audio });
 
   setBoot(0.96, 'lighting the lanterns');
   await new Promise(r => setTimeout(r, 60));
@@ -131,6 +137,18 @@ async function boot() {
 
   const saved = GameState.load();
   G.state = saved || new GameState();
+  /* the shop needs the purse, so it is built after the save has loaded */
+  G.rodShop = new RodShop(document.getElementById('ui'), G.state, {
+    audio,
+    onBuy: rod => G.ui.toast({
+      text: rod.name, sub: 'A better rod. The water will feel different.',
+      icon: 'spark', tone: 'rare', ms: 5200,
+    }),
+  });
+  G.hotbar = new Hotbar(document.getElementById('ui'), G.state, {
+    audio,
+    onSelect: () => { if (G.player) equipFromState(); },
+  });
   if (saved) {
     G.world.takenSticks = new Set(saved.taken);
     G.world.sky.setPhase(saved.dayPhase ?? 0.70);
@@ -339,10 +357,14 @@ async function talkTo(npc) {
     return;
   }
 
-  /* --- the Fisherman, who hands over the rod ---------------------------- */
+  /* --- the Fisherman: buys fish, sells rods ----------------------------
+     The busiest conversation in the game, so it does NOT open a screen.
+     Four choices, exactly as specified, in a small panel beside him with
+     the river still visible behind it. */
   if (npc.isFisherman) {
     const first = !G.state.hasRod;
     G.state.metNPCs.add('fisherman');
+    if (!first) { await fishermanShop(npc); G.player.lookAt = null; return; }
     if (first) {
       /* His four opening lines, one box at a time. It is the only place in
          the game that plays a fixed script at the player, and it is four
@@ -363,15 +385,6 @@ async function talkTo(npc) {
         icon: 'drop', tone: 'rare', ms: 7000,
       });
       audio.craft?.();
-    } else {
-      const said = G.state.stats.fish > 0 ? pick(FISHERMAN.proud) : pick(FISHERMAN.greet);
-      const choice = await G.ui.say(`${npc.name}, ${npc.title}`, said, [
-        { id: 'fish', label: 'Fish here', icon: 'drop' },
-        { id: 'talk', label: 'Ask about the water', icon: 'leaf' },
-        { id: 'bye', label: 'Leave him to it', icon: 'chevron' },
-      ]);
-      if (choice === 'fish') startFishing(npc.fishSpot);
-      else if (choice === 'talk') await G.ui.say(npc.name, pick(FISHERMAN.idle));
     }
     G.player.lookAt = null;
     return;
@@ -382,6 +395,103 @@ async function talkTo(npc) {
   G.player.lookAt = null;
 }
 
+
+/* ========================================================================= */
+/* THE FISHERMAN                                                             */
+/* ========================================================================= */
+
+const money = n => '$' + Math.round(n).toLocaleString('en-US');
+
+/**
+ * Sell fish, buy rods, go away again.
+ *
+ * A LOOP, not a script. Selling one fish should not throw you out of the
+ * conversation to walk back up to him, so the panel comes straight back
+ * with the creel one lighter — which is how you clear forty perch without
+ * forty separate conversations.
+ *
+ * The four options and the four replies are exactly as briefed.
+ */
+async function fishermanShop(npc) {
+  const S = G.state;
+  const who = npc.name, title = npc.title || 'Fisherman';
+  const village = npc.village || 'home';
+
+  for (;;) {
+    const n = S.sellableCount;
+    const worth = S.sellableValue;
+    const best = S.bestInCreel;
+    const line = S.fish.length === 0
+      ? pick(FISHERMAN.greetEmpty || FISHERMAN.greet)
+      : (S.stats.fish > 0 ? pick(FISHERMAN.proud) : pick(FISHERMAN.greet));
+
+    const choice = await G.talk.ask(who, title, line, [
+      {
+        id: 'one', label: 'I want to sell this', icon: 'drop',
+        note: best && !best.fav ? `${best.name} · ${money(S.valueOf(best))}` : null,
+        disabled: !n,
+      },
+      {
+        id: 'all', label: 'I want to sell all my fish', icon: 'satchel',
+        note: n ? `${n} fish · ${money(worth)}` : 'nothing to sell',
+        disabled: !n,
+      },
+      { id: 'rods', label: 'Can I see your fishing rods?', icon: 'spark' },
+      { id: 'bye', label: 'Nevermind', icon: 'chevron' },
+    ]);
+
+    if (choice === null || choice === 'bye') {
+      G.talk.say(who, title, 'See you later!');
+      return;
+    }
+
+    if (choice === 'one') {
+      /* "this" is whatever is worth most and is not starred — which is what
+         a player means when they hold one thing up to a buyer. */
+      const pickFish = S.fish.filter(f => !f.fav)
+        .sort((a, b) => S.valueOf(b) - S.valueOf(a))[0];
+      if (!pickFish) continue;
+      const r = S.sellFish(pickFish.uid);
+      if (r.ok) {
+        audio.pickup?.(2);
+        G.ui.toast({
+          text: `Sold: ${pickFish.name}`, sub: `+${money(r.coin)}`,
+          icon: 'drop', tone: 'rare', ms: 3200,
+        });
+        G.talk.say(who, title, "Here's your money.");
+        S.save();
+      }
+      await wait(700);
+      continue;
+    }
+
+    if (choice === 'all') {
+      const r = S.sellAllFish();
+      if (r.ok) {
+        audio.pickup?.(3);
+        G.ui.toast({
+          text: `Sold ${r.count} fish`, sub: `+${money(r.coin)}` +
+            (r.kept ? ` · ${r.kept} kept back` : ''),
+          icon: 'satchel', tone: 'rare', ms: 4200,
+        });
+        G.talk.say(who, title, "Here's your money.");
+        S.save();
+      }
+      await wait(900);
+      continue;
+    }
+
+    if (choice === 'rods') {
+      G.talk.close(null);
+      G.talk.say(who, title, 'Take a look at what I have.', { ms: 2600 });
+      await G.rodShop.show(village, who);
+      S.save();
+      continue;
+    }
+  }
+}
+
+const wait = ms => new Promise(r => setTimeout(r, ms));
 
 /* ========================================================================= */
 /* THE FIRST FORGE FESTIVAL                                                  */
@@ -565,9 +675,32 @@ async function runForge(stick) {
   requestAnimationFrame(() => G.turntable.attach(card.el.querySelector('#tt-slot')));
 }
 
+/**
+ * Put the right thing in the paw.
+ *
+ * The rod and the weapon share one hand and one mount point, so this is the
+ * single place that decides which of them is in it. Both are built with the
+ * grip at the origin and the business end up +Y, so the carry code does not
+ * have to care which it is holding.
+ */
 function equipFromState() {
-  const w = G.state.equippedWeapon;
-  if (!w) { G.player?.unequip(); G.ui.setWeapon(null); return; }
+  const S = G.state;
+  if (!G.player) return;
+
+  if (S.holdingRod) {
+    const rod = S.currentRod;
+    if (G.player.heldRodId !== rod.id) {
+      const built = rodMeshes(rod, MATS, { lod: 0 });
+      G.player.equip({ ...built, weapon: null, cls: 'rod', rod });
+      G.player.heldRodId = rod.id;
+    }
+    G.ui.setWeapon({ name: rod.name });
+    return;
+  }
+
+  G.player.heldRodId = null;
+  const w = S.equippedWeapon;
+  if (!w) { G.player.unequip(); G.ui.setWeapon(null); return; }
   if (!w.design || !w.stick) return;
   const built = weaponMeshes(w, MATS, { lod: 0 });
   G.player.equip({ ...built, weapon: w, cls: w.cls });
@@ -575,6 +708,7 @@ function equipFromState() {
 }
 
 bus.on(EV.WEAPON_EQUIPPED, () => { if (G.player) equipFromState(); });
+bus.on(EV.ROD_CHANGED, () => { if (G.player) equipFromState(); });
 
 /* ========================================================================= */
 /* HINTS                                                                     */
@@ -624,7 +758,14 @@ function frame() {
      and the village keeps working, because a village that freezes behind a
      cutscene is a diorama. */
   const cine = !!G.forge?.busy;
-  const uiAte = G.ui.handleKeys();
+  /* one word for 'the player is busy with an interface' — screens, the
+     compact talk panel and the rod shop all freeze the fox */
+  const uiUp = G.ui.busy || !!G.talk?.busy || !!G.rodShop?.busy;
+  /* the compact panels get first refusal on the keyboard, because while one
+     is up the number keys mean "pick this option" and nothing else */
+  const talking = G.rodShop?.handleKeys() || G.talk?.handleKeys() || false;
+  if (!talking && !cine && !G.ui.busy) G.hotbar?.handleKeys(input);
+  const uiAte = talking || G.ui.handleKeys();
 
   if (cine) {
     if (input.rawPressed('Escape', 'Space', 'KeyE')) G.forge.skip();
@@ -643,7 +784,7 @@ function frame() {
        past the charge threshold means you meant to charge, and releasing
        before it means you meant to tap. `releaseAttack` does exactly that
        and hands a stage of 0 back to `attack`, which is an ordinary hit. */
-    const canFight = G.player?.weapon && !G.fishing.active && !G.ui.busy;
+    const canFight = G.player?.weapon && !G.fishing.active && !uiUp && G.state.holding !== 'rod';
     if (canFight) {
       if (input.mouseDown || input.down('KeyF')) {
         const stage = G.player.holdAttack(dt);
@@ -681,18 +822,18 @@ function frame() {
   const look = input.lookDelta();
   if (!cine) rig.look(look.x, look.y);
   if (input.mouse.wheel && !cine) rig.zoom(input.mouse.wheel);
-  if (G.ui.busy || cine) rig.settleTargets();
+  if (uiUp || cine) rig.settleTargets();
 
   const P = G.player;
   const ax = cine ? { x: 0, y: 0 } : input.moveAxis();
   const mv = rig.moveVector(ax.x, ax.y);
-  const idle = !G.ui.busy && !cine && ax.x === 0 && ax.y === 0 && !input.lookActive;
+  const idle = !uiUp && !cine && ax.x === 0 && ax.y === 0 && !input.lookActive;
 
   /* --- 3. player -------------------------------------------------------- */
   P.update(dt, mv, {
     run: input.down('ShiftLeft', 'ShiftRight'),
-    jump: !cine && input.rawPressed('Space') && !G.ui.busy,
-    frozen: G.ui.busy || cine,
+    jump: !cine && input.rawPressed('Space') && !uiUp,
+    frozen: uiUp || cine,
   });
   G.state.stats.walked += Math.hypot(P.vx, P.vz) * dt;
 
@@ -730,7 +871,7 @@ function frame() {
   G.fishUI.update(G.fishing);
 
   /* --- 6. interaction --------------------------------------------------- */
-  G.target = (G.ui.busy || cine) ? null : pickTarget();
+  G.target = (uiUp || cine) ? null : pickTarget();
   updatePrompt();
   highlightTarget(dt);
 
@@ -739,7 +880,7 @@ function frame() {
     G.quest.update(dt);
     G.ui.setObjective(cine ? null : G.quest.objective);
     const mk = G.quest.marker;
-    if (mk && !G.ui.busy && !cine) {
+    if (mk && !uiUp && !cine) {
       const dx = mk.x - P.x, dz = mk.z - P.z;
       const d = Math.hypot(dx, dz);
       // relative to where the CAMERA is looking, not where the player faces:
@@ -755,6 +896,7 @@ function frame() {
 
   /* --- 8. ui, audio, save ----------------------------------------------- */
   G.ui.update(dt);
+  G.hotbar?.update(dt);
   G.ui.setTime(sky.name, sky.night);
   G.ui.setHomeDistance(Math.hypot(P.x - WORLD.village.cx, P.z - WORLD.village.cz));
   audio.update(dt, {

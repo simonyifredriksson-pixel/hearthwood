@@ -19,12 +19,12 @@
    that every single one comes out holding something.
 */
 
-import { makeRng, clamp, clamp01, lerp, TAU } from '../core/Util.js?v=20260921163240';
+import { makeRng, clamp, clamp01, lerp, TAU } from '../core/Util.js?v=20260921164117';
 import {
   SPECIES, RARE, MATERIALS, EFFECTS,
   stickComponents, componentScore,
-} from './StickData.js?v=20260921163240';
-import { RARITY } from '../art/Palette.js?v=20260921163240';
+} from './StickData.js?v=20260921164117';
+import { RARITY } from '../art/Palette.js?v=20260921164117';
 
 /* ========================================================================= */
 /* CLASSES                                                                   */

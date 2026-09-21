@@ -1199,3 +1199,248 @@ body:has(.cine.in) #prompt { opacity: 0; transition: opacity .4s ease; }
 @media (prefers-reduced-motion: reduce) {
   .guide, .hud-objective.in { animation: none !important; }
 }
+
+/* ========================================================================= */
+/* TALKING TO SOMEBODY                                                       */
+/* ========================================================================= */
+
+/* A PANEL, NOT A SCREEN. No backdrop and no dimming: the river, the trees
+   and the person you are talking to all stay exactly where they were. It
+   sits on the right because the fox is framed left-of-centre by the
+   shoulder camera, so this lands on empty grass rather than on her face. */
+.talk {
+  position: fixed; right: 4vw; top: 50%; transform: translateY(-50%) translateX(22px);
+  z-index: 8; width: min(23rem, 84vw); pointer-events: auto;
+  opacity: 0; transition: opacity .26s ease, transform .34s cubic-bezier(.2, 1, .35, 1);
+  font-family: var(--sans);
+  filter: drop-shadow(0 16px 30px rgba(14, 10, 4, .5));
+}
+.talk.in { opacity: 1; transform: translateY(-50%) translateX(0); }
+.talk.lone { pointer-events: none; }
+
+.talk-who {
+  display: flex; align-items: baseline; gap: .5em;
+  padding: .5rem .9rem .45rem; border-radius: .8rem .8rem 0 0;
+  background: linear-gradient(180deg, rgba(62, 48, 28, .96), rgba(48, 37, 21, .96));
+  border: 1px solid rgba(214, 186, 128, .3); border-bottom: none;
+}
+.talk-who b {
+  font-family: var(--display); font-size: 1.22rem; font-weight: 700; color: #f6ead0;
+}
+.talk-who i {
+  font-style: normal; font-size: .62rem; letter-spacing: .16em; text-transform: uppercase;
+  color: #b09a6c;
+}
+
+.talk-say {
+  margin: 0; padding: .7rem .9rem;
+  background: rgba(34, 27, 15, .95);
+  border-left: 1px solid rgba(214, 186, 128, .3);
+  border-right: 1px solid rgba(214, 186, 128, .3);
+  font-family: var(--serif); font-size: .97rem; line-height: 1.5; color: #ddd0ae;
+}
+.talk.lone .talk-say { border-radius: 0 0 .8rem .8rem; border-bottom: 1px solid rgba(214, 186, 128, .3); }
+
+.talk-opts {
+  list-style: none; margin: 0; padding: .4rem; display: grid; gap: .25rem;
+  border-radius: 0 0 .8rem .8rem;
+  background: linear-gradient(180deg, rgba(40, 32, 18, .96), rgba(30, 24, 13, .97));
+  border: 1px solid rgba(214, 186, 128, .3); border-top: none;
+}
+.talk-opt {
+  display: flex; align-items: center; gap: .55em; cursor: pointer;
+  padding: .5em .7em; border-radius: .5rem;
+  color: #d8cba8; font-size: .95rem; line-height: 1.25;
+  border: 1px solid transparent;
+  transition: background .12s ease, border-color .12s ease, transform .12s ease, color .12s;
+}
+.talk-opt .to-num {
+  flex: none; width: 1.35em; height: 1.35em; border-radius: .3rem;
+  display: grid; place-items: center; font-size: .68rem; font-weight: 700;
+  background: rgba(214, 186, 128, .14); color: #b09a6c;
+}
+.talk-opt .ic { flex: none; opacity: .75; }
+.talk-opt .to-label { flex: 1; }
+.talk-opt .to-note {
+  font-style: normal; font-size: .72rem; color: #9a8f70; letter-spacing: .02em;
+  text-align: right; white-space: nowrap;
+}
+.talk-opt.sel {
+  background: linear-gradient(90deg, rgba(216, 176, 92, .22), rgba(216, 176, 92, .08));
+  border-color: rgba(230, 196, 120, .55); color: #fdf3d8; transform: translateX(3px);
+}
+.talk-opt.sel .to-num { background: var(--gold-lit); color: #2a2110; }
+.talk-opt.sel .to-note { color: #cbb98c; }
+.talk-opt.off { opacity: .4; cursor: default; }
+.talk-opt.off.sel { transform: none; }
+
+/* ========================================================================= */
+/* THE ROD SHOP                                                              */
+/* ========================================================================= */
+
+.rodshop {
+  position: fixed; right: 4vw; top: 50%; transform: translateY(-50%) translateX(26px);
+  z-index: 8; width: min(27rem, 90vw); max-height: 84vh; overflow: hidden;
+  display: flex; flex-direction: column;
+  border-radius: .9rem; pointer-events: auto;
+  background: linear-gradient(180deg, rgba(44, 35, 20, .97), rgba(28, 22, 12, .98));
+  border: 1px solid rgba(214, 186, 128, .32);
+  box-shadow: var(--shadow);
+  opacity: 0; transition: opacity .26s ease, transform .34s cubic-bezier(.2, 1, .35, 1);
+  font-family: var(--sans);
+}
+.rodshop.in { opacity: 1; transform: translateY(-50%) translateX(0); }
+
+.rs-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  padding: .7rem .9rem; border-bottom: 1px solid rgba(214, 186, 128, .18);
+}
+.rs-kicker { display: block; font-size: .58rem; letter-spacing: .2em; text-transform: uppercase; color: #a08d64; }
+.rs-title { font-family: var(--display); font-size: 1.35rem; color: #f6ead0; }
+.rs-purse {
+  display: flex; align-items: center; gap: .35em;
+  padding: .3em .7em; border-radius: 999px;
+  background: rgba(216, 176, 92, .14); border: 1px solid rgba(216, 176, 92, .35);
+  color: #f0d48a; font-weight: 700;
+}
+.rs-purse .ic { width: 1em; height: 1em; }
+
+.rs-mine {
+  display: flex; align-items: baseline; gap: .6em; padding: .45rem .9rem;
+  background: rgba(0, 0, 0, .22); font-size: .84rem; color: #b8aa84;
+}
+.rs-mine span { font-size: .58rem; letter-spacing: .18em; text-transform: uppercase; color: #8a7d5e; }
+.rs-mine b { color: #e8dcb8; }
+
+.rs-list { overflow-y: auto; padding: .5rem; display: grid; gap: .45rem; }
+.rs-empty { margin: 1rem .6rem; font-family: var(--serif); font-style: italic; color: #a99a76; line-height: 1.5; }
+
+.rs-card {
+  padding: .6rem .75rem; border-radius: .6rem; cursor: pointer;
+  background: rgba(62, 50, 30, .5); border: 1px solid rgba(214, 186, 128, .16);
+  transition: background .13s, border-color .13s, transform .13s;
+}
+.rs-card.sel { background: rgba(88, 70, 38, .62); border-color: rgba(230, 196, 120, .55); transform: translateX(3px); }
+.rs-card.owned { border-color: rgba(140, 190, 110, .4); }
+.rs-card.poor { opacity: .55; }
+.rs-card.shake { animation: rsShake .38s ease; }
+@keyframes rsShake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+
+.rs-top { display: flex; align-items: baseline; justify-content: space-between; gap: .6em; }
+.rs-name { font-family: var(--display); font-size: 1.1rem; color: #f2e6c6; }
+.rs-price { font-weight: 700; font-size: .92rem; color: #f0d48a; white-space: nowrap; }
+.rs-card.poor .rs-price { color: #9a8a66; }
+.rs-card.owned .rs-price { color: #a8d488; font-size: .7rem; letter-spacing: .14em; text-transform: uppercase; }
+.rs-blurb {
+  margin: .3rem 0 .45rem; font-family: var(--serif); font-style: italic;
+  font-size: .86rem; line-height: 1.45; color: #a89b78;
+}
+.rs-stats { display: flex; flex-wrap: wrap; gap: .3rem; }
+.rs-d {
+  font-size: .68rem; padding: .18em .5em; border-radius: .3rem;
+  background: rgba(0, 0, 0, .3); color: #9a8f70;
+}
+.rs-d b { font-weight: 700; }
+.rs-d.up b { color: #a8d488; }
+.rs-d.down b { color: #d88a6a; }
+.rs-same { font-size: .68rem; color: #7d7259; font-style: italic; }
+
+.rs-done { margin: .5rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .talk, .rodshop, .talk-opt, .rs-card { transition: none !important; animation: none !important; }
+}
+/* ========================================================================= */
+/* THE HOTBAR                                                                */
+/* ========================================================================= */
+
+/* FIVE SLOTS, because the game has five things worth showing: the weapon,
+   the rod, and the three best fish in the creel. A twelve-slot belt with
+   eight empty squares is a promise the game does not keep. It sits in the
+   bottom fourth, centred, and gets out of the way when nothing changes. */
+.hotbar {
+  position: fixed; left: 50%; bottom: 1.6rem; transform: translateX(-50%);
+  z-index: 6; display: flex; align-items: flex-end; gap: .7rem;
+  font-family: var(--sans); pointer-events: none;
+}
+.hotbar .hb-slots { display: flex; gap: .4rem; pointer-events: auto; }
+
+.hb-purse, .hb-creel {
+  display: flex; align-items: center; gap: .35em;
+  padding: .38em .8em; border-radius: 999px;
+  background: rgba(26, 22, 12, .58);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(233, 216, 178, .16);
+  color: var(--paper); font-size: .92rem;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .7);
+}
+.hb-purse { color: #f0d48a; font-weight: 700; }
+.hb-purse .ic, .hb-creel .ic { width: 1em; height: 1em; opacity: .8; }
+.hb-creel i { font-style: normal; font-size: .7rem; opacity: .6; }
+
+.hb-slot {
+  position: relative; width: 6.6rem; height: 4.3rem; cursor: pointer;
+  border-radius: .6rem; overflow: hidden;
+  background: linear-gradient(180deg, rgba(42, 34, 19, .78), rgba(26, 21, 12, .84));
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(233, 216, 178, .18);
+  display: flex; flex-direction: column; justify-content: flex-end;
+  padding: .3rem .4rem;
+  transition: transform .16s cubic-bezier(.2, 1.5, .4, 1), border-color .16s, box-shadow .16s;
+}
+/* the rarity of what is in the slot, as a bar down the left edge */
+.hb-slot::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--rare, transparent);
+}
+.hb-slot.empty { opacity: .42; }
+.hb-slot.empty::before { background: none; }
+
+/* THE SELECTED SLOT IS UNMISTAKABLE. It lifts, it brightens, it gets a gold
+   rim and the key cap fills in — four signals, because "which thing am I
+   holding" is a question the player should never have to ask. */
+.hb-slot.on {
+  transform: translateY(-.5rem) scale(1.04);
+  border-color: rgba(236, 200, 122, .85);
+  box-shadow: 0 0 0 1px rgba(236, 200, 122, .35), 0 10px 22px rgba(0, 0, 0, .45),
+    inset 0 0 22px rgba(236, 200, 122, .12);
+}
+.hb-slot.on .hb-key { background: var(--gold-lit); color: #2a2110; }
+
+.hb-key {
+  position: absolute; left: .32rem; top: .28rem;
+  width: 1.15em; height: 1.15em; border-radius: .25rem;
+  display: grid; place-items: center; font-size: .62rem; font-weight: 700;
+  background: rgba(0, 0, 0, .4); color: #b09a6c;
+}
+.hb-icon {
+  position: absolute; right: .35rem; top: .3rem; opacity: .5;
+}
+.hb-icon .ic { width: 1.25rem; height: 1.25rem; color: var(--rare, #d8cba8); }
+.hb-fav {
+  position: absolute; left: .3rem; bottom: 2.1rem;
+  color: #ffd45a; font-size: .8rem; line-height: 1;
+  text-shadow: 0 0 6px rgba(255, 200, 70, .7);
+}
+.hb-tag {
+  position: absolute; right: .3rem; bottom: 2.1rem;
+  font-size: .5rem; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--rare, #9a8f70);
+}
+.hb-text { display: block; min-width: 0; }
+.hb-text b {
+  display: block; font-family: var(--serif); font-size: .74rem; font-weight: 600;
+  color: #f0e6cc; line-height: 1.15;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.hb-text i {
+  display: block; font-style: normal; font-size: .62rem; color: #9a8f70;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.hb-fish .hb-text i { color: #e8c887; font-weight: 700; }
+
+/* the HUD's own satchel chip would sit on top of the bar */
+.hud-satchel { bottom: 7.2rem; }
+.hud-weapon { display: none; }
+
+@media (prefers-reduced-motion: reduce) { .hb-slot { transition: none !important; } }

@@ -11,13 +11,13 @@
    thing about the choice and a page of separate portraits hides it.
 */
 
-import * as THREE from '../../lib/three.module.js?v=20260921163240';
-import { buildAnimal } from '../art/AnimalArt.js?v=20260921163240';
-import { poseAnimal, SPECIES_LIST, SPECIES } from '../game/Anim.js?v=20260921163240';
-import { MATS } from '../art/Materials.js?v=20260921163240';
-import { SKY, LIGHT, cssHex } from '../art/Palette.js?v=20260921163240';
-import { ic } from './Icons.js?v=20260921163240';
-import { esc, clamp, clamp01, lerp, damp, TAU } from '../core/Util.js?v=20260921163240';
+import * as THREE from '../../lib/three.module.js?v=20260921164117';
+import { buildAnimal } from '../art/AnimalArt.js?v=20260921164117';
+import { poseAnimal, SPECIES_LIST, SPECIES } from '../game/Anim.js?v=20260921164117';
+import { MATS } from '../art/Materials.js?v=20260921164117';
+import { SKY, LIGHT, cssHex } from '../art/Palette.js?v=20260921164117';
+import { ic } from './Icons.js?v=20260921164117';
+import { esc, clamp, clamp01, lerp, damp, TAU } from '../core/Util.js?v=20260921164117';
 
 export class CharSelect {
   /**

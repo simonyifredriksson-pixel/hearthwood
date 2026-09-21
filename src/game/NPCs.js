@@ -23,15 +23,15 @@
    is far worse than one who walks through the corner of a flowerbed.
 */
 
-import * as THREE from '../../lib/three.module.js?v=20260921163240';
-import { buildVillager, buildCritter } from '../art/VillagerArt.js?v=20260921163240';
-import { VILLAGERS, CRITTERS, STICKWRIGHT, FISHERMAN, SMALL_TALK } from '../data/VillagerData.js?v=20260921163240';
-import { MeshBuilder, blob, tube } from '../art/Geo.js?v=20260921163240';
-import { MATS } from '../art/Materials.js?v=20260921163240';
-import { BARK, BUILD, mixHex } from '../art/Palette.js?v=20260921163240';
-import { riverX, riverLevel } from '../world/Terrain.js?v=20260921163240';
-import { WORLD } from '../core/Config.js?v=20260921163240';
-import { makeRng, clamp, clamp01, lerp, damp, dampAngle, angleDelta, TAU, smoothstep } from '../core/Util.js?v=20260921163240';
+import * as THREE from '../../lib/three.module.js?v=20260921164117';
+import { buildVillager, buildCritter } from '../art/VillagerArt.js?v=20260921164117';
+import { VILLAGERS, CRITTERS, STICKWRIGHT, FISHERMAN, SMALL_TALK } from '../data/VillagerData.js?v=20260921164117';
+import { MeshBuilder, blob, tube } from '../art/Geo.js?v=20260921164117';
+import { MATS } from '../art/Materials.js?v=20260921164117';
+import { BARK, BUILD, mixHex } from '../art/Palette.js?v=20260921164117';
+import { riverX, riverLevel } from '../world/Terrain.js?v=20260921164117';
+import { WORLD } from '../core/Config.js?v=20260921164117';
+import { makeRng, clamp, clamp01, lerp, damp, dampAngle, angleDelta, TAU, smoothstep } from '../core/Util.js?v=20260921164117';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
