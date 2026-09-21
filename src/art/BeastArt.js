@@ -15,11 +15,11 @@
    game, so `rig.root.rotation.y = yaw` points a beast the way it is going.
 */
 
-import * as THREE from '../../lib/three.module.js?v=1790014463';
-import { MeshBuilder, blob, tube, box } from './Geo.js?v=1790014463';
-import { MATS } from './Materials.js?v=1790014463';
-import { mixHex, shade, tweak } from './Palette.js?v=1790014463';
-import { makeRng, clamp, lerp, TAU } from '../core/Util.js?v=1790014463';
+import * as THREE from '../../lib/three.module.js?v=1790014861';
+import { MeshBuilder, blob, tube, box } from './Geo.js?v=1790014861';
+import { MATS } from './Materials.js?v=1790014861';
+import { mixHex, shade, tweak } from './Palette.js?v=1790014861';
+import { makeRng, clamp, lerp, TAU } from '../core/Util.js?v=1790014861';
 
 /** Proportions per body plan, as fractions of the creature's length. */
 const PLAN = {

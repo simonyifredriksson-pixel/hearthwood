@@ -19,8 +19,8 @@
    joints. Nothing rebuilds geometry, ever.
 */
 
-import { clamp, clamp01, lerp, damp, dampAngle, TAU, smoothstep, makeRng } from '../core/Util.js?v=1790014463';
-import { applyCarry, applyAttack, applyCharge } from './Combat.js?v=1790014463';
+import { clamp, clamp01, lerp, damp, dampAngle, TAU, smoothstep, makeRng } from '../core/Util.js?v=1790014861';
+import { applyCarry, applyAttack, applyCharge } from './Combat.js?v=1790014861';
 
 /* ========================================================================= */
 /* SPECIES DEFINITIONS                                                       */

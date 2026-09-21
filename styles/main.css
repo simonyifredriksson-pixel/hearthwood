@@ -314,19 +314,25 @@ kbd {
   position: fixed; left: 50%; transform: translateX(-50%); bottom: 4.2vh; z-index: 5;
   width: min(20rem, 70vw); text-align: center;
 }
+/* The rope sits over the GRASS, not over the sandy bank it was first
+   drawn against, so the warm brown it was given is brown on green and the
+   line under it is almost unreadable. Cream on a soft dark shadow reads
+   on grass without turning into a UI widget. */
 .boot-track {
   height: 6px; border-radius: 3px; overflow: hidden;
-  background: rgba(96, 68, 26, .34);
-  box-shadow: inset 0 1px 2px rgba(60, 38, 8, .5);
+  background: rgba(46, 60, 30, .38);
+  box-shadow: inset 0 1px 2px rgba(20, 34, 12, .45),
+              0 1px 0 rgba(255, 252, 226, .30);
 }
 #boot-bar {
   height: 100%; width: 0;
-  background: linear-gradient(90deg, #7fae54, #d8b055 60%, #f0d488);
+  background: linear-gradient(90deg, #cfe08a, #f0d488 55%, #fff0bc);
   border-radius: 3px; transition: width .4s ease;
 }
 #boot-text {
-  margin-top: .7em; font-family: var(--sans); font-size: .64rem; letter-spacing: .24em;
-  color: #6f5a2e; text-shadow: 0 1px 0 rgba(255, 244, 200, .5);
+  margin-top: .8em; font-family: var(--sans); font-size: .68rem; letter-spacing: .24em;
+  color: #fdf6de;
+  text-shadow: 0 1px 2px rgba(28, 44, 18, .55), 0 0 10px rgba(28, 44, 18, .35);
 }
 
 @media (prefers-reduced-motion: reduce) {
