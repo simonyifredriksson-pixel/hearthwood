@@ -69,11 +69,20 @@ export const EV = {
   WORKER_SCARED: 'worker:scared',
   CAMP_CLEARED: 'camp:cleared',
 
-  /* --- fishing --------------------------------------------------------- */
+  /* --- fishing and the economy ----------------------------------------- */
   ROD_GIVEN: 'rod:given',
+  ROD_CHANGED: 'rod:changed',
   FISH_HOOKED: 'fish:hooked',
   FISH_CAUGHT: 'fish:caught',
   FISH_LOST: 'fish:lost',
+  FISH_KEPT: 'fish:kept',        // it is in the creel now
+  FISH_SOLD: 'fish:sold',
+  FISH_FAV: 'fish:favourited',
+  COIN: 'coin',
+
+  /* --- the world ------------------------------------------------------- */
+  VILLAGE_FOUND: 'village:found',
+  MAP_REVEALED: 'map:revealed',
 
   /* --- the tutorial ---------------------------------------------------- */
   QUEST_STEP: 'quest:step',

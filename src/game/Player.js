@@ -20,13 +20,13 @@
    and facing. Everything visual about how a species moves lives there.
 */
 
-import * as THREE from '../../lib/three.module.js?v=20260921145028';
-import { buildAnimal } from '../art/AnimalArt.js?v=20260921145028';
-import { poseAnimal, SPECIES } from './Anim.js?v=20260921145028';
-import { carryFor, swingOf } from './Combat.js?v=20260921145028';
-import { MATS } from '../art/Materials.js?v=20260921145028';
-import { PLAYER, WORLD } from '../core/Config.js?v=20260921145028';
-import { clamp, clamp01, lerp, damp, dampAngle, angleDelta, TAU, smoothstep } from '../core/Util.js?v=20260921145028';
+import * as THREE from '../../lib/three.module.js?v=20260921163240';
+import { buildAnimal } from '../art/AnimalArt.js?v=20260921163240';
+import { poseAnimal, SPECIES } from './Anim.js?v=20260921163240';
+import { carryFor, swingOf, chargeStage, chargeProgress, CHARGE, CHARGE_STAGE_SECONDS, COMBO, COMBO_WINDOW } from './Combat.js?v=20260921163240';
+import { MATS } from '../art/Materials.js?v=20260921163240';
+import { PLAYER, WORLD } from '../core/Config.js?v=20260921163240';
+import { clamp, clamp01, lerp, damp, dampAngle, angleDelta, TAU, smoothstep } from '../core/Util.js?v=20260921163240';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -59,6 +59,20 @@ export class Player {
     this.weapon = null;           // {meshes, weapon, cls, info}
     this.lookAt = null;
     this._blockers = [];
+
+    /* combat */
+    this._combo = 0;
+    this._lastSwingAt = -99;
+    this.charging = false;
+    this._chargeT = 0;
+    this._chargeStage = 0;
+
+    /* SPRINT. `quad` is how far onto four legs the fox is, 0..1, and it is
+       a damped value rather than a flag — the whole point of the brief was
+       that dropping onto all fours and standing back up should be smooth,
+       so nothing in the animator is ever allowed to read the raw boolean. */
+    this.quad = 0;
+    this.sprintT = 0;
   }
 
   /* ====================================================================== */
@@ -140,14 +154,85 @@ export class Player {
     return this.weapon ? (this.weapon.cls || this.weapon.weapon?.cls || null) : null;
   }
 
-  /** Begin an attack with the equipped weapon. Returns the swing, or null. */
-  attack() {
+  /* ====================================================================== */
+  /* SWINGING                                                               */
+  /* ====================================================================== */
+
+  /**
+   * Begin an attack.
+   *
+   * THREE-HIT STRING. Each swing advances `_combo`, and the counter is only
+   * dropped when the player stops for longer than COMBO_WINDOW — so the
+   * rhythm is left / right / straight and then it starts over. The third
+   * hit is slower, hits far harder and takes longer to recover from, which
+   * is what stops the string being free.
+   *
+   * @param charge  0 for a normal hit, 1..3 for a released heavy attack
+   */
+  attack(charge = 0) {
     if (!this.weapon || this.busy) return null;
-    const sw = swingOf(this.weapon.weapon || { cls: this.weaponClass });
+    /* the string times out rather than resetting on any miss: a cozy game
+       should not punish someone for pausing to look at a tree */
+    if (this.t - this._lastSwingAt > COMBO_WINDOW) this._combo = 0;
+
+    const sw = swingOf(this.weapon.weapon || { cls: this.weaponClass },
+      { combo: this._combo, charge });
     this._swing = sw;
     this._hitDone = false;
+    this._lastSwingAt = this.t;
+    this._combo = charge > 0 ? 0 : (this._combo + 1) % COMBO.length;
     this.startAction('swing', sw.duration, () => { this._swing = null; });
     return sw;
+  }
+
+  /**
+   * THE HEAVY ATTACK.
+   *
+   * Hold the button; every two seconds the weapon reaches the next stage and
+   * gives one short bright pulse. Release below stage one and it is just an
+   * ordinary combo hit, so holding is never a trap.
+   *
+   * Returns a stage number on the frame a new stage is reached, so the caller
+   * can fire the flash, and null otherwise.
+   */
+  holdAttack(dt) {
+    if (!this.weapon) return null;
+    if (this.busy && this.action !== 'charge') return null;
+    if (!this.charging) {
+      this.charging = true;
+      this._chargeT = 0;
+      this._chargeStage = 0;
+      this.action = 'charge';
+      this.actionT = 0;
+      this.actionDur = 1;
+    }
+    this._chargeT += dt;
+    const s = chargeStage(this._chargeT);
+    if (s > this._chargeStage) {
+      this._chargeStage = s;
+      return s;                      // a new stage: the caller pops the light
+    }
+    return null;
+  }
+
+  /** Let go. Fires the charged blow, or an ordinary swing if it was a tap. */
+  releaseAttack() {
+    if (!this.charging) return null;
+    const stage = this._chargeStage;
+    this.charging = false;
+    this._chargeT = 0;
+    this._chargeStage = 0;
+    if (this.action === 'charge') { this.action = null; this.actionT = 0; }
+    return this.attack(stage);
+  }
+
+  get chargeHeld() { return this.charging ? this._chargeT : 0; }
+  get chargeLevel() { return this.charging ? this._chargeStage : 0; }
+  get chargeFill() { return this.charging ? chargeProgress(this._chargeT) : 0; }
+  /** Where a charge flash should appear: roughly the head of the weapon. */
+  chargeAnchor() {
+    const f = this.forward;
+    return [this.x + f.x * 0.45, this.y + this.height * 0.95, this.z + f.z * 0.45];
   }
 
   /** True on the single frame the blow lands. */
@@ -199,6 +284,7 @@ export class Player {
 
     const frozen = !!opts.frozen;
     const wantMove = !frozen && !!(move && (move.x || move.z));
+    this._wantMove = wantMove;          // read by _resolve, see the note there
     this.running = !!opts.run && wantMove;
     const target = this.running ? S.run : S.walk;
 
@@ -260,6 +346,21 @@ export class Player {
     this.x = clamp(this.x, -lim, lim);
     this.z = clamp(this.z, -lim, lim);
 
+    /* --- THE SPRINT BLEND -------------------------------------------------
+       A fox on two legs at eight metres a second looks ridiculous, so
+       holding shift drops it onto all fours. The blend is damped in BOTH
+       directions and gated on actually moving, so tapping shift while
+       standing still does nothing and letting go mid-stride rises back up
+       over about a third of a second instead of snapping upright.
+
+       Asymmetric on purpose: going down is faster than coming up, because
+       a run starts with a lunge and ends with a settle. */
+    const wantQuad = (this.running && this.grounded && this.speed > S.walk * 0.85 && !this.weapon) ? 1 : 0;
+    const quadRate = wantQuad ? 7.5 : 4.8;
+    this.quad = damp(this.quad, wantQuad, quadRate, dt);
+    if (this.quad < 1e-3) this.quad = 0;
+    this.sprintT += dt * (1 + this.quad * 1.6);
+
     /* --- pose ------------------------------------------------------------- */
     const rel = clamp01(this.speed / S.run);
     const out = poseAnimal(this.rig, {
@@ -270,6 +371,9 @@ export class Player {
       // something is: the rest pose and the swing are both per class
       weaponCls: this.weaponClass,
       action: this.action, actionT: this.actionT, actionDur: this.actionDur,
+      swing: this._swing,
+      charge: this.charging ? { held: this._chargeT, stage: this._chargeStage } : null,
+      quad: this.quad,
       lookAt: this.lookAt,
     });
 
@@ -282,29 +386,97 @@ export class Player {
     return this;
   }
 
-  /** Push out of every blocker we are inside, sliding rather than stopping. */
+  /**
+   * Push out of every blocker we are inside, SLIDING rather than stopping.
+   *
+   * THE VELOCITY HAS TO BE CANCELLED TOO, and for a long time it was not.
+   * Pushing the position out of a disc and leaving the velocity pointing
+   * straight at its centre means the next frame walks back in and is pushed
+   * out again: a perfectly stable pocket with the player running at full
+   * speed and going nowhere. It never showed up while every obstacle was a
+   * tree you naturally met off-centre — then a fishing booth went in with
+   * three overlapping discs in a row, and a player who ran at it head-on
+   * simply stuck to it for as long as they held the key.
+   *
+   * Removing the component of velocity INTO the surface leaves only the
+   * tangential part, which is what sliding is. It costs one dot product per
+   * contact and it fixes every obstacle in the game, not just the booth.
+   */
   _resolve(x, z) {
     const W = this.world;
     if (!W) return { x, z };
     const list = W.blockersNear(x, z, 4.5, this._blockers);
     const R = this.radius;
+    /* ONE CANCELLATION, AGAINST THE NET NORMAL.
+       Cancelling separately against every disc you touch removes almost all
+       of the velocity, because a row of overlapping circles presents a fan
+       of normals and between them they cover every direction. A counter
+       built from three discs therefore stopped a player dead instead of
+       letting them slide along it. Sum the push-outs first, then cancel
+       once against the direction of the sum — which for a row of circles
+       is the wall's actual normal. */
+    let pnx = 0, pnz = 0, soft = true;
     for (let pass = 0; pass < 3; pass++) {
       let hit = false;
       for (const b of list) {
-        // a low blocker (a log, a bench) stops you only if you are barely
-        // moving; at a walk you go over it
-        if (b.low && this.speed > 1.2) continue;
+        /* A LOW BLOCKER IS PASSABLE WHENEVER YOU ARE TRYING TO MOVE.
+           It used to be gated on current SPEED, which is a feedback loop
+           with a trap in it: run into a counter, the counter slows you
+           down, dropping under the threshold turns the barrel beside it
+           solid again, and now you are pinned between a wall and a barrel
+           at half a metre a second for ever. Gating on INTENT cannot
+           oscillate — you step over a log because you are walking at it,
+           not because you are already fast. */
+        if (b.low && (this._wantMove || this.speed > 1.2)) continue;
         const rr = (b.r + R) * (b.soft ? 0.72 : 1);
         const dx = x - b.x, dz = z - b.z;
         const d2 = dx * dx + dz * dz;
         if (d2 >= rr * rr || d2 < 1e-8) continue;
         const d = Math.sqrt(d2);
+        const nx = dx / d, nz = dz / d;           // out of the blocker
         const push = (rr - d) * (b.soft ? 0.5 : 1);
-        x += (dx / d) * push;
-        z += (dz / d) * push;
+        x += nx * push;
+        z += nz * push;
+        pnx += nx * push; pnz += nz * push;
+        if (!b.soft) soft = false;
         hit = true;
       }
       if (!hit) break;
+    }
+
+    /* Kill the inward velocity so the next frame does not simply walk back
+       in and get pushed out again — which is a perfectly stable pocket with
+       the player running flat out and going nowhere. What is left is the
+       tangential part, and that is what sliding along a wall is. A soft
+       blocker only damps it: brushing through a bush should slow you, not
+       stop you. */
+    const plen = Math.hypot(pnx, pnz);
+    if (plen > 1e-6) {
+      const nx = pnx / plen, nz = pnz / plen;
+      const into = this.vx * nx + this.vz * nz;
+      if (into < 0) {
+        const k = soft ? 0.5 : 1;
+        this.vx -= nx * into * k;
+        this.vz -= nz * into * k;
+
+        /* HEAD-ON IS THE CASE WITH NO TANGENT.
+           Run at a disc through its exact centre and the normal is
+           anti-parallel to your heading: cancelling the inward part leaves
+           nothing at all, and you stand there at full throttle for ever.
+           Walking into the corner of a shop and simply sticking to it is
+           about the worst thing a cozy game can do, so within a few degrees
+           of dead-on we pick a side and push along the wall. Deterministic
+           (the side is chosen from the geometry, not a coin) so it never
+           jitters between the two. */
+        const sp = Math.hypot(this.vx, this.vz);
+        if (this._wantMove && sp < 0.6) {
+          const tx = -nz, tz = nx;                  // along the surface
+          const want = Math.atan2(this.vx, this.vz);
+          const side = (Math.sin(want) * tx + Math.cos(want) * tz) >= 0 ? 1 : -1;
+          this.vx += tx * side * 2.6;
+          this.vz += tz * side * 2.6;
+        }
+      }
     }
     return { x, z };
   }

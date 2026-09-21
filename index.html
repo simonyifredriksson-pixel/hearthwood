@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Hearthwood — a cozy medieval wood</title>
-<meta name="description" content="Choose a frog, a fox or a bear, and walk out of a small medieval village into an enormous wood. Every fallen stick is different. Bring the interesting ones back to the Stickwright and she will make them into something.">
+<title>FISH N STICKS</title>
+<meta name="description" content="Walk out of a small woodland village as a fox. Fish the rivers and lakes for hundreds of species, sell the catch, buy better rods, and bring strange sticks back to the Stickwright to be forged into real weapons. The further you go, the stranger it gets.">
 <meta name="theme-color" content="#1b2418">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Gentium+Book+Plus:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:wght@500;600;700&family=Alegreya+Sans:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles/main.css?v=20260921145028">
+<link rel="stylesheet" href="styles/main.css?v=20260921163240">
 
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%231b2418'/><path d='M6 25 L20 9 a2 2 0 0 1 3 3 L9 28 Z' fill='%23a8814f'/><path d='M19 12 L25 6 l2 2 -6 6 Z' fill='%23a8814f'/><circle cx='11' cy='20' r='2.6' fill='%235f8a37'/></svg>">
 </head>
@@ -28,32 +28,100 @@
 <div id="ui"></div>
 <div id="toasts"></div>
 
+<!-- ==========================================================================
+     THE TITLE SCREEN.
+
+     A warm morning clearing with a carved wooden sign hammered into the
+     grass, and the fox peering over the top of it. The old one was a ring
+     and a progress bar on a dark green field, which told the player the
+     game was loading and nothing whatsoever about what kind of game it was.
+     This one is the pitch: it is sunny, it is hand-made, there is a fish on
+     the board and a creature who is pleased to see you.
+
+     It is all SVG and CSS. Nothing here waits on the renderer, so the first
+     thing that appears is the nicest thing on screen rather than a spinner
+     standing in for it.
+     ====================================================================== -->
 <div id="boot">
-  <div class="boot-inner">
-    <svg class="boot-mark" viewBox="0 0 120 120" width="132" height="132" aria-hidden="true">
-      <defs>
-        <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="#cfa967"/><stop offset="1" stop-color="#7a5c33"/>
-        </linearGradient>
-      </defs>
-      <circle cx="60" cy="60" r="52" fill="none" stroke="#3d4a33" stroke-width="2"/>
-      <path d="M26 96 L78 30 a7 7 0 0 1 10 10 L36 106 Z" fill="url(%23bg)"/>
-      <path d="M74 36 L96 16 l8 8 -22 20 Z" fill="url(%23bg)"/>
-      <path d="M58 56 L80 78 l-8 8 -22-22 Z" fill="url(%23bg)"/>
-      <circle cx="42" cy="78" r="9" fill="#5f8a37"/>
-      <circle cx="52" cy="66" r="6" fill="#4a7229"/>
+  <div class="boot-sky"></div>
+  <div class="boot-sun"></div>
+  <div class="boot-hills" aria-hidden="true"></div>
+  <div class="boot-motes" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+
+  <div class="boot-scene">
+    <!-- the fox, behind the board, looking over it -->
+    <svg class="boot-fox" viewBox="0 0 200 150" aria-hidden="true">
+      <g class="bf-body">
+        <!-- ears -->
+        <path class="bf-ear" d="M56 74 L44 26 L84 56 Z"/>
+        <path class="bf-ear" d="M144 74 L156 26 L116 56 Z"/>
+        <path class="bf-earin" d="M60 70 L53 42 L78 60 Z"/>
+        <path class="bf-earin" d="M140 70 L147 42 L122 60 Z"/>
+        <!-- head -->
+        <ellipse class="bf-head" cx="100" cy="92" rx="52" ry="44"/>
+        <!-- cheeks -->
+        <ellipse class="bf-ruff" cx="56" cy="104" rx="19" ry="21"/>
+        <ellipse class="bf-ruff" cx="144" cy="104" rx="19" ry="21"/>
+        <!-- muzzle -->
+        <ellipse class="bf-muzzle" cx="100" cy="112" rx="29" ry="22"/>
+        <!-- eyes: two groups so the lids can drop on their own -->
+        <g class="bf-eye bf-eyeL">
+          <ellipse class="bf-white" cx="78" cy="88" rx="11" ry="12"/>
+          <circle class="bf-pupil" cx="79" cy="89" r="6.4"/>
+          <circle class="bf-glint" cx="76" cy="85" r="2.4"/>
+          <rect class="bf-lid" x="66" y="74" width="24" height="26" rx="10"/>
+        </g>
+        <g class="bf-eye bf-eyeR">
+          <ellipse class="bf-white" cx="122" cy="88" rx="11" ry="12"/>
+          <circle class="bf-pupil" cx="121" cy="89" r="6.4"/>
+          <circle class="bf-glint" cx="118" cy="85" r="2.4"/>
+          <rect class="bf-lid" x="110" y="74" width="24" height="26" rx="10"/>
+        </g>
+        <!-- blush -->
+        <ellipse class="bf-blush" cx="64" cy="106" rx="9" ry="5.5"/>
+        <ellipse class="bf-blush" cx="136" cy="106" rx="9" ry="5.5"/>
+        <!-- nose and smile -->
+        <path class="bf-nose" d="M100 104 m-7 0 a7 5.5 0 1 0 14 0 a7 5.5 0 1 0 -14 0"/>
+        <path class="bf-smile" d="M88 116 q12 9 24 0" fill="none"/>
+      </g>
+      <!-- one paw hooked over the top of the board -->
+      <ellipse class="bf-paw" cx="42" cy="136" rx="14" ry="9"/>
+      <ellipse class="bf-paw" cx="158" cy="136" rx="14" ry="9"/>
     </svg>
-    <h1 class="boot-title">Hearthwood</h1>
-    <p class="boot-tag">Every stick in the wood is a different stick.</p>
+
+    <!-- the sign -->
+    <div class="boot-sign">
+      <div class="bs-board">
+        <span class="bs-grain" aria-hidden="true"></span>
+        <h1 class="boot-title">Fish&nbsp;<em>n</em>&nbsp;Sticks</h1>
+        <p class="boot-tag">Every stick is a weapon. Every fish is a story.</p>
+      </div>
+      <i class="bs-post bs-left" aria-hidden="true"></i>
+      <i class="bs-post bs-right" aria-hidden="true"></i>
+      <span class="bs-nail bs-n1" aria-hidden="true"></span>
+      <span class="bs-nail bs-n2" aria-hidden="true"></span>
+      <span class="bs-nail bs-n3" aria-hidden="true"></span>
+      <span class="bs-nail bs-n4" aria-hidden="true"></span>
+    </div>
+
+  </div>
+
+  <!-- The bank and the loading line are SIBLINGS of the scene, not children
+       of it. `.boot-scene` is animated with a transform, and a transform on
+       an ancestor makes `position: fixed` behave like `position: absolute`
+       against that ancestor — which pinned the whole meadow to the inside of
+       the signboard and painted it over the title. -->
+  <div class="boot-grass" aria-hidden="true"></div>
+  <div class="boot-rope">
     <div class="boot-track"><div id="boot-bar"></div></div>
     <div id="boot-text">WAKING THE WOOD</div>
   </div>
 </div>
 
-<script type="module" src="src/main.js?v=20260921145028"></script>
+<script type="module" src="src/main.js?v=20260921163240"></script>
 <noscript>
   <div style="position:fixed;inset:0;display:grid;place-items:center;background:#1b2418;color:#e6dcc4;font-family:Georgia,serif;padding:2rem;text-align:center">
-    Hearthwood needs JavaScript and WebGL.
+    FISH N STICKS needs JavaScript and WebGL.
   </div>
 </noscript>
 </body>

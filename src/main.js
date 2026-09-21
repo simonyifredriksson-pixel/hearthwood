@@ -13,36 +13,38 @@
      7. ui, then render
 */
 
-import * as THREE from '../lib/three.module.js?v=20260921145028';
-import { input } from './core/Input.js?v=20260921145028';
-import { CameraRig } from './core/CameraRig.js?v=20260921145028';
-import { audio } from './core/Audio.js?v=20260921145028';
-import { bus, EV } from './core/Bus.js?v=20260921145028';
-import { BUILD, RENDER, WORLD, GAME, PLAYER } from './core/Config.js?v=20260921145028';
-import { clamp, clamp01, lerp, now, Rolling } from './core/Util.js?v=20260921145028';
+import * as THREE from '../lib/three.module.js?v=20260921163240';
+import { input } from './core/Input.js?v=20260921163240';
+import { CameraRig } from './core/CameraRig.js?v=20260921163240';
+import { audio } from './core/Audio.js?v=20260921163240';
+import { bus, EV } from './core/Bus.js?v=20260921163240';
+import { BUILD, RENDER, WORLD, GAME, PLAYER } from './core/Config.js?v=20260921163240';
+import { clamp, clamp01, lerp, now, Rolling } from './core/Util.js?v=20260921163240';
 
-import { MATS } from './art/Materials.js?v=20260921145028';
-import { World } from './world/World.js?v=20260921145028';
-import { Player } from './game/Player.js?v=20260921145028';
-import { NPCs } from './game/NPCs.js?v=20260921145028';
-import { GameState } from './game/State.js?v=20260921145028';
-import { SPECIES } from './game/Anim.js?v=20260921145028';
-import { weaponMeshes } from './art/WeaponArt.js?v=20260921145028';
-import { WEAPON_CLASSES } from './data/WeaponData.js?v=20260921145028';
-import { RARITY } from './art/Palette.js?v=20260921145028';
-import { STICKWRIGHT, FISHERMAN } from './data/VillagerData.js?v=20260921145028';
-import { RARE } from './data/StickData.js?v=20260921145028';
+import { MATS } from './art/Materials.js?v=20260921163240';
+import { World } from './world/World.js?v=20260921163240';
+import { Player } from './game/Player.js?v=20260921163240';
+import { NPCs } from './game/NPCs.js?v=20260921163240';
+import { GameState } from './game/State.js?v=20260921163240';
+import { SPECIES } from './game/Anim.js?v=20260921163240';
+import { weaponMeshes } from './art/WeaponArt.js?v=20260921163240';
+import { WEAPON_CLASSES } from './data/WeaponData.js?v=20260921163240';
+import { RARITY } from './art/Palette.js?v=20260921163240';
+import { STICKWRIGHT, FISHERMAN } from './data/VillagerData.js?v=20260921163240';
+import { RARE } from './data/StickData.js?v=20260921163240';
+import { STARTER_ROD } from './data/RodData.js?v=20260921163240';
 
-import { UI } from './ui/UI.js?v=20260921145028';
-import { CharSelect } from './ui/CharSelect.js?v=20260921145028';
-import { SatchelScreen, Turntable } from './ui/Satchel.js?v=20260921145028';
-import { WorkshopScreen, RevealScreen } from './ui/Workshop.js?v=20260921145028';
-import { ForgeScene } from './game/Forge.js?v=20260921145028';
-import { Workers } from './game/Workers.js?v=20260921145028';
-import { Fishing, FISH_STATE } from './game/Fishing.js?v=20260921145028';
-import { FishingUI } from './ui/FishingUI.js?v=20260921145028';
-import { Quest, FESTIVAL_SPEECH } from './game/Quest.js?v=20260921145028';
-import { ic } from './ui/Icons.js?v=20260921145028';
+import { UI } from './ui/UI.js?v=20260921163240';
+import { Effects } from './game/Effects.js?v=20260921163240';
+import { SatchelScreen, Turntable } from './ui/Satchel.js?v=20260921163240';
+import { WorkshopScreen, RevealScreen } from './ui/Workshop.js?v=20260921163240';
+import { ForgeScene } from './game/Forge.js?v=20260921163240';
+import { Workers } from './game/Workers.js?v=20260921163240';
+import { Fishing, FISH_STATE } from './game/Fishing.js?v=20260921163240';
+import { FishingUI } from './ui/FishingUI.js?v=20260921163240';
+import { Quest, FESTIVAL_SPEECH } from './game/Quest.js?v=20260921163240';
+import { CHARGE } from './game/Combat.js?v=20260921163240';
+import { ic } from './ui/Icons.js?v=20260921163240';
 
 /* ========================================================================= */
 
@@ -77,10 +79,10 @@ input.attach(canvas);
 const G = {
   state: null, world: null, player: null, npcs: null, ui: null,
   workers: null, fishing: null, fishUI: null, quest: null, forge: null,
-  charSel: null, turntable: null,
+  fx: null, turntable: null,
   /* the cutscene director needs these two by name */
   scene, rig,
-  mode: 'boot',            // boot | select | play
+  mode: 'boot',            // boot | play
   t: 0, frames: 0,
   target: null,            // what E would act on
   autosave: 0,
@@ -119,6 +121,7 @@ async function boot() {
   G.fishUI = new FishingUI(document.getElementById('ui'));
   G.audio = audio;
   G.forge = new ForgeScene(G);
+  G.fx = new Effects(scene);
 
   setBoot(0.96, 'lighting the lanterns');
   await new Promise(r => setTimeout(r, 60));
@@ -137,30 +140,13 @@ async function boot() {
   bootEl.classList.add('gone');
   setTimeout(() => bootEl.remove(), 900);
 
-  if (saved && saved.species) startGame(saved.species, saved);
-  else showSelect();
+  /* THERE IS NO CHARACTER SELECT ANY MORE.
+     FISH N STICKS has one protagonist — the fox — so the game starts in the
+     wood rather than on a menu. A returning save resumes where it stopped;
+     a new one begins at the festival. */
+  startGame('fox', saved);
 
   requestAnimationFrame(frame);
-}
-
-/* ========================================================================= */
-/* CHARACTER SELECT                                                          */
-/* ========================================================================= */
-
-function showSelect() {
-  G.mode = 'select';
-  input.blocked = true;
-  G.charSel = new CharSelect(renderer, key => {
-    G.charSel.el.classList.add('out');
-    setTimeout(() => {
-      G.charSel.el.remove();
-      G.charSel.dispose();
-      G.charSel = null;
-      startGame(key, null);
-    }, 520);
-  });
-  document.getElementById('ui').appendChild(G.charSel.el);
-  requestAnimationFrame(() => G.charSel.el.classList.add('in'));
 }
 
 /* ========================================================================= */
@@ -237,13 +223,24 @@ function pickTarget() {
   const P = G.player;
   if (!P || P.busy) return null;
 
-  /* the nearest stick in reach wins over anything else, because reaching for
-     wood is what the player is doing 95% of the time */
-  const s = G.world.nearestStick(P.x, P.z, P.reach);
-  if (s) return { kind: 'stick', stick: s, dist: Math.hypot(s.x - P.x, s.z - P.z) };
-
+  /* SOMEBODY TO TALK TO BEATS EVERYTHING.
+     The fisherman stands behind a booth with crates and barrels round it,
+     and a stick on the ground next to the counter used to win the reach
+     test — so walking up to sell a creel picked up a twig instead. */
   const npc = G.npcs.nearest(P.x, P.z, PLAYER.npcTalkRange);
   if (npc) return { kind: 'npc', npc, dist: Math.hypot(npc.x - P.x, npc.z - P.z) };
+
+  /* WATER, if the rod is out.
+     This is the whole of "go fishing": hold the rod, walk to any water in
+     the world, press E. There is no fishing spot, no marked jetty and no
+     permission — a lake is a lake. */
+  if (G.state.holdingRod && !G.fishing.active) {
+    const w = nearWater(P.x, P.z);
+    if (w) return { kind: 'water', spot: w, dist: Math.hypot(w.x - P.x, w.z - P.z) };
+  }
+
+  const s = G.world.nearestStick(P.x, P.z, P.reach);
+  if (s) return { kind: 'stick', stick: s, dist: Math.hypot(s.x - P.x, s.z - P.z) };
 
   return null;
 }
@@ -261,6 +258,8 @@ function updatePrompt() {
     G.ui.setPrompt(n.isStickwright ? `Talk to ${n.name}, ${n.title}` : `Talk to ${n.name}`, {
       key: 'E', icon: n.isStickwright ? 'hammer' : 'home',
     });
+  } else if (t.kind === 'water') {
+    G.ui.setPrompt('Cast a line', { key: 'E', icon: 'drop' });
   }
 }
 
@@ -298,6 +297,8 @@ function doInteract() {
     });
   } else if (t.kind === 'npc') {
     talkTo(t.npc);
+  } else if (t.kind === 'water') {
+    startFishing(t.spot);
   }
 }
 
@@ -349,11 +350,16 @@ async function talkTo(npc) {
       for (const line of FISHERMAN.first) {
         await G.ui.say(`${npc.name}, ${npc.title}`, line);
       }
-      G.state.hasRod = true;
+      /* THE ROD IS AN ITEM, not a permission flag. It goes into the pack,
+         it goes into the paw, and from then on fishing is "hold the rod,
+         walk to water" rather than a key you are told about once. */
+      G.state.giveRod(STARTER_ROD);
+      G.state.holding = 'rod';
       G.quest?.noteRod();
       G.state.save();
       G.ui.toast({
-        text: 'A fishing rod', sub: 'Stand by the water and press E.',
+        text: G.state.currentRod.name,
+        sub: 'It is in your paws. Find water and press E.',
         icon: 'drop', tone: 'rare', ms: 7000,
       });
       audio.craft?.();
@@ -462,11 +468,19 @@ function startFishing(spot = null) {
     G.ui.toast({ text: 'No water within reach.', icon: 'drop', tone: 'warn' });
     return;
   }
+  if (!G.state.holdingRod) G.state.holding = 'rod';
   P.yaw = Math.atan2(s.x - P.x, s.z - P.z);
+  /* THE ROD IS PART OF THE CAST, not decoration. Its reach caps how deep
+     the water counts as, its lure sets how long the wait is, and its luck
+     and fortune bias what is down there — so a better rod genuinely changes
+     what comes out of the same pond. */
+  const rod = G.state.currentRod;
   G.fishing.cast({
     ...s,
+    depth: Math.min(s.depth ?? 0.45, rod.reach),
     remoteness: clamp01(Math.hypot(P.x - WORLD.village.cx, P.z - WORLD.village.cz) / 700),
     night: G.world.sky.night,
+    rod,
   });
 }
 
@@ -601,14 +615,6 @@ function frame() {
   G.frames++;
   G.fps.push(dt);
 
-  if (G.mode === 'select') {
-    G.charSel.onKeys(input);
-    G.charSel.render(dt, innerWidth / innerHeight);
-    renderer.render(G.charSel.scene, G.charSel.camera);
-    input.endFrame();
-    return;
-  }
-
   if (G.mode !== 'play') { input.endFrame(); return; }
 
   /* --- 1. input ------------------------------------------------------- */
@@ -626,14 +632,34 @@ function frame() {
     if (input.rawPressed('KeyQ', 'Tab')) openSatchel();
     if (input.rawPressed('Escape')) { /* nothing open: ignore */ }
     if (input.rawPressed('KeyE')) doInteract();
-    /* ATTACK. Left mouse or F, and it is a real swing now: the class picks
-       the arc, the arc picks what it reaches, and anything caught in it gets
-       a fright. */
-    const wantsSwing = input.rawPressed('KeyF')
-      || (input.mouseClicked && !G.fishing.active && !G.ui.busy);
-    if (wantsSwing && G.player?.weapon && !G.player.busy) {
-      const sw = G.player.attack();
-      if (sw) audio.swing(G.player.weapon.info?.length || 1);
+    /* ATTACK.
+       ------------------------------------------------------------------
+       TAP for the three-hit string — left, right, then a straight one down
+       the middle that hits hardest. HOLD to wind up a heavy attack: every
+       two seconds it reaches the next of three stages and gives one short
+       bright pulse, and the longer it is held the harder it lands.
+
+       The two share one button, so the rule has to be unambiguous: holding
+       past the charge threshold means you meant to charge, and releasing
+       before it means you meant to tap. `releaseAttack` does exactly that
+       and hands a stage of 0 back to `attack`, which is an ordinary hit. */
+    const canFight = G.player?.weapon && !G.fishing.active && !G.ui.busy;
+    if (canFight) {
+      if (input.mouseDown || input.down('KeyF')) {
+        const stage = G.player.holdAttack(dt);
+        if (stage) {
+          audio.ui?.('tick');
+          G.fx?.chargePulse(G.player.chargeAnchor(), stage, CHARGE[stage - 1].col);
+        }
+      } else if (G.player.charging) {
+        const sw = G.player.releaseAttack();
+        if (sw) audio.swing((G.player.weapon.info?.length || 1) * (1 + sw.charge * 0.4));
+      } else if (input.rawPressed('KeyF')) {
+        const sw = G.player.attack();
+        if (sw) audio.swing(G.player.weapon.info?.length || 1);
+      }
+    } else if (G.player?.charging) {
+      G.player.releaseAttack();
     }
 
     /* FISHING takes the mouse button while it is up. One control does the
@@ -686,9 +712,19 @@ function frame() {
 
   /* a swing that has reached its hit frame startles whatever is in the arc */
   if (P.swingConnects) {
-    const n = G.workers.strike({ x: P.x, z: P.z, yaw: P.yaw }, P.swing);
-    if (n) audio.thump?.(0.6);
+    const sw = P.swing;
+    const n = G.workers.strike({ x: P.x, z: P.z, yaw: P.yaw }, sw);
+    if (n) {
+      audio.thump?.(0.6 + (sw.charge || 0) * 0.12);
+      const f = P.forward;
+      G.fx?.hitSpark([P.x + f.x * sw.reach * 0.6, P.y + 0.9, P.z + f.z * sw.reach * 0.6],
+        0.7 + (sw.charge || 0) * 0.5 + (sw.combo === 2 ? 0.4 : 0));
+    }
   }
+
+  /* the air moving round a sprinting fox */
+  G.fx?.sprint(P, dt, P.quad);
+  G.fx?.update(dt);
 
   G.fishing.update(dt);
   G.fishUI.update(G.fishing);

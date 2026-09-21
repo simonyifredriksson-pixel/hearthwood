@@ -19,16 +19,16 @@
    half a metre above their own foundations.
 */
 
-import * as THREE from '../../lib/three.module.js?v=20260921145028';
-import { MeshBuilder, box, beam, cylinder, blob, quad, tube } from '../art/Geo.js?v=20260921145028';
-import { buildHouse, buildWorkshop, buildBarn, buildMill } from '../art/BuildingGen.js?v=20260921145028';
-import * as P from '../art/PropArt.js?v=20260921145028';
-import { buildTree } from '../art/TreeGen.js?v=20260921145028';
-import { buildBush, buildFlower, buildGrassTuft, buildGroundCover } from '../art/PlantGen.js?v=20260921145028';
-import { BUILD, GROUND, PLANT, MOSS, BARK, METAL, mixHex, tweak, shade } from '../art/Palette.js?v=20260921145028';
-import { WORLD } from '../core/Config.js?v=20260921145028';
-import { makeRng, clamp, lerp, TAU, segDist, smoothstep } from '../core/Util.js?v=20260921145028';
-import { riverX, riverLevel } from './Terrain.js?v=20260921145028';
+import * as THREE from '../../lib/three.module.js?v=20260921163240';
+import { MeshBuilder, box, beam, cylinder, blob, quad, tube } from '../art/Geo.js?v=20260921163240';
+import { buildHouse, buildWorkshop, buildBarn, buildMill } from '../art/BuildingGen.js?v=20260921163240';
+import * as P from '../art/PropArt.js?v=20260921163240';
+import { buildTree } from '../art/TreeGen.js?v=20260921163240';
+import { buildBush, buildFlower, buildGrassTuft, buildGroundCover } from '../art/PlantGen.js?v=20260921163240';
+import { BUILD, GROUND, PLANT, MOSS, BARK, METAL, mixHex, tweak, shade } from '../art/Palette.js?v=20260921163240';
+import { WORLD } from '../core/Config.js?v=20260921163240';
+import { makeRng, clamp, lerp, TAU, segDist, smoothstep } from '../core/Util.js?v=20260921163240';
+import { riverX, riverLevel } from './Terrain.js?v=20260921163240';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -416,6 +416,10 @@ export function buildVillage(T, plan, seed = WORLD.seed ^ 0x2b71) {
   /* ------------------------------------------------------- FARM & EDGE */
 
   dressOutskirts(T, plan, put, r, blockers, lights, npcSpots);
+
+  /* ------------------------------------------------------ THE FISHERY */
+
+  dressFishery(T, plan, put, r, blockers, lights, npcSpots, anchors);
 
   return { cells, lights, blockers, anchors, npcSpots, smokes, plan };
 }
@@ -994,6 +998,88 @@ function dressWorkshop(T, a, put, r, blockers, lights, npcSpots) {
 }
 
 /* ------------------------------------------------------------- outskirts */
+
+/* ========================================================================= */
+/* THE FISHERY                                                               */
+/* ========================================================================= */
+
+/**
+ * The fisherman's booth on the bank.
+ *
+ * WHY THE BOOTH EXISTS AT ALL. Fishing is the economy, so the fisherman is
+ * the single most-visited NPC in the game, and the first version had him
+ * wandering the village like everybody else — which meant arriving with a
+ * full creel and then hunting for the one person who would buy it. He has a
+ * shop now. He stands behind it, he steps about behind it, and he is where
+ * he was the last time you came.
+ *
+ * The booth is placed by WALKING OUT FROM THE WATER rather than at a fixed
+ * coordinate, because the river is carved procedurally and moves whenever
+ * the terrain seed does. Find the bank, set the booth back from it, turn it
+ * to face the water: that reads as a fishing shop wherever it lands.
+ */
+function dressFishery(T, plan, put, r, blockers, lights, npcSpots, anchors) {
+  const V = WORLD.village;
+  const z = V.cz + 34;
+  const cx = riverX(z);
+  const lvl = riverLevel(z);
+
+  /* find dry ground on the near bank */
+  let bank = null;
+  for (const side of [1, -1]) {
+    for (let d = WORLD.river.width * 0.4; d < WORLD.river.bankWidth * 2.6; d += 0.4) {
+      const x = cx + side * d;
+      if (T.height(x, z) > lvl + 0.35) { bank = { x, z, side, d }; break; }
+    }
+    if (bank) break;
+  }
+  if (!bank) return;
+
+  /* set the booth back from the edge so the player can stand between it and
+     the water — that gap is where the fishing actually happens */
+  const bx = bank.x + bank.side * 2.6;
+  const bz = z;
+  const yaw = Math.atan2(cx - bx, 0);          // facing the river
+
+  const sub = new MeshBuilder(), g = new MeshBuilder();
+  const info = P.buildFishStall(sub, { seed: r.seed(), w: 2.9, d: 1.7, glow: g });
+  put('solid', sub, bx, bz, yaw);
+  if (!g.isEmpty) put('glow', g, bx, bz, yaw);
+  const c = Math.cos(yaw), s = Math.sin(yaw);
+  const L2W = (lx, lz) => [bx + lx * c + lz * s, bz - lx * s + lz * c];
+  for (const b of info.blockers) {
+    const [wx, wz] = L2W(b.x, b.z);
+    blockers.push({ x: wx, z: wz, r: b.r });
+  }
+  lights.push({
+    x: bx, y: T.height(bx, bz) + info.light.y, z: bz,
+    color: info.light.c, intensity: info.light.i,
+  });
+
+  const [sx, sz] = L2W(info.standAt[0], info.standAt[1]);
+  const [tx, tz] = L2W(info.talkAt[0], info.talkAt[1]);
+  anchors.fishery = {
+    x: bx, z: bz, yaw,
+    standAt: [sx, sz], talkAt: [tx, tz],
+    /* the water the tutorial points at, and the spot the player casts from */
+    water: [cx, z],
+    castAt: [bank.x - bank.side * 0.6, z],
+  };
+  npcSpots.push({ x: sx, z: sz, kind: 'fishstall', yaw });
+
+  /* a few barrels and a upturned boat, so the bank reads as somebody's
+     place of work rather than as a shed dropped on grass */
+  for (let i = 0; i < 3; i++) {
+    const a = r.range(0, TAU), rad = r.range(2.2, 4.4);
+    const px = bx + Math.cos(a) * rad, pz = bz + Math.sin(a) * rad;
+    if (Math.abs(px - riverX(pz)) < WORLD.river.width * 0.6) continue;
+    const sb = new MeshBuilder();
+    if (r.chance(0.5)) P.buildBarrel(sb, { seed: r.seed() });
+    else P.buildCrate(sb, { seed: r.seed() });
+    put('solid', sb, px, pz, r.range(0, TAU));
+    blockers.push({ x: px, z: pz, r: 0.34, low: true });
+  }
+}
 
 function dressOutskirts(T, plan, put, r, blockers, lights, npcSpots) {
   const V = WORLD.village;

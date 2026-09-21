@@ -29,7 +29,7 @@
    feel like it is swimming.
 */
 
-import { clamp, damp, angleDelta, TAU } from './Util.js?v=20260921145028';
+import { clamp, damp, angleDelta, TAU } from './Util.js?v=20260921163240';
 
 /* Presets are starting points, not modes — the player can always override any
    of them with the mouse. Hearthwood is a walking game, so all three sit

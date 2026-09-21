@@ -23,15 +23,15 @@
    is far worse than one who walks through the corner of a flowerbed.
 */
 
-import * as THREE from '../../lib/three.module.js?v=20260921145028';
-import { buildVillager, buildCritter } from '../art/VillagerArt.js?v=20260921145028';
-import { VILLAGERS, CRITTERS, STICKWRIGHT, FISHERMAN, SMALL_TALK } from '../data/VillagerData.js?v=20260921145028';
-import { MeshBuilder, blob, tube } from '../art/Geo.js?v=20260921145028';
-import { MATS } from '../art/Materials.js?v=20260921145028';
-import { BARK, BUILD, mixHex } from '../art/Palette.js?v=20260921145028';
-import { riverX, riverLevel } from '../world/Terrain.js?v=20260921145028';
-import { WORLD } from '../core/Config.js?v=20260921145028';
-import { makeRng, clamp, clamp01, lerp, damp, dampAngle, angleDelta, TAU, smoothstep } from '../core/Util.js?v=20260921145028';
+import * as THREE from '../../lib/three.module.js?v=20260921163240';
+import { buildVillager, buildCritter } from '../art/VillagerArt.js?v=20260921163240';
+import { VILLAGERS, CRITTERS, STICKWRIGHT, FISHERMAN, SMALL_TALK } from '../data/VillagerData.js?v=20260921163240';
+import { MeshBuilder, blob, tube } from '../art/Geo.js?v=20260921163240';
+import { MATS } from '../art/Materials.js?v=20260921163240';
+import { BARK, BUILD, mixHex } from '../art/Palette.js?v=20260921163240';
+import { riverX, riverLevel } from '../world/Terrain.js?v=20260921163240';
+import { WORLD } from '../core/Config.js?v=20260921163240';
+import { makeRng, clamp, clamp01, lerp, damp, dampAngle, angleDelta, TAU, smoothstep } from '../core/Util.js?v=20260921163240';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -66,6 +66,21 @@ export class NPCs {
   _bankSpot() {
     const W = this.world;
     const V = WORLD.village;
+
+    /* THE BOOTH DECIDES, NOT THIS FUNCTION.
+       The village builder puts a fishing booth on the bank and records
+       where its keeper stands. Working it out a second time here is how the
+       fisherman ended up standing two metres to the left of his own shop.
+       Everything below is the fallback for a world built without one. */
+    const A = W.village?.anchors?.fishery || W.anchors?.fishery;
+    if (A) {
+      return {
+        x: A.standAt[0], z: A.standAt[1], y: W.groundAt(A.standAt[0], A.standAt[1]),
+        yaw: A.yaw, booth: A,
+        depth: 0.55, remoteness: 0.25, seed: 0xf15a21,
+      };
+    }
+
     // a stretch of river near the village, but out of the busy middle
     const z = V.cz + 34;
     const cx = riverX(z);
@@ -125,10 +140,11 @@ export class NPCs {
        walking out from the bridge until the ground is just above the water. */
     {
       const spot = this._bankSpot();
-      const npc = this._make(FISHERMAN, spot.x, spot.z, spot.yaw, 'fish');
+      const npc = this._make(FISHERMAN, spot.x, spot.z, spot.yaw, 'shopkeep');
       npc.isFisherman = true;
       npc.home = { x: spot.x, z: spot.z, yaw: spot.yaw };
       npc.fishSpot = spot;
+      npc.booth = spot.booth || null;
       this.fisherman = npc;
     }
 
@@ -310,6 +326,19 @@ export class NPCs {
         npc.wait = r.range(4, 11);
         break;
 
+      /* A SHOPKEEPER DOES NOT GO ANYWHERE.
+         The fisherman is the busiest NPC in the game and the player arrives
+         carrying things to sell him, so he is always behind his booth. He
+         shifts about within half a metre of his mark and turns back to face
+         the water when he settles — which reads as somebody minding a shop
+         rather than as somebody standing to attention. */
+      case 'shopkeep':
+        npc.tx = home.x + r.range(-0.42, 0.42);
+        npc.tz = home.z + r.range(-0.30, 0.30);
+        npc.state = r.chance(0.35) ? 'work' : 'idle';
+        npc.wait = r.range(3, 9);
+        break;
+
       case 'sit':
         npc.tx = home.x; npc.tz = home.z;
         npc.state = 'sit';
@@ -390,7 +419,7 @@ export class NPCs {
     const dx = npc.tx - npc.x, dz = npc.tz - npc.z;
     const d = Math.hypot(dx, dz);
     const want = npc.state === 'run' ? 2.6
-      : npc.state === 'sit' || npc.state === 'work' || npc.state === 'talk' ? 0.55
+      : npc.state === 'sit' || npc.state === 'work' || npc.state === 'talk' || npc.state === 'idle' ? 0.55
         : 1.15;
 
     if (d > 0.22) {
@@ -402,7 +431,9 @@ export class NPCs {
     } else {
       npc.speed = damp(npc.speed, 0, 9, dt);
       if (npc.talkTo) npc.targetYaw = Math.atan2(npc.talkTo.x - npc.x, npc.talkTo.z - npc.z);
-      else if (npc.home && (npc.job === 'market' || npc.job === 'stickwright')) npc.targetYaw = npc.home.yaw;
+      else if (npc.home && (npc.job === 'market' || npc.job === 'stickwright' || npc.job === 'shopkeep')) {
+        npc.targetYaw = npc.home.yaw;
+      }
     }
 
     npc.yaw = dampAngle(npc.yaw, npc.targetYaw, 6, dt);

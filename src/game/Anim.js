@@ -19,8 +19,8 @@
    joints. Nothing rebuilds geometry, ever.
 */
 
-import { clamp, clamp01, lerp, damp, dampAngle, TAU, smoothstep, makeRng } from '../core/Util.js?v=20260921145028';
-import { applyCarry, applyAttack } from './Combat.js?v=20260921145028';
+import { clamp, clamp01, lerp, damp, dampAngle, TAU, smoothstep, makeRng } from '../core/Util.js?v=20260921163240';
+import { applyCarry, applyAttack, applyCharge } from './Combat.js?v=20260921163240';
 
 /* ========================================================================= */
 /* SPECIES DEFINITIONS                                                       */
@@ -174,6 +174,9 @@ export function poseAnimal(rig, st) {
   /* action overlay */
   A.action = st.action || null;
   A.actionT = st.actionT ?? 0;
+  A.swing = st.swing || null;
+  A.charge = st.charge || null;
+  A.quad = clamp01(st.quad ?? 0);
 
   switch (rig.species) {
     case 'frog': poseFrog(rig, A, st, dt, speed, moving); break;
@@ -336,40 +339,107 @@ function poseHuman(rig, A, st, dt, speed, moving) {
 function poseFox(rig, A, st, dt, speed, moving) {
   const p = rig.parts;
 
-  const stepsPerSec = moving ? lerp(2.1, 4.4, speed) : 0;
+  /* ----------------------------------------------------------------------
+     THE SPRINT BLEND.
+
+     `q` is how far onto four legs the fox is. It is a continuous value the
+     Player damps, never a flag, because the brief asked for the transition
+     itself to be the good bit. Everything below reads it:
+
+       - the GAIT changes from a four-beat trot to a two-beat bound, so the
+         legs do not merely move faster, they move in a different pattern;
+       - the SPINE folds forward and the hips rise, which is the whole
+         posture change;
+       - the FRONT PAWS become front legs — they reach for the ground in
+         phase with the rear pair rather than counter-swinging;
+       - the HEAD levels out and leads, because a running animal looks where
+         it is going and a walking one looks around;
+       - the TAIL streams out flat behind as a counterweight.
+
+     Blending each of those separately, rather than cross-fading two canned
+     poses, is why the halfway point looks like a fox breaking into a run
+     instead of a fox in two poses at once.
+     ------------------------------------------------------------------- */
+  const q = A.quad;
+  const bound = smoothstep(q);              // how "gallop" the gait is
+
+  /* a bound is two beats per cycle and covers more ground per beat, so the
+     cadence does NOT simply scale with speed */
+  const trotRate = lerp(2.1, 4.4, speed);
+  const boundRate = lerp(2.3, 3.3, speed);
+  const stepsPerSec = moving ? lerp(trotRate, boundRate, bound) : 0;
   A.phase = moving ? (A.phase + dt * stepsPerSec) % 1 : damp(A.phase, 0, 5, dt);
   const ph = A.phase * TAU;
 
-  /* almost no vertical travel — a trotting fox's back is famously level */
-  A.bodyY = moving ? Math.sin(ph * 2) * 0.018 * speed : Math.sin(A.breathe * 0.8) * 0.006;
+  /* a trotting fox's back is famously level; a bounding one rises and falls
+     through the whole stride, and that vertical travel IS the gallop */
+  const trotY = Math.sin(ph * 2) * 0.018 * speed;
+  const boundY = (Math.pow(Math.max(0, Math.sin(ph)), 1.5) * 0.085
+    - Math.pow(Math.max(0, -Math.sin(ph)), 2) * 0.02) * speed;
+  A.bodyY = moving ? lerp(trotY, boundY, bound) : Math.sin(A.breathe * 0.8) * 0.006;
 
   const lean = clamp(A.speedS * 0.22, 0, 0.3);
-  p.hip.rotation.x = lean * 0.8 + Math.sin(ph * 2) * 0.02 * A.speedS;
-  p.hip.rotation.z = clamp(-A.turnS * 0.10, -0.28, 0.28);
-  p.torso.rotation.y = Math.sin(ph) * 0.05 * A.speedS;
+  /* the fold: hips up, chest down, spine along the direction of travel */
+  const fold = bound * 1.02;
+  p.hip.rotation.x = lean * 0.8 + fold * 0.34 + Math.sin(ph * 2) * 0.02 * A.speedS
+    + Math.sin(ph) * 0.06 * bound;
+  p.hip.rotation.z = clamp(-A.turnS * 0.10, -0.28, 0.28) * (1 - bound * 0.5);
+  p.hip.position.y = rig.metrics.hipHeight * lerp(1, 0.86, bound);
+  p.torso.rotation.x = -fold * 0.20 + Math.sin(ph * 2) * 0.05 * bound;
+  p.torso.rotation.y = Math.sin(ph) * 0.05 * A.speedS * (1 - bound * 0.7);
   p.torso.scale.set(1, 1 + Math.sin(A.breathe) * 0.012, 1);
 
-  /* --- legs: diagonal pairs, which is what a trot IS -------------------- */
+  /* --- legs ------------------------------------------------------------- */
+  /* trot: diagonal pairs, half a cycle apart.
+     bound: BOTH hind legs together, gathering under the body and firing.  */
   p.legs.forEach((leg, i) => {
-    const off = i === 0 ? 0 : Math.PI;         // hind legs alternate
-    const s = Math.sin(ph + off);
-    const c = Math.cos(ph + off);
-    const amp = 0.55 * A.speedS;
-    leg.hip.rotation.x = s * amp + lean * 0.3;
-    // the hock is the fox's signature: it flexes hardest as the foot lifts
-    leg.knee.rotation.x = clamp(0.55 + (-c * 0.5 - 0.15) * amp * 1.6, 0.12, 1.5);
-    leg.hock.rotation.x = clamp(-0.75 + c * 0.45 * amp * 1.4, -1.5, -0.1);
-    leg.ankle.rotation.x = clamp(0.40 - s * 0.35 * amp, -0.2, 1.0);
+    const off = i === 0 ? 0 : Math.PI;
+    const sT = Math.sin(ph + off), cT = Math.cos(ph + off);
+    const ampT = 0.55 * A.speedS;
+
+    // the bound: both hinds in phase, a big reach and a hard gather
+    const sB = Math.sin(ph - 0.35), cB = Math.cos(ph - 0.35);
+    const ampB = 0.95 * A.speedS;
+
+    const hipX = lerp(sT * ampT + lean * 0.3, sB * ampB - 0.30, bound);
+    const kneeX = lerp(
+      clamp(0.55 + (-cT * 0.5 - 0.15) * ampT * 1.6, 0.12, 1.5),
+      clamp(0.95 + (-cB * 0.9) * ampB * 1.5, 0.15, 2.1), bound);
+    const hockX = lerp(
+      clamp(-0.75 + cT * 0.45 * ampT * 1.4, -1.5, -0.1),
+      clamp(-1.15 + cB * 0.85 * ampB * 1.3, -2.0, -0.1), bound);
+    const ankX = lerp(
+      clamp(0.40 - sT * 0.35 * ampT, -0.2, 1.0),
+      clamp(0.55 - sB * 0.55 * ampB, -0.3, 1.3), bound);
+
+    leg.hip.rotation.x = hipX;
+    leg.knee.rotation.x = kneeX;
+    leg.hock.rotation.x = hockX;
+    leg.ankle.rotation.x = ankX;
   });
 
-  /* --- arms swing opposite the legs ------------------------------------- */
+  /* --- arms, which become FRONT LEGS ------------------------------------ */
   p.arms.forEach((arm, i) => {
     const s = Math.sin(ph + (i === 0 ? Math.PI : 0));
     const amp = 0.45 * A.speedS;
     const carrying = arm.side > 0 && st.carrying;
-    arm.shoulder.rotation.x = carrying ? -0.75 : (s * amp - 0.12 + Math.sin(A.breathe) * 0.03);
-    arm.shoulder.rotation.z = arm.side * 0.16;
-    arm.elbow.rotation.x = carrying ? -1.0 : (-0.35 - Math.max(0, s) * 0.45 * A.speedS);
+
+    /* upright: a counter-swing against the legs.
+       four-legged: reaching forward together, half a cycle off the hinds,
+       with the elbow straightening hard at the reach — that straight front
+       leg at full extension is the single frame that says "gallop". */
+    const sF = Math.sin(ph + Math.PI - 0.15 + (i === 0 ? 0.26 : 0));
+    const cF = Math.cos(ph + Math.PI - 0.15 + (i === 0 ? 0.26 : 0));
+    const ampF = 1.05 * A.speedS;
+
+    const up = carrying ? -0.75 : (s * amp - 0.12 + Math.sin(A.breathe) * 0.03);
+    const down = -1.42 + sF * ampF;
+    arm.shoulder.rotation.x = lerp(up, down, bound);
+    arm.shoulder.rotation.z = arm.side * lerp(0.16, 0.07, bound);
+    const elUp = carrying ? -1.0 : (-0.35 - Math.max(0, s) * 0.45 * A.speedS);
+    const elDown = -0.20 - Math.max(0, -cF) * 0.95 * ampF;
+    arm.elbow.rotation.x = lerp(elUp, elDown, bound);
+    if (arm.hand) arm.hand.rotation.x = lerp(0, 0.35 + sF * 0.25, bound);
   });
 
   /* --- THE TAIL. A heavy rope that is always a beat behind. ------------- */
@@ -386,28 +456,35 @@ function poseFox(rig, A, st, dt, speed, moving) {
       // Positive rotation.x LIFTS a tail that extends along -Z. At rest a
       // fox's brush hangs down and curls round her feet; it only comes up
       // and streams out behind her when she is moving.
-      seg.rotation.x = lerp(-0.42, 0.30, A.speedS) + Math.sin(A.breathe * 0.7) * 0.04;
+      seg.rotation.x = lerp(-0.42, 0.30, A.speedS) + Math.sin(A.breathe * 0.7) * 0.04
+        + bound * 0.42;
       seg.rotation.y = A.tailLag * 0.5;
       return;
     }
     const t = i / p.tail.length;
     const wave = Math.sin(ph * 1.0 - i * 0.7) * 0.10 * A.speedS
       + Math.sin(A.t * 1.3 - i * 0.55) * 0.045 * (1 - A.speedS);
-    seg.rotation.y = A.tailLag * (0.35 + t * 0.5) + wave;
-    // it curls upward at rest and streams out flat at speed
-    seg.rotation.x = lerp(0.16, -0.02, A.speedS) + wave * 0.3;
+    seg.rotation.y = A.tailLag * (0.35 + t * 0.5) + wave * (1 - bound * 0.4);
+    /* flat out behind at a sprint: the brush stops being decoration and
+       becomes the counterweight it actually is */
+    seg.rotation.x = lerp(lerp(0.16, -0.02, A.speedS) + wave * 0.3, -0.10 + Math.sin(ph * 2 - i * 0.5) * 0.05, bound);
   });
 
-  /* --- ears: constantly alive ------------------------------------------- */
+  /* --- ears: constantly alive, and pinned back at speed ----------------- */
   const flick = A.earTwitch * A.earTwitch;
   p.earL.rotation.z = 0.22 - flick * 0.55 + Math.sin(A.t * 2.1) * 0.03;
   p.earR.rotation.z = -0.22 + flick * 0.25 + Math.sin(A.t * 2.6 + 1) * 0.03;
-  p.earL.rotation.x = -0.10 - A.speedS * 0.18 - flick * 0.2;
-  p.earR.rotation.x = -0.10 - A.speedS * 0.18;
+  p.earL.rotation.x = -0.10 - A.speedS * 0.18 - flick * 0.2 - bound * 0.55;
+  p.earR.rotation.x = -0.10 - A.speedS * 0.18 - bound * 0.55;
 
-  p.neck.rotation.x = -lean * 0.5 + 0.08;
-  p.head.rotation.x = A.headPitch + Math.sin(ph * 2) * 0.025 * A.speedS - lean * 0.2;
-  p.head.rotation.y = A.headYaw;
+  /* --- head: LEVEL and leading when running ----------------------------- */
+  /* the neck folds forward with the chest but the head counter-rotates, so
+     the muzzle stays horizontal and pointed down the direction of travel.
+     A head that folds with the body reads as an animal about to fall over. */
+  p.neck.rotation.x = -lean * 0.5 + 0.08 + bound * 0.46;
+  p.head.rotation.x = A.headPitch + Math.sin(ph * 2) * 0.025 * A.speedS - lean * 0.2
+    - bound * 0.56 + Math.sin(ph) * 0.05 * bound;
+  p.head.rotation.y = A.headYaw * (1 - bound * 0.6);
   p.head.rotation.z = clamp(A.turnS * 0.05, -0.2, 0.2);
 
   applyAction(rig, A, st, dt, 1.0);
@@ -525,6 +602,12 @@ function applyAction(rig, A, st, dt, weight) {
     A.carryW = damp(A.carryW ?? 0, 0, 7, dt);
   }
 
+  /* --- WINDING UP A HEAVY ATTACK ---------------------------------------- */
+  if (A.action === 'charge' && st.weaponCls) {
+    applyCharge(rig, st.weaponCls, A.charge?.held ?? 0, A.charge?.stage ?? 0, A.t);
+    return;
+  }
+
   if (!A.action) return;
   const t = clamp01(A.actionT);
   const arm = p.arms[1];        // the right arm does everything
@@ -533,10 +616,12 @@ function applyAction(rig, A, st, dt, weight) {
   /* --- SWINGING SOMETHING -----------------------------------------------
      A weapon in the paw gets the attack that belongs to its class — a maul
      comes down overhead, a spear goes forward, a greatsword sweeps flat.
-     The old generic swing is kept below for the empty-handed case, which is
-     what the player does before their first weapon. */
+     The swing record also carries which step of the three-hit string this
+     is, so the backhand plays mirrored and the finisher comes down the
+     centre line. The old generic swing is kept below for the empty-handed
+     case, which is what the player does before their first weapon. */
   if (A.action === 'swing' && st.weaponCls) {
-    applyAttack(rig, st.weaponCls, t, weight);
+    applyAttack(rig, st.weaponCls, t, weight, A.swing);
     return;
   }
 

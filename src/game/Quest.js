@@ -22,9 +22,9 @@
    HUD and the arrow read them.
 */
 
-import { bus, EV } from '../core/Bus.js?v=20260921145028';
-import { WORLD } from '../core/Config.js?v=20260921145028';
-import { clamp, clamp01 } from '../core/Util.js?v=20260921145028';
+import { bus, EV } from '../core/Bus.js?v=20260921163240';
+import { WORLD } from '../core/Config.js?v=20260921163240';
+import { clamp, clamp01 } from '../core/Util.js?v=20260921163240';
 
 /* ========================================================================= */
 /* THE SPEECH                                                                */
@@ -134,8 +134,12 @@ export const STEPS = [
   },
   {
     id: 'meetFisherman',
-    objective: 'Head back toward the village',
+    objective: 'Find the fishing booth by the river',
     marker: G => {
+      /* the BOOTH, not the man. He steps about behind his counter, and a
+         marker that follows him jitters; the shop does not move. */
+      const A = G.world?.anchors?.fishery;
+      if (A) return { x: A.talkAt[0], z: A.talkAt[1], label: 'the fishing booth' };
       const f = G.npcs?.fisherman;
       return f ? { x: f.x, z: f.z, label: 'somebody on the riverbank' } : null;
     },
@@ -143,11 +147,16 @@ export const STEPS = [
   },
   {
     id: 'fish',
-    objective: 'Catch a fish',
-    note: 'Hold the left mouse button to raise the band. Let go to sink it.',
+    objective: 'Cast a line in the lake',
+    note: 'Take out the rod, stand by the water and press E. Hold to raise the sleeve, let go to sink it.',
     marker: G => {
+      /* POINT AT THE WATER. The player has the rod now, so the next thing
+         they need is somewhere to put it — the marker sits on the river
+         beside the booth, which is the lake the tutorial means. */
+      const A = G.world?.anchors?.fishery;
+      if (A) return { x: A.castAt[0], z: A.castAt[1], label: 'the water' };
       const f = G.npcs?.fisherman;
-      return f ? { x: f.x, z: f.z, label: 'the fishing spot' } : null;
+      return f ? { x: f.x, z: f.z, label: 'the water' } : null;
     },
     done: G => G.quest.fishCaught > 0,
   },

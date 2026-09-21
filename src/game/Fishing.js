@@ -25,9 +25,9 @@
    UI layer reads this state and draws it.
 */
 
-import { rollFish, fishTier } from '../data/FishData.js?v=20260921145028';
-import { bus, EV } from '../core/Bus.js?v=20260921145028';
-import { clamp, clamp01, lerp, makeRng } from '../core/Util.js?v=20260921145028';
+import { rollFish, fishTier } from '../data/FishData.js?v=20260921163240';
+import { bus, EV } from '../core/Bus.js?v=20260921163240';
+import { clamp, clamp01, lerp, makeRng } from '../core/Util.js?v=20260921163240';
 
 /*
  * THE ZONE MUST BE ABLE TO OUTRUN THE FISH.
@@ -48,7 +48,7 @@ import { clamp, clamp01, lerp, makeRng } from '../core/Util.js?v=20260921145028'
 const LIFT = 4.60;        // bar-heights per second squared while holding
 const GRAVITY = 2.40;     // and while not
 const DRAG = 2.20;        // velocity damping, per second
-const ZONE = 0.22;        // how much of the bar the player's zone covers
+const ZONE = 0.22;        // how much of the bar the player's zone covers (the rod widens it)
 const FILL_RATE = 0.52;   // catch meter per second while on the fish
 const DRAIN_RATE = 0.30;  // and off it — deliberately slower than the fill
 
@@ -95,11 +95,27 @@ export class Fishing {
     this.state = FISH_STATE.CAST;
     this.stateT = 0;
     const r = makeRng((spot.seed ?? 12345) ^ (Date.now() & 0xffff));
+    /* THE ROD IS IN EVERY LINE OF THIS.
+       It sets how the band handles (lift, fall, control, width), how heavy a
+       fish it can hold at all (line), how long the wait is (lure) and what
+       is down there in the first place (luck, rare). A rod the player cannot
+       feel the moment they cast is not an upgrade. */
+    const rod = spot.rod || null;
+    this.rod = rod;
+    this.lift = LIFT * (rod ? rod.lift / 4.2 : 1);
+    this.fallA = GRAVITY * (rod ? rod.fall / 2.3 : 1);
+    this.drag = DRAG * (rod ? 0.72 + rod.control * 0.28 : 1);
+    this.band = rod ? rod.band : ZONE;
+    this.line = rod ? rod.line : 1.3;
     // the wait is the anticipation; too short and there is no anticipation
-    this.biteAt = r.range(1.4, 4.6);
+    this.biteAt = r.range(1.4, 4.6) / (rod ? rod.lure : 1);
     this._pending = rollFish(
       (r.seed ? r.seed() : (Math.random() * 0xffffffff)) >>> 0,
-      { depth: spot.depth ?? 0.4, remoteness: spot.remoteness ?? 0.3, night: !!spot.night });
+      {
+        depth: spot.depth ?? 0.4, remoteness: spot.remoteness ?? 0.3,
+        zone: spot.zone ?? 0, night: !!spot.night,
+        luck: rod ? rod.luck : 1, rareChance: rod ? rod.rare : 1,
+      });
     this.audio?.cast?.();
     return true;
   }
@@ -170,9 +186,9 @@ export class Fishing {
     if (this.state !== FISH_STATE.FIGHT) return;
 
     /* --- the player's zone: lift while held, gravity when not ----------- */
-    const a = (this.holding ? LIFT : 0) - GRAVITY;
+    const a = (this.holding ? (this.lift ?? LIFT) : 0) - (this.fallA ?? GRAVITY);
     this.vel += a * dt;
-    this.vel -= this.vel * Math.min(1, DRAG * dt);
+    this.vel -= this.vel * Math.min(1, (this.drag ?? DRAG) * dt);
     this.zone += this.vel * dt;
     // the ends of the bar absorb rather than bounce: a bounce at the bottom
     // flings the zone back up and the player did not ask for that
@@ -183,13 +199,19 @@ export class Fishing {
     this._moveFish(dt);
 
     /* --- are we on it? --------------------------------------------------- */
-    const half = ZONE * 0.5;
+    const half = (this.band ?? ZONE) * 0.5;
     const on = Math.abs(this.fishPos - this.zone) <= half;
     this.onFish = on ? Math.min(1, this.onFish + dt * 6) : Math.max(0, this.onFish - dt * 6);
 
     const M = this.fish.move;
     if (on) this.catch = clamp01(this.catch + FILL_RATE * dt);
     else this.catch = clamp01(this.catch - DRAIN_RATE * M.fight * dt);
+    /* OVER THE LINE RATING. A fish heavier than the rod can hold bleeds the
+       meter even when you are tracking it perfectly, so a starter rod can
+       hook a River Father and will never land one. That is the upgrade
+       loop stated as a rule rather than as a locked door. */
+    const over = M.fight - (this.line ?? 1.3);
+    if (over > 0) this.catch = clamp01(this.catch - over * 0.30 * dt);
 
     if (this.catch >= 1) this._win();
     else if (this.catch <= 0) this._lose();
@@ -236,7 +258,9 @@ export class Fishing {
   get active() {
     return this.state !== FISH_STATE.IDLE;
   }
-  get zoneTop() { return clamp01(this.zone + ZONE * 0.5); }
-  get zoneBottom() { return clamp01(this.zone - ZONE * 0.5); }
-  get zoneSize() { return ZONE; }
+  get zoneTop() { return clamp01(this.zone + (this.band ?? ZONE) * 0.5); }
+  get zoneBottom() { return clamp01(this.zone - (this.band ?? ZONE) * 0.5); }
+  get zoneSize() { return this.band ?? ZONE; }
+  /** True when the thing on the line is heavier than the rod is rated for. */
+  get overLine() { return !!(this.fish && this.fish.move.fight > (this.line ?? 1.3)); }
 }

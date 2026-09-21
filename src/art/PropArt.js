@@ -13,11 +13,11 @@
    stamped into a tile by Village.js.
 */
 
-import * as THREE from '../../lib/three.module.js?v=20260921145028';
-import { MeshBuilder, box, hexa, beam, cylinder, lathe, blob, tube, quad, blade, sheet } from './Geo.js?v=20260921145028';
-import { BUILD, METAL, MOSS, PLANT, LEAF, BARK, GROUND, mixHex, tweak, shade } from './Palette.js?v=20260921145028';
-import { orient, lumpWarp } from './TreeGen.js?v=20260921145028';
-import { makeRng, clamp, lerp, TAU } from '../core/Util.js?v=20260921145028';
+import * as THREE from '../../lib/three.module.js?v=20260921163240';
+import { MeshBuilder, box, hexa, beam, cylinder, lathe, blob, tube, quad, blade, sheet } from './Geo.js?v=20260921163240';
+import { BUILD, METAL, MOSS, PLANT, LEAF, BARK, GROUND, mixHex, tweak, shade } from './Palette.js?v=20260921163240';
+import { orient, lumpWarp } from './TreeGen.js?v=20260921163240';
+import { makeRng, clamp, lerp, TAU } from '../core/Util.js?v=20260921163240';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const mat = (x, y, z, ry = 0, s = 1) => new THREE.Matrix4().compose(
@@ -404,6 +404,172 @@ export function buildWoodpile(b, { seed = 1, w = 1.8, h = 1.1, d = 0.7, neat = 0
 /* ========================================================================= */
 
 /** A market stall: trestle, goods, and a striped awning that catches the wind. */
+/**
+ * THE FISHING BOOTH.
+ *
+ * Every fisherman in the game stands behind one of these. It exists so the
+ * player can find them: a fisherman who wanders the village is a fisherman
+ * you have to hunt for with a full creel, and the whole economy runs through
+ * these people. The booth says "sell here" from across the water.
+ *
+ * Built from the waterside up — plank counter on driftwood posts, a slatted
+ * roof, crates of the day's catch, a rack of rods for sale, a barrel, a net
+ * hung to dry and a lantern for the night shift. `tone` shifts the timber
+ * and cloth so a booth in a snow village is not the booth in a swamp.
+ */
+export function buildFishStall(b, { seed = 1, w = 2.9, d = 1.7, tone = null, glow = null } = {}) {
+  const r = makeRng(seed ^ 0x5f15);
+  const h = 0.86;
+  const T = tone || {};
+  const timber = T.timber ?? BUILD.plankOld;
+  const post = T.post ?? BARK.oak;
+  const cloth = T.cloth ?? BUILD.clothBlue;
+  const blockers = [];
+
+  /* --- the counter ------------------------------------------------------ */
+  b.color(timber, 0.08, r);
+  box(b, 0, h, 0, w, 0.09, d);
+  // planked top, so it reads as boards and not as a slab
+  const nb = Math.max(4, Math.round(w / 0.28));
+  for (let i = 0; i < nb; i++) {
+    b.color(tweak(timber, { l: r.range(0.86, 1.14) }), 0.05, r);
+    box(b, lerp(-w / 2, w / 2, (i + 0.5) / nb), h + 0.05, 0, (w / nb) * 0.9, 0.03, d * 0.98);
+  }
+  b.color(post, 0.07, r);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    beam(b, sx * (w / 2 - 0.13), -0.1, sz * (d / 2 - 0.13),
+      sx * (w / 2 - 0.16), h - 0.03, sz * (d / 2 - 0.16), 0.09, 0.09, [0, 1, 0]);
+  }
+  // a front board with a painted fish on it
+  b.color(tweak(timber, { l: 0.88 }), 0.05, r);
+  box(b, 0, h * 0.52, d / 2 + 0.02, w * 0.96, h * 0.72, 0.05);
+  b.color(T.sign ?? 0xd8c088, 0.05, r);
+  for (let i = 0; i < 7; i++) {
+    const t = i / 6;
+    blob(b, lerp(-w * 0.16, w * 0.16, t), h * 0.52, d / 2 + 0.055,
+      0.055 * Math.sin(t * Math.PI) + 0.02, 2, 5, (x, y, z) => [1, 1, 0.35]);
+  }
+  blob(b, w * 0.20, h * 0.52, d / 2 + 0.055, 0.05, 2, 4, (x, y, z) => [1.6, 1.1, 0.35]);
+
+  /* --- the roof: four posts and slats, not cloth. It has to survive rain. */
+  const ah = 2.15;
+  b.color(post, 0.07, r);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    beam(b, sx * w / 2, 0, sz * d / 2, sx * w / 2, ah - (sz > 0 ? 0.22 : 0), sz * d / 2, 0.07, 0.07, [0, 1, 0]);
+  }
+  beam(b, -w / 2, ah, -d / 2, w / 2, ah, -d / 2, 0.07, 0.09, [0, 1, 0]);
+  beam(b, -w / 2, ah - 0.22, d / 2, w / 2, ah - 0.22, d / 2, 0.07, 0.09, [0, 1, 0]);
+  const slats = Math.max(5, Math.round(w / 0.22));
+  for (let i = 0; i < slats; i++) {
+    b.color(tweak(T.roof ?? BUILD.plank, { l: r.range(0.82, 1.16) }), 0.05, r);
+    const x = lerp(-w / 2 - 0.1, w / 2 + 0.1, (i + 0.5) / slats);
+    hexa(b, [
+      [x - w / slats * 0.42, ah, -d / 2 - 0.14], [x + w / slats * 0.42, ah, -d / 2 - 0.14],
+      [x + w / slats * 0.42, ah + 0.05, -d / 2 - 0.14], [x - w / slats * 0.42, ah + 0.05, -d / 2 - 0.14],
+      [x - w / slats * 0.42, ah - 0.22, d / 2 + 0.20], [x + w / slats * 0.42, ah - 0.22, d / 2 + 0.20],
+      [x + w / slats * 0.42, ah - 0.17, d / 2 + 0.20], [x - w / slats * 0.42, ah - 0.17, d / 2 + 0.20],
+    ]);
+  }
+  // a valance of cloth along the front edge
+  b.color(cloth, 0.05, r);
+  const vc = 9;
+  for (let i = 0; i < vc; i++) {
+    const x0 = lerp(-w / 2 - 0.08, w / 2 + 0.08, i / vc);
+    const x1 = lerp(-w / 2 - 0.08, w / 2 + 0.08, (i + 1) / vc);
+    const dip = 0.10 + (i % 2) * 0.05;
+    sheet(b, [x0, ah - 0.22, d / 2 + 0.20], [x1, ah - 0.22, d / 2 + 0.20],
+      [x1, ah - 0.22 - dip, d / 2 + 0.16], [x0, ah - 0.22 - dip, d / 2 + 0.16], 0.014);
+  }
+
+  /* --- the day's catch, in crates on the counter ------------------------ */
+  for (const sx of [-1, 1]) {
+    const cx = sx * w * 0.30;
+    b.color(BUILD.plank, 0.07, r);
+    box(b, cx, h + 0.16, -d * 0.06, 0.52, 0.20, 0.42);
+    b.color(tweak(BUILD.plank, { l: 0.8 }), 0.05, r);
+    box(b, cx, h + 0.27, -d * 0.06, 0.54, 0.03, 0.44);
+    // silver backs just showing over the rim
+    for (let i = 0; i < 4; i++) {
+      b.color(mixHex(0x9aa8b0, 0xd8e0e4, r()), 0.07, r);
+      const a = r.range(-0.5, 0.5);
+      tube(b, {
+        pts: [[cx - 0.18 + i * 0.11, h + 0.28, -d * 0.06 - 0.12 + r.range(-0.05, 0.05)],
+        [cx - 0.12 + i * 0.11 + Math.sin(a) * 0.1, h + 0.30, -d * 0.06 + 0.12]],
+        radius: t => 0.035 * Math.sin(Math.max(0.05, t) * Math.PI) + 0.012, radial: 5,
+        capStart: true, capEnd: true, sway: () => 0,
+      });
+    }
+  }
+  /* THE COUNTER BLOCKS, THE FRONT DOES NOT.
+     One disc over the whole booth walled off the side the customer stands
+     on. These are three small discs along the counter line, set back, so
+     the player can walk right up to it and cannot walk through it. */
+  for (const t of [-0.34, 0, 0.34]) {
+    blockers.push({ x: w * t, z: -d * 0.12, r: w * 0.24 });
+  }
+
+  /* --- a rack of rods for sale, standing at the end --------------------- */
+  {
+    const rx = -w / 2 - 0.34;
+    b.color(post, 0.06, r);
+    beam(b, rx, 0, -0.3, rx, 1.35, -0.3, 0.06, 0.06, [0, 1, 0]);
+    beam(b, rx, 0, 0.3, rx, 1.35, 0.3, 0.06, 0.06, [0, 1, 0]);
+    beam(b, rx, 1.3, -0.3, rx, 1.3, 0.3, 0.05, 0.05, [0, 1, 0]);
+    for (let i = 0; i < 4; i++) {
+      const z = lerp(-0.24, 0.24, i / 3);
+      b.color(mixHex(BARK.hazel, BARK.ash, r()), 0.08, r);
+      tube(b, {
+        pts: [[rx + 0.04, 0.05, z], [rx - 0.10, 0.9, z], [rx - 0.20, 1.72, z]],
+        radius: t => 0.020 * (1 - t * 0.65), radial: 5, capStart: true, capEnd: true, sway: () => 0,
+      });
+      b.color(BUILD.rope, 0.05, r);
+      blob(b, rx - 0.06, 0.62, z, 0.032, 2, 5);
+    }
+    blockers.push({ x: rx, z: 0, r: 0.28, low: true });
+  }
+
+  /* --- a barrel, a net and a lantern ------------------------------------ */
+  {
+    const bx = w / 2 + 0.38;
+    b.color(BUILD.plank, 0.07, r);
+    lathe(b, [[0.20, 0], [0.26, 0.2], [0.26, 0.5], [0.21, 0.72], [0.19, 0.74]], 10, bx, 0.28);
+    b.color(METAL.iron, 0.05, r);
+    for (const y of [0.16, 0.56]) lathe(b, [[0.268, y], [0.268, y + 0.05]], 10, bx, 0.28);
+    blockers.push({ x: bx, z: 0.28, r: 0.28, low: true });
+
+    // a net hung from the back rail to dry
+    b.color(T.net ?? 0xbfb48c, 0.06, r);
+    for (let i = 0; i <= 8; i++) {
+      const x = lerp(-w * 0.34, w * 0.34, i / 8);
+      tube(b, {
+        pts: [[x, ah - 0.06, -d / 2 - 0.02], [x * 0.94, ah - 0.55 - Math.sin(i / 8 * Math.PI) * 0.22, -d / 2 - 0.10]],
+        radius: () => 0.008, radial: 3, capStart: false, capEnd: false, sway: () => 0,
+      });
+    }
+    for (let j = 1; j <= 3; j++) {
+      const y = ah - 0.06 - j * 0.16;
+      tube(b, {
+        pts: [[-w * 0.34, y - Math.sin(j / 4 * Math.PI) * 0.05, -d / 2 - 0.05],
+        [0, y - 0.10, -d / 2 - 0.09], [w * 0.34, y - Math.sin(j / 4 * Math.PI) * 0.05, -d / 2 - 0.05]],
+        radius: () => 0.007, radial: 3, capStart: false, capEnd: false, sway: () => 0,
+      });
+    }
+  }
+  {
+    const L = buildLantern(b, { seed: r.seed(), kind: 'hang', h: ah - 0.12, glow });
+    // buildLantern draws at the origin; shift it to the corner post
+    void L;
+  }
+
+  return {
+    blockers,
+    /* where the fisherman stands, and where the player stands to talk */
+    standAt: [0, -d / 2 - 0.55],
+    talkAt: [0, d / 2 + 0.95],
+    counterY: h + 0.06,
+    light: { x: 0, y: ah - 0.30, z: 0, c: BUILD.lanternGlow, i: 1.2 },
+  };
+}
 export function buildStall(b, { seed = 1, w = 2.6, d = 1.5, goods = 'produce' } = {}) {
   const r = makeRng(seed ^ 0x5741);
   const h = 0.92;

@@ -21,15 +21,15 @@
    off.
 */
 
-import * as THREE from '../../lib/three.module.js?v=20260921145028';
-import { buildWorker, buildWorkerProp } from '../art/HumanArt.js?v=20260921145028';
-import { MeshBuilder } from '../art/Geo.js?v=20260921145028';
-import { MATS } from '../art/Materials.js?v=20260921145028';
-import { poseAnimal } from './Anim.js?v=20260921145028';
-import { targetsInArc } from './Combat.js?v=20260921145028';
-import { bus, EV } from '../core/Bus.js?v=20260921145028';
-import { WORLD } from '../core/Config.js?v=20260921145028';
-import { makeRng, clamp, clamp01, lerp, damp, dampAngle, TAU, hash2 } from '../core/Util.js?v=20260921145028';
+import * as THREE from '../../lib/three.module.js?v=20260921163240';
+import { buildWorker, buildWorkerProp } from '../art/HumanArt.js?v=20260921163240';
+import { MeshBuilder } from '../art/Geo.js?v=20260921163240';
+import { MATS } from '../art/Materials.js?v=20260921163240';
+import { poseAnimal } from './Anim.js?v=20260921163240';
+import { targetsInArc } from './Combat.js?v=20260921163240';
+import { bus, EV } from '../core/Bus.js?v=20260921163240';
+import { WORLD } from '../core/Config.js?v=20260921163240';
+import { makeRng, clamp, clamp01, lerp, damp, dampAngle, TAU, hash2 } from '../core/Util.js?v=20260921163240';
 
 /* How far out the crews work. Never inside the village bowl — the whole
    point is that they have NOT found it — and never past the mountains. */

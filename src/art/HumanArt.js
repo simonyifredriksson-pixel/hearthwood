@@ -17,11 +17,11 @@
    grip — so the same animator and the same carry code work on them.
 */
 
-import * as THREE from '../../lib/three.module.js?v=20260921145028';
-import { MeshBuilder, tube, blob, lathe, box, quad, cylinder } from './Geo.js?v=20260921145028';
-import { BUILD, CLOTH, METAL, mixHex, tweak, shade } from './Palette.js?v=20260921145028';
-import { MATS } from './Materials.js?v=20260921145028';
-import { makeRng, clamp, lerp, TAU } from '../core/Util.js?v=20260921145028';
+import * as THREE from '../../lib/three.module.js?v=20260921163240';
+import { MeshBuilder, tube, blob, lathe, box, quad, cylinder } from './Geo.js?v=20260921163240';
+import { BUILD, CLOTH, METAL, mixHex, tweak, shade } from './Palette.js?v=20260921163240';
+import { MATS } from './Materials.js?v=20260921163240';
+import { makeRng, clamp, lerp, TAU } from '../core/Util.js?v=20260921163240';
 
 function joint(parent, x, y, z, name) {
   const g = new THREE.Group();

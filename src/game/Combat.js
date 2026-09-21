@@ -24,8 +24,8 @@
    impossible and pointless — what matters is the FAMILY and how heavy it is.
 */
 
-import { WEAPON_CLASSES } from '../data/WeaponData.js?v=20260921145028';
-import { clamp, clamp01, lerp, smoothstep } from '../core/Util.js?v=20260921145028';
+import { WEAPON_CLASSES } from '../data/WeaponData.js?v=20260921163240';
+import { clamp, clamp01, lerp, smoothstep } from '../core/Util.js?v=20260921163240';
 
 /* ========================================================================= */
 /* CARRY                                                                     */
@@ -156,6 +156,65 @@ export const ATTACKS = {
   },
 };
 
+/* ========================================================================= */
+/* THE COMBO                                                                 */
+/* ========================================================================= */
+
+/**
+ * THREE HITS, AND THE THIRD IS THE ONE THAT MATTERS.
+ *
+ *   1. across the body from the LEFT
+ *   2. back across it from the RIGHT
+ *   3. straight down the middle, harder and slower than either
+ *
+ * `mirror` flips the whole swing, which is what makes the second hit read as
+ * a backhand rather than as the first one played again. `damage` and `push`
+ * climb, and step three costs a longer recovery — so mashing is not free and
+ * finishing the string is a decision, not a reflex.
+ *
+ * The chain is dropped if the player waits longer than `COMBO_WINDOW`, which
+ * is generous on purpose: this is a cozy game, not a fighting game.
+ */
+export const COMBO = [
+  { step: 0, mirror: false, damage: 1.00, push: 1.00, speed: 1.00, recover: 0.16, arcMul: 1.00, label: 'left' },
+  { step: 1, mirror: true, damage: 1.15, push: 1.10, speed: 0.95, recover: 0.18, arcMul: 1.05, label: 'right' },
+  { step: 2, mirror: false, damage: 1.70, push: 1.85, speed: 0.80, recover: 0.38, arcMul: 0.80, label: 'finisher', straight: true },
+];
+
+/** How long after a swing the next one still counts as part of the string. */
+export const COMBO_WINDOW = 0.95;
+
+/* ========================================================================= */
+/* THE HEAVY ATTACK                                                          */
+/* ========================================================================= */
+
+/**
+ * Hold the button and the weapon winds up in three stages, two seconds each.
+ * Every stage lands with a small bright pulse — a *glimpse*, not a firework:
+ * the brief was specific that it should read as "charged", not as an
+ * explosion going off in a cozy wood.
+ *
+ * Releasing before the first stage is an ordinary combo hit, so holding is
+ * never a punishment for a slow finger.
+ */
+export const CHARGE_STAGE_SECONDS = 2.0;
+export const CHARGE = [
+  { stage: 1, damage: 2.4, push: 2.2, arcMul: 1.15, reachMul: 1.10, flash: 0.45, col: 0xffe9a8 },
+  { stage: 2, damage: 4.2, push: 3.2, arcMul: 1.30, reachMul: 1.20, flash: 0.70, col: 0xffd06a },
+  { stage: 3, damage: 7.5, push: 4.6, arcMul: 1.55, reachMul: 1.35, flash: 1.00, col: 0xffa63c },
+];
+
+/** Which stage a given hold time has reached. 0 = not charged yet. */
+export function chargeStage(held) {
+  return clamp(Math.floor(held / CHARGE_STAGE_SECONDS), 0, CHARGE.length);
+}
+/** Progress 0..1 through the CURRENT stage, for the ring on the HUD. */
+export function chargeProgress(held) {
+  const s = chargeStage(held);
+  if (s >= CHARGE.length) return 1;
+  return clamp01((held - s * CHARGE_STAGE_SECONDS) / CHARGE_STAGE_SECONDS);
+}
+
 const ATTACK_OF = {
   dagger: 'thrust', rapier: 'thrust', spear: 'thrust',
   shortsword: 'slash', sword: 'slash', sabre: 'slash', longsword: 'slash',
@@ -176,18 +235,44 @@ export function attackFor(cls) {
  * makes a slower weapon than a light one — the numbers the forge rolled are
  * the numbers the combat uses.
  */
-export function swingOf(weapon) {
+export function swingOf(weapon, { combo = 0, charge = 0 } = {}) {
   const cls = weapon?.cls || 'club';
   const C = WEAPON_CLASSES[cls] || WEAPON_CLASSES.club;
-  const A = attackFor(cls);
+  const base = attackFor(cls);
   const st = weapon?.stats || {};
+
+  /* --- which move is this? -------------------------------------------- */
+  const ch = charge > 0 ? CHARGE[clamp(charge, 1, CHARGE.length) - 1] : null;
+  const K = ch ? null : COMBO[clamp(combo, 0, COMBO.length - 1)];
+
+  /* The finisher and every charged hit come straight down the middle
+     whatever the weapon's usual arc is — that is what makes the last hit of
+     the string feel like a different move rather than a louder one. */
+  const A = (K?.straight || ch)
+    ? { ...base, ...ATTACKS[ATTACK_OF[cls] === 'thrust' ? 'thrust' : 'smash'], label: ch ? 'heavy' : 'finisher' }
+    : base;
+
+  const speed = ch ? 0.72 : K.speed;
+  const dmgMul = ch ? ch.damage : K.damage;
+  const pushMul = ch ? ch.push : K.push;
+  const arcMul = ch ? ch.arcMul : K.arcMul;
+
   return {
     cls, attack: A,
-    duration: clamp(st.swingTime ?? C.swing, 0.26, 1.6),
-    reach: (st.reach ?? C.reach) * A.reachMul,
-    arc: A.arc,
+    combo: ch ? -1 : K.step,
+    charge, chargeDef: ch,
+    mirror: !ch && K.mirror,
+    duration: clamp((st.swingTime ?? C.swing) / speed, 0.26, 2.2),
+    recover: ch ? 0.45 : K.recover,
+    reach: (st.reach ?? C.reach) * A.reachMul * (ch ? ch.reachMul : 1),
+    arc: A.arc * arcMul,
     hands: C.hands,
     heft: st.heft ?? 1,
+    /* the number that actually lands. `bite` is what the forge rolled for
+       this specific weapon, so a better stick still makes a better hit. */
+    damage: Math.round((st.bite ?? 6) * dmgMul),
+    push: (0.9 + (st.heft ?? 1) * 0.5) * pushMul,
+    label: ch ? `heavy ${ch.stage}` : K.label,
   };
 }
 
@@ -232,13 +317,25 @@ export function applyCarry(rig, cls, weight = 1, bob = 0) {
  * than the wind-up, because that asymmetry IS the impact: a swing that takes
  * as long to arrive as it took to prepare looks like stirring soup.
  */
-export function applyAttack(rig, cls, t, weight = 1) {
+export function applyAttack(rig, cls, t, weight = 1, swing = null) {
   const p = rig.parts;
   if (!p?.arms?.length) return 0;
-  const A = attackFor(cls);
+  const A = swing?.attack || attackFor(cls);
   const C = carryFor(cls);
   const main = p.arms[1], off = p.arms[0];
   const w = clamp01(weight);
+
+  /* MIRRORING IS WHAT MAKES THE SECOND HIT A SECOND HIT.
+     The backhand is the same description played with the horizontal
+     components negated: the shoulder opens the other way, the torso winds
+     the other way, the weapon travels right-to-left. Playing the first
+     swing twice and calling it a combo is the thing this avoids. */
+  const mir = swing?.mirror ? -1 : 1;
+  /* the finisher and the charged blows come down the centre line, so the
+     sideways component is damped right out and the lunge is doubled */
+  const centre = swing && (swing.combo === 2 || swing.charge > 0);
+  const lat = centre ? 0.25 : 1;
+  const lunge = A.lunge * (centre ? 2.0 : 1);
 
   const wind = smoothstep(clamp01(t / A.wind));
   const strike = smoothstep(clamp01((t - A.wind) / A.strike));
@@ -248,26 +345,55 @@ export function applyAttack(rig, cls, t, weight = 1) {
 
   main.shoulder.rotation.x = lerp(main.shoulder.rotation.x, C.main.sx + s * A.sx, w);
   main.shoulder.rotation.z = lerp(main.shoulder.rotation.z,
-    main.side * (C.main.sz + s * A.sz), w);
+    main.side * (C.main.sz + s * A.sz * mir * lat), w);
   main.elbow.rotation.x = lerp(main.elbow.rotation.x,
     C.main.ex + (1 - strike) * -0.55 + strike * 0.45, w);
 
   if (C.off) {
     off.shoulder.rotation.x = lerp(off.shoulder.rotation.x, C.off.sx + s * A.sx * 0.72, w);
     off.shoulder.rotation.z = lerp(off.shoulder.rotation.z,
-      off.side * (C.off.sz + s * A.sz * 0.5), w);
+      off.side * (C.off.sz + s * A.sz * 0.5 * mir * lat), w);
     off.elbow.rotation.x = lerp(off.elbow.rotation.x, C.off.ex + s * 0.30, w);
   }
 
   /* the body goes with it: a swing that is only an arm is a swing with no
      weight behind it */
-  const side = main.side;
-  p.torso.rotation.y = (p.torso.rotation.y || 0) - s * A.twist * side * w;
-  p.hip.rotation.y = (p.hip.rotation.y || 0) - s * A.twist * 0.42 * side * w;
-  p.hip.rotation.x = (p.hip.rotation.x || 0) + (wind * -0.10 + strike * A.lunge) * w;
-  if (p.head) p.head.rotation.y += s * A.twist * 0.30 * side * w;
+  const side = main.side * mir;
+  p.torso.rotation.y = (p.torso.rotation.y || 0) - s * A.twist * side * lat * w;
+  p.hip.rotation.y = (p.hip.rotation.y || 0) - s * A.twist * 0.42 * side * lat * w;
+  p.hip.rotation.x = (p.hip.rotation.x || 0) + (wind * -0.10 + strike * lunge) * w;
+  if (p.head) p.head.rotation.y += s * A.twist * 0.30 * side * lat * w;
 
   return strike - rec;   // >0 while the blow is actually out
+}
+
+/**
+ * The wind-up pose while the heavy attack is charging.
+ *
+ * Held over the shoulder, sinking a little lower with each stage, with the
+ * whole body coiling. It is a HOLD, not a loop — the only motion is a fine
+ * tremor that grows as the charge does, which is what sells "this is about
+ * to go off" without anything actually moving.
+ */
+export function applyCharge(rig, cls, held, stage, t) {
+  const p = rig.parts;
+  if (!p?.arms?.length) return;
+  const C = carryFor(cls);
+  const main = p.arms[1], off = p.arms[0];
+  const k = clamp01(held / (CHARGE_STAGE_SECONDS * CHARGE.length));
+  const shake = stage * 0.006 * (1 + Math.sin(t * 46) * 0.6);
+
+  main.shoulder.rotation.x = C.main.sx - 1.35 - k * 0.55 + shake;
+  main.shoulder.rotation.z = main.side * (C.main.sz + 0.42 + k * 0.20);
+  main.elbow.rotation.x = C.main.ex - 0.85 - k * 0.35 - shake;
+  if (C.off) {
+    off.shoulder.rotation.x = C.off.sx - 0.75 - k * 0.35;
+    off.shoulder.rotation.z = off.side * (C.off.sz - 0.25);
+    off.elbow.rotation.x = C.off.ex - 0.55;
+  }
+  p.torso.rotation.y = (p.torso.rotation.y || 0) + 0.34 * main.side * (0.5 + k * 0.7);
+  p.hip.rotation.x = (p.hip.rotation.x || 0) - 0.10 - k * 0.12;
+  if (p.head) p.head.rotation.x = (p.head.rotation.x || 0) - 0.12 * k;
 }
 
 /* ========================================================================= */

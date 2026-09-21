@@ -11,19 +11,21 @@
    millisecond.
 */
 
-import { loadRaw, saveRaw, clearSave } from '../core/Save.js?v=20260921145028';
-import { bus, EV } from '../core/Bus.js?v=20260921145028';
-import { GAME } from '../core/Config.js?v=20260921145028';
-import { rollStick, stickValue, stickTags, stickTier, stickName, stickComponents, RARE } from '../data/StickData.js?v=20260921145028';
-import { forgeWeapon, WEAPON_CLASSES } from '../data/WeaponData.js?v=20260921145028';
-import { SPECIES } from './Anim.js?v=20260921145028';
-import { clamp } from '../core/Util.js?v=20260921145028';
+import { loadRaw, saveRaw, clearSave } from '../core/Save.js?v=20260921163240';
+import { bus, EV } from '../core/Bus.js?v=20260921163240';
+import { GAME } from '../core/Config.js?v=20260921163240';
+import { rollStick, stickValue, stickTags, stickTier, stickName, stickComponents, RARE } from '../data/StickData.js?v=20260921163240';
+import { forgeWeapon, WEAPON_CLASSES } from '../data/WeaponData.js?v=20260921163240';
+import { catchValue, fishTitle, FISH } from '../data/FishData.js?v=20260921163240';
+import { STARTER_ROD, rodOf, ROD_BY_ID } from '../data/RodData.js?v=20260921163240';
+import { SPECIES } from './Anim.js?v=20260921163240';
+import { clamp } from '../core/Util.js?v=20260921163240';
 
 let nextUid = 1;
 
 export class GameState {
   constructor() {
-    this.species = null;
+    this.species = 'fox';        // FISH N STICKS has one protagonist
     this.sticks = [];            // stick specs, each with a .uid
     this.weapons = [];           // {uid, cls, design, stick, name, tier, traits, stats}
     this.equipped = null;        // uid of the equipped weapon
@@ -33,14 +35,105 @@ export class GameState {
     this.metRecipes = new Set(); // weapon classes the forge has produced
     this.seenWeapons = new Set();// same, for the discovery banner
     this.metNPCs = new Set();
-    this.stats = { picked: 0, crafted: 0, walked: 0, days: 0, fish: 0, scared: 0 };
-    this.hasRod = false;          // the Fisherman has handed it over
-    this.fish = [];               // everything caught, newest last
+    this.stats = { picked: 0, crafted: 0, walked: 0, days: 0, fish: 0, scared: 0, sold: 0, earned: 0 };
+
+    /* --- THE ECONOMY ----------------------------------------------------
+       Money is the spine of FISH N STICKS: fish in, rods out, and the rods
+       are what let you reach the water the next fish lives in. */
+    this.coin = 0;
+    this.hasRod = false;          // the Fisherman has handed the first one over
+    this.rods = [];               // rod ids owned
+    this.rod = null;              // rod id equipped
+    this.fish = [];               // the creel: catch records with uid + fav
+    this.seenFish = new Set();    // species logged, for the almanac
+    this.seenMutations = new Set();
+    this.seenVillages = new Set(['home']);
+    this.explored = [];           // packed map-fog cells — see MapData
+
     this.questStep = null;        // where the First Forge Festival got to
     this.pos = null;
     this.dayPhase = 0.70;
     this.tutorial = 0;
     this._dirty = false;
+  }
+
+  /* ====================================================================== */
+  /* MONEY                                                                  */
+  /* ====================================================================== */
+
+  earn(n) {
+    const v = Math.max(0, Math.round(n));
+    this.coin += v;
+    this.stats.earned += v;
+    this._dirty = true;
+    bus.emit(EV.COIN, { coin: this.coin, delta: v });
+    return v;
+  }
+
+  /** @returns true if it went through. Never lets the purse go negative. */
+  spend(n) {
+    const v = Math.max(0, Math.round(n));
+    if (v > this.coin) return false;
+    this.coin -= v;
+    this._dirty = true;
+    bus.emit(EV.COIN, { coin: this.coin, delta: -v });
+    return true;
+  }
+
+  /* ====================================================================== */
+  /* RODS                                                                   */
+  /* ====================================================================== */
+
+  /**
+   * WHAT IS IN THE PAW.
+   *
+   * 'weapon' or 'rod'. The rod is a carried item like anything else, not a
+   * mode the game is in — you take it out, you walk to water, you cast. It
+   * lives here rather than on the Player so the hotbar, the HUD and the save
+   * all read the same value.
+   */
+  get holding() { return this._holding || 'weapon'; }
+  set holding(v) { this._holding = v === 'rod' ? 'rod' : 'weapon'; this._dirty = true; bus.emit(EV.ROD_CHANGED, { rod: this.currentRod, holding: this.holding }); }
+  get holdingRod() { return this.hasRod && this.holding === 'rod'; }
+
+  /** Swap between the rod and the weapon. Only possible if you own a rod. */
+  toggleHold() {
+    if (!this.hasRod) { this.holding = 'weapon'; return 'weapon'; }
+    this.holding = this.holding === 'rod' ? 'weapon' : 'rod';
+    return this.holding;
+  }
+
+  get currentRod() { return rodOf(this.rod || STARTER_ROD); }
+  ownsRod(id) { return this.rods.includes(id); }
+
+  giveRod(id) {
+    if (!ROD_BY_ID[id]) return false;
+    if (!this.rods.includes(id)) this.rods.push(id);
+    /* auto-equip anything strictly better, because nobody buys a rod in
+       order to keep using the old one */
+    const cur = this.currentRod;
+    if (!this.rod || ROD_BY_ID[id].tier > cur.tier) this.rod = id;
+    this.hasRod = true;
+    this._dirty = true;
+    bus.emit(EV.ROD_CHANGED, { rod: this.currentRod });
+    return true;
+  }
+
+  buyRod(id) {
+    const rod = ROD_BY_ID[id];
+    if (!rod) return { ok: false, reason: 'unknown' };
+    if (this.ownsRod(id)) return { ok: false, reason: 'owned' };
+    if (!this.spend(rod.price)) return { ok: false, reason: 'poor' };
+    this.giveRod(id);
+    return { ok: true, rod };
+  }
+
+  equipRod(id) {
+    if (!this.ownsRod(id)) return false;
+    this.rod = id;
+    this._dirty = true;
+    bus.emit(EV.ROD_CHANGED, { rod: this.currentRod });
+    return true;
   }
 
   /* ====================================================================== */
@@ -148,10 +241,103 @@ export class GameState {
    *  animation, which has to know the answer before the reveal shows it. */
   preview(stick) { return stick ? forgeWeapon(stick) : null; }
 
-  /** Record a fish. Kept as data rather than an object so a save is small. */
+  /* ====================================================================== */
+  /* THE CREEL                                                              */
+  /* ====================================================================== */
+
+  /**
+   * Put a fish in the creel.
+   *
+   * Stored as the INPUTS to the value formula (species, size, mutation) and
+   * not as a price, so a later balance change reprices everybody's creel
+   * instead of leaving one player with a Perch worth four thousand.
+   */
   addFish(f) {
-    this.fish.push({ id: f.id, name: f.name, len: f.len, tier: f.tier, at: Date.now() });
+    const rec = {
+      uid: nextUid++,
+      id: f.id, name: f.name, rarity: f.rarity, mutation: f.mutation || null,
+      len: f.len, size: f.size ?? 0.5, seed: f.seed,
+      fav: false,
+      at: Date.now(),
+    };
+    this.fish.push(rec);
     this.stats.fish++;
+    this._dirty = true;
+
+    let firstSpecies = false, firstMut = false;
+    if (!this.seenFish.has(rec.id)) { this.seenFish.add(rec.id); firstSpecies = true; }
+    if (rec.mutation && !this.seenMutations.has(rec.mutation)) {
+      this.seenMutations.add(rec.mutation); firstMut = true;
+    }
+    bus.emit(EV.FISH_KEPT, { fish: rec, firstSpecies, firstMut });
+    return rec;
+  }
+
+  fishById(uid) { return this.fish.find(f => f.uid === uid) || null; }
+
+  /** What this one is worth right now. */
+  valueOf(f) { return catchValue(f); }
+
+  /** Everything in the creel, worth this much. */
+  get creelValue() { return this.fish.reduce((a, f) => a + catchValue(f), 0); }
+  /** ...and the part of it a fisherman is allowed to touch. */
+  get sellableValue() { return this.fish.reduce((a, f) => a + (f.fav ? 0 : catchValue(f)), 0); }
+  get sellableCount() { return this.fish.reduce((a, f) => a + (f.fav ? 0 : 1), 0); }
+
+  /**
+   * FAVOURITING, and the one rule that matters.
+   *
+   * A favourited fish cannot be sold. Not "is skipped by the sell-all
+   * button" — CANNOT BE SOLD, because the check lives in `sellFish`, which
+   * is the only function in the game that removes a fish for money, and
+   * every seller in every village goes through it. A new shop, a new
+   * fisherman or a future auction house gets the protection for free
+   * whether or not whoever writes it remembers to.
+   */
+  toggleFavourite(uid) {
+    const f = this.fishById(uid);
+    if (!f) return null;
+    f.fav = !f.fav;
+    this._dirty = true;
+    bus.emit(EV.FISH_FAV, { fish: f });
+    return f.fav;
+  }
+
+  /**
+   * Sell one fish.
+   * @returns {{ok:boolean, reason?:string, coin?:number, fish?:object}}
+   */
+  sellFish(uid) {
+    const i = this.fish.findIndex(f => f.uid === uid);
+    if (i < 0) return { ok: false, reason: 'missing' };
+    if (this.fish[i].fav) return { ok: false, reason: 'favourite' };   // THE gate
+    const [f] = this.fish.splice(i, 1);
+    const coin = this.earn(catchValue(f));
+    this.stats.sold++;
+    this._dirty = true;
+    bus.emit(EV.FISH_SOLD, { fish: f, coin });
+    return { ok: true, coin, fish: f };
+  }
+
+  /**
+   * Sell everything that is not a favourite.
+   * Routed through `sellFish` one at a time rather than reimplementing the
+   * loop, so there is exactly one place that can ever be wrong about it.
+   */
+  sellAllFish() {
+    const ids = this.fish.filter(f => !f.fav).map(f => f.uid);
+    let coin = 0, n = 0;
+    for (const uid of ids) {
+      const r = this.sellFish(uid);
+      if (r.ok) { coin += r.coin; n++; }
+    }
+    return { ok: n > 0, coin, count: n, kept: this.fish.length };
+  }
+
+  dropFish(uid) {
+    const i = this.fish.findIndex(f => f.uid === uid);
+    if (i < 0 || this.fish[i].fav) return null;
+    const [f] = this.fish.splice(i, 1);
     this._dirty = true;
     return f;
   }
@@ -162,6 +348,16 @@ export class GameState {
     for (const f of this.fish) {
       if (id && f.id !== id) continue;
       if (!best || f.len > best.len) best = f;
+    }
+    return best;
+  }
+
+  /** The prize of the creel — what the hotbar shows off. */
+  get bestInCreel() {
+    let best = null, bv = -1;
+    for (const f of this.fish) {
+      const v = catchValue(f);
+      if (v > bv) { bv = v; best = f; }
     }
     return best;
   }
@@ -228,8 +424,28 @@ export class GameState {
       pos: this.pos,
       dayPhase: this.dayPhase,
       tutorial: this.tutorial,
+
+      /* --- the economy ---------------------------------------------------
+         The creel is stored WHOLE, not trimmed. The old save kept the last
+         sixty catches as a log, which was fine when a fish was a statistic;
+         a fish is now an item with a price and a favourite flag, and
+         quietly dropping the oldest sixty-first would throw away somebody's
+         starred Divine. If a creel ever gets big enough to matter, cap what
+         the player can CARRY rather than what the save will admit to. */
+      coin: this.coin,
       hasRod: this.hasRod,
-      fish: this.fish.slice(-60),   // a long tail of catches is not worth the bytes
+      rods: this.rods,
+      rod: this.rod,
+      fish: this.fish.map(f => ({
+        uid: f.uid, id: f.id, name: f.name, rarity: f.rarity,
+        mutation: f.mutation, len: f.len, size: f.size, seed: f.seed,
+        fav: !!f.fav, at: f.at,
+      })),
+      seenFish: [...this.seenFish],
+      seenMutations: [...this.seenMutations],
+      seenVillages: [...this.seenVillages],
+      explored: this.explored,
+
       questStep: this.questStep,
       nextUid,
     };
@@ -239,7 +455,9 @@ export class GameState {
     const st = new GameState();
     if (!o || typeof o !== 'object') return st;
     try {
-      st.species = o.species || null;
+      /* There is one protagonist now. An old save that says 'bear' gets a
+         fox, which is the only answer that leaves the player with a game. */
+      st.species = 'fox';
       const revive = s => ({
         ...s,
         tags: s.tags || stickTags(s),
@@ -267,12 +485,36 @@ export class GameState {
       st.metRecipes = new Set(o.metRecipes || []);
       st.seenWeapons = new Set(o.seenWeapons || o.metRecipes || []);
       st.metNPCs = new Set(o.metNPCs || []);
-      st.stats = { picked: 0, crafted: 0, walked: 0, days: 0, fish: 0, scared: 0, ...(o.stats || {}) };
+      st.stats = { picked: 0, crafted: 0, walked: 0, days: 0, fish: 0, scared: 0, sold: 0, earned: 0, ...(o.stats || {}) };
       st.pos = o.pos || null;
       st.dayPhase = o.dayPhase ?? 0.70;
       st.tutorial = o.tutorial || 0;
+
+      st.coin = Math.max(0, Math.round(o.coin || 0));
       st.hasRod = !!o.hasRod;
-      st.fish = Array.isArray(o.fish) ? o.fish : [];
+      st.rods = Array.isArray(o.rods) ? o.rods.filter(id => ROD_BY_ID[id]) : [];
+      st.rod = ROD_BY_ID[o.rod] ? o.rod : (st.rods[0] || null);
+      if (st.hasRod && !st.rods.length) { st.rods = [STARTER_ROD]; st.rod = STARTER_ROD; }
+      /* A save from before the economy existed has fish stored as a log of
+         {id,name,len,tier}. Revive what can be revived and drop the rest
+         rather than letting a fish with no species into a shop. */
+      st.fish = (Array.isArray(o.fish) ? o.fish : []).map(f => {
+        const spec = FISH[f.id];
+        if (!spec) return null;
+        return {
+          uid: f.uid ?? nextUid++,
+          id: f.id, name: f.name || spec.name,
+          rarity: f.rarity || spec.rarity,
+          mutation: f.mutation || null,
+          len: f.len ?? spec.len[0], size: f.size ?? 0.5, seed: f.seed ?? 1,
+          fav: !!f.fav, at: f.at || Date.now(),
+        };
+      }).filter(Boolean);
+      st.seenFish = new Set(o.seenFish || st.fish.map(f => f.id));
+      st.seenMutations = new Set(o.seenMutations || []);
+      st.seenVillages = new Set(o.seenVillages || ['home']);
+      st.explored = Array.isArray(o.explored) ? o.explored : [];
+
       st.questStep = o.questStep || null;
       nextUid = Math.max(nextUid, o.nextUid || 1);
     } catch (e) {

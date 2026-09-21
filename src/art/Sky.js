@@ -16,13 +16,19 @@
    exactly one place to change how any hour of the day looks.
 */
 
-import * as THREE from '../../lib/three.module.js?v=20260921145028';
-import { MeshBuilder, blob } from './Geo.js?v=20260921145028';
-import { SKY, LIGHT, mixHex, tweak, shade } from './Palette.js?v=20260921145028';
-import { RENDER } from '../core/Config.js?v=20260921145028';
-import { clamp, clamp01, lerp, smoothstep, invLerp, TAU, makeRng } from '../core/Util.js?v=20260921145028';
+import * as THREE from '../../lib/three.module.js?v=20260921163240';
+import { MeshBuilder, blob } from './Geo.js?v=20260921163240';
+import { SKY, LIGHT, mixHex, tweak, shade } from './Palette.js?v=20260921163240';
+import { RENDER } from '../core/Config.js?v=20260921163240';
+import { clamp, clamp01, lerp, smoothstep, invLerp, TAU, makeRng } from '../core/Util.js?v=20260921163240';
 
-/** Seconds of real time per in-game day. */
+/**
+ * Seconds of real time per in-game day: EIGHT MINUTES OF LIGHT AND EIGHT OF
+ * DARK. The keys below are laid out so the sun is up from 0.25 to 0.75 on
+ * the nose, which is what makes that an even split rather than a hopeful
+ * label — the old cycle was the same sixteen minutes but ten of them were
+ * daylight, and the night went past before it had finished arriving.
+ */
 export const DAY_SECONDS = 16 * 60;
 
 /* ========================================================================= */
@@ -34,18 +40,24 @@ export const DAY_SECONDS = 16 * 60;
 const KEYS = [
   {
     p: 0.00, name: 'night',
-    zenith: 0x0e1630, mid: 0x1a2748, horizon: 0x2c3558, haze: 0x2a3350,
-    sun: 0x5a6f9a, sunI: 0.16, ambSky: 0x35406a, ambGround: 0x1c2030, ambI: 0.42,
-    fillI: 0.10, exposure: 1.30, fogMul: 1.5, star: 1,
+    zenith: 0x141e3e, mid: 0x243358, horizon: 0x3a4468, haze: 0x384264,
+    sun: 0x7f92c4, sunI: 0.32, ambSky: 0x4a5a92, ambGround: 0x2a3042, ambI: 0.74,
+    fillI: 0.22, exposure: 1.40, fogMul: 1.4, star: 1,
   },
   {
-    p: 0.22, name: 'first light',
+    p: 0.15, name: 'small hours',
+    zenith: 0x121c3a, mid: 0x223056, horizon: 0x384266, haze: 0x364062,
+    sun: 0x8298c8, sunI: 0.34, ambSky: 0x4c5c96, ambGround: 0x2c3246, ambI: 0.78,
+    fillI: 0.23, exposure: 1.42, fogMul: 1.4, star: 1,
+  },
+  {
+    p: 0.25, name: 'first light',
     zenith: 0x2a3d70, mid: 0x6a6a8e, horizon: 0xc08a72, haze: 0xa8879a,
     sun: 0xd89a72, sunI: 0.55, ambSky: 0x6a6f96, ambGround: 0x3a3a38, ambI: 0.72,
     fillI: 0.18, exposure: 1.15, fogMul: 2.1, star: 0.35,
   },
   {
-    p: 0.30, name: 'morning',
+    p: 0.33, name: 'morning',
     zenith: 0x4a7ec0, mid: 0x9ab8d8, horizon: 0xf0d2a8, haze: 0xe8d4b4,
     sun: 0xffdcaa, sunI: 1.55, ambSky: 0x9ab4d8, ambGround: 0x6a6a48, ambI: 1.05,
     fillI: 0.26, exposure: 1.00, fogMul: 1.5, star: 0,
@@ -57,34 +69,40 @@ const KEYS = [
     fillI: 0.30, exposure: 0.95, fogMul: 1.0, star: 0,
   },
   {
-    p: 0.66, name: 'afternoon',
+    p: 0.64, name: 'afternoon',
     zenith: 0x4a84c4, mid: 0x9dbcd8, horizon: 0xe8ddbc, haze: 0xe8dfc4,
     sun: 0xffeab8, sunI: 1.95, ambSky: 0xa4c0e4, ambGround: 0x746e42, ambI: 1.08,
     fillI: 0.30, exposure: 0.98, fogMul: 1.1, star: 0,
   },
   {
-    p: 0.78, name: 'gold',
+    p: 0.71, name: 'gold',
     zenith: 0x53709e, mid: 0xb49a94, horizon: 0xf4b878, haze: 0xeec098,
     sun: 0xffc07a, sunI: 1.70, ambSky: 0x9a9ec0, ambGround: 0x7a6238, ambI: 0.95,
     fillI: 0.26, exposure: 1.02, fogMul: 1.5, star: 0,
   },
   {
-    p: 0.86, name: 'dusk',
+    p: 0.75, name: 'dusk',
     zenith: 0x2d3f70, mid: 0x6a5a86, horizon: 0xe08a58, haze: 0xb88a86,
     sun: 0xf08a50, sunI: 0.72, ambSky: 0x6a6f9c, ambGround: 0x4a3f38, ambI: 0.72,
     fillI: 0.18, exposure: 1.12, fogMul: 2.0, star: 0.25,
   },
   {
-    p: 0.94, name: 'gloaming',
+    p: 0.84, name: 'gloaming',
     zenith: 0x162040, mid: 0x2a3358, horizon: 0x5a4a6a, haze: 0x453f5c,
     sun: 0x7a6a94, sunI: 0.26, ambSky: 0x43507e, ambGround: 0x26262e, ambI: 0.52,
     fillI: 0.12, exposure: 1.24, fogMul: 1.8, star: 0.8,
   },
   {
+    p: 0.92, name: 'nightfall',
+    zenith: 0x141e3e, mid: 0x243358, horizon: 0x3a4468, haze: 0x384264,
+    sun: 0x7f92c4, sunI: 0.32, ambSky: 0x4a5a92, ambGround: 0x2a3042, ambI: 0.74,
+    fillI: 0.22, exposure: 1.40, fogMul: 1.4, star: 1,
+  },
+  {
     p: 1.00, name: 'night',
-    zenith: 0x0e1630, mid: 0x1a2748, horizon: 0x2c3558, haze: 0x2a3350,
-    sun: 0x5a6f9a, sunI: 0.16, ambSky: 0x35406a, ambGround: 0x1c2030, ambI: 0.42,
-    fillI: 0.10, exposure: 1.30, fogMul: 1.5, star: 1,
+    zenith: 0x141e3e, mid: 0x243358, horizon: 0x3a4468, haze: 0x384264,
+    sun: 0x7f92c4, sunI: 0.32, ambSky: 0x4a5a92, ambGround: 0x2a3042, ambI: 0.74,
+    fillI: 0.22, exposure: 1.40, fogMul: 1.4, star: 1,
   },
 ];
 
@@ -112,7 +130,7 @@ export function skyAt(phase) {
     fogMul: lerp(a.fogMul, b.fogMul, t),
     star: lerp(a.star, b.star, t),
     /** 0 in full day, 1 in full night. Drives lanterns and fireflies. */
-    night: clamp01(smoothstep(invLerp(0.84, 0.95, p)) + smoothstep(invLerp(0.26, 0.17, p))),
+    night: clamp01(smoothstep(invLerp(0.75, 0.88, p)) + smoothstep(invLerp(0.30, 0.20, p))),
   };
 }
 
