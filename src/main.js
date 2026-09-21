@@ -13,35 +13,36 @@
      7. ui, then render
 */
 
-import * as THREE from '../lib/three.module.js?v=20260920201841';
-import { input } from './core/Input.js?v=20260920201841';
-import { CameraRig } from './core/CameraRig.js?v=20260920201841';
-import { audio } from './core/Audio.js?v=20260920201841';
-import { bus, EV } from './core/Bus.js?v=20260920201841';
-import { BUILD, RENDER, WORLD, GAME, PLAYER } from './core/Config.js?v=20260920201841';
-import { clamp, clamp01, lerp, now, Rolling } from './core/Util.js?v=20260920201841';
+import * as THREE from '../lib/three.module.js?v=20260921145028';
+import { input } from './core/Input.js?v=20260921145028';
+import { CameraRig } from './core/CameraRig.js?v=20260921145028';
+import { audio } from './core/Audio.js?v=20260921145028';
+import { bus, EV } from './core/Bus.js?v=20260921145028';
+import { BUILD, RENDER, WORLD, GAME, PLAYER } from './core/Config.js?v=20260921145028';
+import { clamp, clamp01, lerp, now, Rolling } from './core/Util.js?v=20260921145028';
 
-import { MATS } from './art/Materials.js?v=20260920201841';
-import { World } from './world/World.js?v=20260920201841';
-import { Player } from './game/Player.js?v=20260920201841';
-import { NPCs } from './game/NPCs.js?v=20260920201841';
-import { GameState } from './game/State.js?v=20260920201841';
-import { SPECIES } from './game/Anim.js?v=20260920201841';
-import { weaponMeshes } from './art/WeaponArt.js?v=20260920201841';
-import { WEAPON_CLASSES } from './data/WeaponData.js?v=20260920201841';
-import { RARITY } from './art/Palette.js?v=20260920201841';
-import { STICKWRIGHT, FISHERMAN } from './data/VillagerData.js?v=20260920201841';
-import { RARE } from './data/StickData.js?v=20260920201841';
+import { MATS } from './art/Materials.js?v=20260921145028';
+import { World } from './world/World.js?v=20260921145028';
+import { Player } from './game/Player.js?v=20260921145028';
+import { NPCs } from './game/NPCs.js?v=20260921145028';
+import { GameState } from './game/State.js?v=20260921145028';
+import { SPECIES } from './game/Anim.js?v=20260921145028';
+import { weaponMeshes } from './art/WeaponArt.js?v=20260921145028';
+import { WEAPON_CLASSES } from './data/WeaponData.js?v=20260921145028';
+import { RARITY } from './art/Palette.js?v=20260921145028';
+import { STICKWRIGHT, FISHERMAN } from './data/VillagerData.js?v=20260921145028';
+import { RARE } from './data/StickData.js?v=20260921145028';
 
-import { UI } from './ui/UI.js?v=20260920201841';
-import { CharSelect } from './ui/CharSelect.js?v=20260920201841';
-import { SatchelScreen, Turntable } from './ui/Satchel.js?v=20260920201841';
-import { WorkshopScreen } from './ui/Workshop.js?v=20260920201841';
-import { Workers } from './game/Workers.js?v=20260920201841';
-import { Fishing, FISH_STATE } from './game/Fishing.js?v=20260920201841';
-import { FishingUI } from './ui/FishingUI.js?v=20260920201841';
-import { Quest, FESTIVAL_SPEECH } from './game/Quest.js?v=20260920201841';
-import { ic } from './ui/Icons.js?v=20260920201841';
+import { UI } from './ui/UI.js?v=20260921145028';
+import { CharSelect } from './ui/CharSelect.js?v=20260921145028';
+import { SatchelScreen, Turntable } from './ui/Satchel.js?v=20260921145028';
+import { WorkshopScreen, RevealScreen } from './ui/Workshop.js?v=20260921145028';
+import { ForgeScene } from './game/Forge.js?v=20260921145028';
+import { Workers } from './game/Workers.js?v=20260921145028';
+import { Fishing, FISH_STATE } from './game/Fishing.js?v=20260921145028';
+import { FishingUI } from './ui/FishingUI.js?v=20260921145028';
+import { Quest, FESTIVAL_SPEECH } from './game/Quest.js?v=20260921145028';
+import { ic } from './ui/Icons.js?v=20260921145028';
 
 /* ========================================================================= */
 
@@ -75,8 +76,10 @@ input.attach(canvas);
 
 const G = {
   state: null, world: null, player: null, npcs: null, ui: null,
-  workers: null, fishing: null, fishUI: null, quest: null,
+  workers: null, fishing: null, fishUI: null, quest: null, forge: null,
   charSel: null, turntable: null,
+  /* the cutscene director needs these two by name */
+  scene, rig,
   mode: 'boot',            // boot | select | play
   t: 0, frames: 0,
   target: null,            // what E would act on
@@ -114,6 +117,8 @@ async function boot() {
   G.workers.plan(7);
   G.fishing = new Fishing({ audio });
   G.fishUI = new FishingUI(document.getElementById('ui'));
+  G.audio = audio;
+  G.forge = new ForgeScene(G);
 
   setBoot(0.96, 'lighting the lanterns');
   await new Promise(r => setTimeout(r, 60));
@@ -500,23 +505,50 @@ function openSatchel() {
 }
 
 function openWorkshop() {
-  if (G.ui.busy) return;
+  if (G.ui.busy || G.forge?.busy) return;
   const s = new WorkshopScreen(G.state, G.ui, G.turntable, {
     audio,
-    onCraft: (weapon) => {
-      G.ui.setSatchel(G.state.sticks.length, G.state.capacity);
+    onForge: stick => runForge(stick),
+  });
+  G.ui.push(s);
+  requestAnimationFrame(() => G.turntable.attach(s.el.querySelector('#tt-slot')));
+  s.el.addEventListener('click', () => requestAnimationFrame(() => G.turntable.attach(s.el.querySelector('#tt-slot'))));
+}
+
+/**
+ * THE FORGE, END TO END.
+ *
+ * The shop screen has already closed itself; this runs the cutscene in the
+ * world, then puts the card up. `G.state.craft` is handed to the director as
+ * a closure rather than being called here, because the director decides WHEN
+ * the wood stops being wood.
+ */
+async function runForge(stick) {
+  if (!G.forge || G.forge.busy) return;
+  const weapon = await G.forge.play(stick, () => G.state.craft(stick));
+  if (!weapon) {
+    G.ui.toast({ text: 'She turns it over and hands it back.', icon: 'stick', tone: 'warn' });
+    return;
+  }
+
+  G.ui.setSatchel(G.state.sticks.length, G.state.capacity);
+  if (!G.state.equipped) { G.state.equip(weapon.uid); equipFromState(); }
+  G.state.save();
+  audio.craft?.();
+
+  const card = new RevealScreen(weapon, G.ui, G.turntable, {
+    onDone: () => {
       G.ui.toast({
         text: weapon.name,
         sub: `${weapon.label} · ${RARITY[clamp(weapon.tier, 0, RARITY.length - 1)].name}`,
         icon: 'hammer', tone: 'rare', ms: 5600,
       });
-      if (!G.state.equipped) { G.state.equip(weapon.uid); equipFromState(); }
-      G.state.save();
+      // still carrying wood? she is right there and the bench is still warm
+      if (G.state.sticks.length) setTimeout(openWorkshop, 320);
     },
   });
-  G.ui.push(s);
-  requestAnimationFrame(() => G.turntable.attach(s.el.querySelector('#tt-slot')));
-  s.el.addEventListener('click', () => requestAnimationFrame(() => G.turntable.attach(s.el.querySelector('#tt-slot'))));
+  G.ui.push(card);
+  requestAnimationFrame(() => G.turntable.attach(card.el.querySelector('#tt-slot')));
 }
 
 function equipFromState() {
@@ -580,9 +612,17 @@ function frame() {
   if (G.mode !== 'play') { input.endFrame(); return; }
 
   /* --- 1. input ------------------------------------------------------- */
+  /* A CUTSCENE OWNS THE FRAME. It takes the camera, the controls and the
+     Stickwright, and the only key it answers to is the one that ends it.
+     Everything below the input block still runs — the world keeps streaming
+     and the village keeps working, because a village that freezes behind a
+     cutscene is a diorama. */
+  const cine = !!G.forge?.busy;
   const uiAte = G.ui.handleKeys();
 
-  if (!uiAte) {
+  if (cine) {
+    if (input.rawPressed('Escape', 'Space', 'KeyE')) G.forge.skip();
+  } else if (!uiAte) {
     if (input.rawPressed('KeyQ', 'Tab')) openSatchel();
     if (input.rawPressed('Escape')) { /* nothing open: ignore */ }
     if (input.rawPressed('KeyE')) doInteract();
@@ -613,26 +653,29 @@ function frame() {
 
   /* --- 2. camera ------------------------------------------------------- */
   const look = input.lookDelta();
-  rig.look(look.x, look.y);
-  if (input.mouse.wheel) rig.zoom(input.mouse.wheel);
-  if (G.ui.busy) rig.settleTargets();
+  if (!cine) rig.look(look.x, look.y);
+  if (input.mouse.wheel && !cine) rig.zoom(input.mouse.wheel);
+  if (G.ui.busy || cine) rig.settleTargets();
 
   const P = G.player;
-  const ax = input.moveAxis();
+  const ax = cine ? { x: 0, y: 0 } : input.moveAxis();
   const mv = rig.moveVector(ax.x, ax.y);
-  const idle = !G.ui.busy && ax.x === 0 && ax.y === 0 && !input.lookActive;
+  const idle = !G.ui.busy && !cine && ax.x === 0 && ax.y === 0 && !input.lookActive;
 
   /* --- 3. player -------------------------------------------------------- */
   P.update(dt, mv, {
     run: input.down('ShiftLeft', 'ShiftRight'),
-    jump: input.rawPressed('Space') && !G.ui.busy,
-    frozen: G.ui.busy,
+    jump: !cine && input.rawPressed('Space') && !G.ui.busy,
+    frozen: G.ui.busy || cine,
   });
   G.state.stats.walked += Math.hypot(P.vx, P.vz) * dt;
 
   rig.setFocus(P.x, P.y, P.z);
   rig.setBlockers(G.world.cameraBlockers(P.x, P.z));
   rig.update(dt, { idle });
+  /* the director writes the shot AFTER the rig has smoothed, so a cut lands
+     on the frame it was asked for rather than a few frames of damping later */
+  G.forge?.update(dt);
 
   /* --- 4. world --------------------------------------------------------- */
   const { sky, env } = G.world.update(dt, P, camera);
@@ -651,16 +694,16 @@ function frame() {
   G.fishUI.update(G.fishing);
 
   /* --- 6. interaction --------------------------------------------------- */
-  G.target = G.ui.busy ? null : pickTarget();
+  G.target = (G.ui.busy || cine) ? null : pickTarget();
   updatePrompt();
   highlightTarget(dt);
 
   /* --- 7. the tutorial -------------------------------------------------- */
   if (G.quest) {
     G.quest.update(dt);
-    G.ui.setObjective(G.quest.objective);
+    G.ui.setObjective(cine ? null : G.quest.objective);
     const mk = G.quest.marker;
-    if (mk && !G.ui.busy) {
+    if (mk && !G.ui.busy && !cine) {
       const dx = mk.x - P.x, dz = mk.z - P.z;
       const d = Math.hypot(dx, dz);
       // relative to where the CAMERA is looking, not where the player faces:

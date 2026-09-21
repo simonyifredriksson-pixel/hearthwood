@@ -13,8 +13,8 @@
    tint, because tint is invisible at ten metres and silhouette is not.
 */
 
-import { makeRng, clamp, lerp, hash2, TAU } from '../core/Util.js?v=20260920201841';
-import { BARK, MOSS, MUSHROOM, LEAF, RARITY } from '../art/Palette.js?v=20260920201841';
+import { makeRng, clamp, lerp, hash2, TAU } from '../core/Util.js?v=20260921145028';
+import { BARK, MOSS, MUSHROOM, LEAF, RARITY } from '../art/Palette.js?v=20260921145028';
 
 /* ========================================================================= */
 /* SPECIES — the wood itself                                                 */

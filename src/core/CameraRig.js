@@ -29,7 +29,7 @@
    feel like it is swimming.
 */
 
-import { clamp, damp, angleDelta, TAU } from './Util.js?v=20260920201841';
+import { clamp, damp, angleDelta, TAU } from './Util.js?v=20260921145028';
 
 /* Presets are starting points, not modes — the player can always override any
    of them with the mouse. Hearthwood is a walking game, so all three sit
@@ -108,6 +108,15 @@ export class CameraRig {
        difference between "paused game" and "a place that is still there". */
     this.breathe = 0;
     this.t = 0;
+
+    /* A CUTSCENE SHOT: an explicit eye and an explicit look-at, set by a
+       director and cleared when it finishes. It lives here rather than in the
+       director because this file is the only thing in the game allowed to
+       write the camera, and a cutscene that reached past it would be the
+       first crack in that rule. While a shot is set the orbit boom is not
+       computed at all; the angles are still derived from the shot, so
+       rotation.z stays zero and the view still cannot roll or flip. */
+    this.shot = null;
   }
 
   /* ====================================================================== */
@@ -135,6 +144,44 @@ export class CameraRig {
   }
 
   setFocus(x, y, z) { this.focus.x = x; this.focus.y = y; this.focus.z = z; }
+
+  /**
+   * Take the camera for a cutscene.
+   *
+   * @param eye     [x,y,z] where the camera is
+   * @param target  [x,y,z] what it is pointing at
+   *
+   * Call it every frame of the cutscene — the director owns the easing, not
+   * the rig, because a beat that eases into place and then dollies through
+   * the beat cannot be expressed as "damp towards a pose".
+   */
+  setShot(eye, target) {
+    this.shot = { eye, target };
+    /* written NOW, not on the next update(): the director runs after the rig
+       has already updated this frame, and a shot that waited would put every
+       cut one frame late — which is exactly one frame of the previous camera
+       in the new beat, and it reads as a flicker. */
+    this._writeTransform();
+  }
+
+  /**
+   * Hand the camera back.
+   *
+   * The orbit state is re-derived from where the cutscene left off, so the
+   * player does not get snapped round to the angle they were standing at
+   * twenty seconds ago the instant the last beat ends.
+   */
+  clearShot() {
+    if (!this.shot) return;
+    const [ex, ey, ez] = this.shot.eye;
+    const [tx, ty, tz] = this.shot.target;
+    const dx = tx - ex, dy = ty - ey, dz = tz - ez;
+    const horiz = Math.hypot(dx, dz) || 1e-4;
+    this.shot = null;
+    this.yaw = this.curYaw = Math.atan2(dx, dz);
+    this.pitch = this.curPitch = clamp(Math.atan2(-dy, horiz), this._minPitch(), this._maxPitch());
+    this.dist = this.curDist = clamp(Math.hypot(dx, dy, dz), this.preset.minDist, this.preset.maxDist);
+  }
   setProbe(fn) { this.probe = typeof fn === 'function' ? fn : null; }
   setBlockers(list) { this.blockers = (list && list.length) ? list : null; }
 
@@ -239,6 +286,20 @@ export class CameraRig {
   _writeTransform() {
     const p = this.preset;
     const cam = this.camera;
+
+    /* --- a cutscene shot short-circuits the whole boom ------------------- */
+    if (this.shot) {
+      const [ex, ey, ez] = this.shot.eye;
+      const [tx, ty, tz] = this.shot.target;
+      const dx = tx - ex, dy = ty - ey, dz = tz - ez;
+      const horiz = Math.hypot(dx, dz) || 1e-4;
+      cam.position.set(ex, ey, ez);
+      cam.rotation.y = Math.atan2(dx, dz) + Math.PI;
+      cam.rotation.x = clamp(Math.atan2(dy, horiz), -HARD_MAX_PITCH, HARD_MAX_PITCH);
+      cam.rotation.z = 0;
+      cam.updateMatrixWorld(true);
+      return;
+    }
 
     const sinP = Math.sin(this.curPitch), cosP = Math.cos(this.curPitch);
     const f = { x: Math.sin(this.curYaw), z: Math.cos(this.curYaw) };

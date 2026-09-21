@@ -16,10 +16,10 @@
    game like this is the view while you do it.
 */
 
-import { FISH_STATE } from '../game/Fishing.js?v=20260920201841';
-import { RARITY } from '../art/Palette.js?v=20260920201841';
-import { ic } from './Icons.js?v=20260920201841';
-import { esc, clamp, clamp01 } from '../core/Util.js?v=20260920201841';
+import { FISH_STATE } from '../game/Fishing.js?v=20260921145028';
+import { RARITY } from '../art/Palette.js?v=20260921145028';
+import { ic } from './Icons.js?v=20260921145028';
+import { esc, clamp, clamp01 } from '../core/Util.js?v=20260921145028';
 
 export class FishingUI {
   constructor(root) {

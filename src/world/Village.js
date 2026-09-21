@@ -19,16 +19,16 @@
    half a metre above their own foundations.
 */
 
-import * as THREE from '../../lib/three.module.js?v=20260920201841';
-import { MeshBuilder, box, beam, cylinder, blob, quad } from '../art/Geo.js?v=20260920201841';
-import { buildHouse, buildWorkshop, buildBarn, buildMill } from '../art/BuildingGen.js?v=20260920201841';
-import * as P from '../art/PropArt.js?v=20260920201841';
-import { buildTree } from '../art/TreeGen.js?v=20260920201841';
-import { buildBush, buildFlower, buildGrassTuft, buildGroundCover } from '../art/PlantGen.js?v=20260920201841';
-import { BUILD, GROUND, PLANT, MOSS, mixHex, tweak, shade } from '../art/Palette.js?v=20260920201841';
-import { WORLD } from '../core/Config.js?v=20260920201841';
-import { makeRng, clamp, lerp, TAU, segDist, smoothstep } from '../core/Util.js?v=20260920201841';
-import { riverX, riverLevel } from './Terrain.js?v=20260920201841';
+import * as THREE from '../../lib/three.module.js?v=20260921145028';
+import { MeshBuilder, box, beam, cylinder, blob, quad, tube } from '../art/Geo.js?v=20260921145028';
+import { buildHouse, buildWorkshop, buildBarn, buildMill } from '../art/BuildingGen.js?v=20260921145028';
+import * as P from '../art/PropArt.js?v=20260921145028';
+import { buildTree } from '../art/TreeGen.js?v=20260921145028';
+import { buildBush, buildFlower, buildGrassTuft, buildGroundCover } from '../art/PlantGen.js?v=20260921145028';
+import { BUILD, GROUND, PLANT, MOSS, BARK, METAL, mixHex, tweak, shade } from '../art/Palette.js?v=20260921145028';
+import { WORLD } from '../core/Config.js?v=20260921145028';
+import { makeRng, clamp, lerp, TAU, segDist, smoothstep } from '../core/Util.js?v=20260921145028';
+import { riverX, riverLevel } from './Terrain.js?v=20260921145028';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -125,9 +125,43 @@ export function planVillage(T, seed = WORLD.seed ^ 0x1a6e) {
     return true;
   };
 
-  /* the named buildings first, so they get the best spots */
+  /* --------------------------------------------------- THE STICKWRIGHT ---
+     ON THE GREEN, and placed before anything else.
+
+     She is the building the whole game routes through — the player is told
+     to find her in the first two minutes and comes back to her after every
+     walk in the wood — so she is not a lot on a lane somewhere. The workshop
+     stands on the edge of the plaza facing in across the green, which makes
+     it the first roof you see from anywhere in the village and means the
+     walk back from the forest always ends by looking at it.
+
+     Placed by hand rather than through tryLot, because tryLot's whole job is
+     to keep buildings OFF the green, and this one belongs on it. */
+  {
+    const W = 8.5, D = 6.8;
+    const ring = plan.plaza.r + D * 0.5 + 1.2;
+    let done = false;
+    // try the north edge first, then work round: the north side faces the
+    // sun for most of the day, which is where you would put a workshop
+    for (let k = 0; k < 16 && !done; k++) {
+      const a = -Math.PI * 0.5 + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.42;
+      const x = cx + Math.cos(a) * ring;
+      const z = cz + Math.sin(a) * ring;
+      if (Math.abs(x - riverX(z)) < WORLD.river.bankWidth * 1.25) continue;
+      // facing back across the green
+      const yaw = Math.atan2(cx - x, cz - z);
+      const lot = { x, z, yaw, w: W, d: D, kind: 'workshop', name: 'stickwright' };
+      plan.lots.push(lot);
+      placed.push(lot);
+      T.addFlat(x, z, Math.max(W, D) * 0.66, undefined);
+      plan.landmarks.stickwright = { x, z, yaw };
+      done = true;
+    }
+    if (!done) console.warn('[village] could not place the stickwright on the green');
+  }
+
+  /* the rest of the named buildings, which do go out along the street */
   const named = [
-    { kind: 'workshop', w: 7.5, d: 6, at: 0.62, side: -1, name: 'stickwright', off: 22 },
     { kind: 'house', w: 7, d: 6, at: 0.66, side: 1, name: 'inn', off: 22, storeys: 2, sign: 'jug' },
     { kind: 'house', w: 6, d: 5.5, at: 0.36, side: 1, name: 'baker', off: 21, sign: 'loaf' },
     { kind: 'house', w: 6.5, d: 5.5, at: 0.31, side: -1, name: 'smith', off: 22, sign: 'hammer' },
@@ -268,7 +302,7 @@ export function buildVillage(T, plan, seed = WORLD.seed ^ 0x2b71) {
   const smokes = [];
 
   /** Stamp a sub-builder into the right cell at a world position. */
-  const put = (group, sub, x, z, yaw = 0, yOff = 0, tilt = 0) => {
+  const put = (group, sub, x, z, yaw = 0, yOff = 0, tilt = 0, scale = 1) => {
     const c = cellAt(x, z);
     const y = T.height(x, z) + yOff;
     let q;
@@ -281,7 +315,7 @@ export function buildVillage(T, plan, seed = WORLD.seed ^ 0x2b71) {
       q = new THREE.Quaternion().setFromAxisAngle(UP, yaw);
     }
     c[group].append(sub, new THREE.Matrix4().compose(
-      new THREE.Vector3(x, y, z), q, new THREE.Vector3(1, 1, 1)));
+      new THREE.Vector3(x, y, z), q, new THREE.Vector3(scale, scale, scale)));
   };
 
   const addLights = (list, x, z, yaw, yBase) => {
@@ -585,6 +619,27 @@ function dressPlaza(T, plan, put, r, blockers, lights, npcSpots, anchors) {
     }
   }
 
+  /* KEEP THE FRONT OF THE WORKSHOP CLEAR.
+     The Stickwright now stands on the green, and the market ring runs right
+     across her frontage — so the walk up to the counter, which is the most
+     repeated walk in the game, was through a stall and behind a chest-high
+     pot. Everything the plaza scatters checks this first. */
+  const shop = plan.landmarks.stickwright;
+  const clearOfShop = (x, z, pad = 0) => {
+    if (!shop) return true;
+    /* Two tests, because one was not enough. The corridor test alone let the
+       cook fire sit INSIDE the shed — it was off the centre line but well
+       within the building — so the first thing the player saw through the
+       open front of the workshop was a cauldron on a tripod. */
+    if (Math.hypot(x - shop.x, z - shop.z) < 9.5 + pad) return false;
+    // and the approach: the corridor between the green's centre and her door
+    const ax = shop.x - px, az = shop.z - pz;
+    const len = Math.hypot(ax, az) || 1;
+    const t = clamp(((x - px) * ax + (z - pz) * az) / (len * len), 0, 1);
+    const cxp = px + ax * t, czp = pz + az * t;
+    return Math.hypot(x - cxp, z - czp) > 4.6 + pad || t < 0.18;
+  };
+
   /* the market: a row of stalls round the edge of the green */
   const stallN = r.int(4, 6);
   const goods = r.shuffle(['produce', 'bread', 'cloth', 'pots', 'produce', 'bread']);
@@ -592,6 +647,7 @@ function dressPlaza(T, plan, put, r, blockers, lights, npcSpots, anchors) {
     const a = (i / stallN) * TAU + r.range(-0.2, 0.2) + 0.6;
     const rr = R * r.range(0.72, 0.92);
     const x = px + Math.cos(a) * rr, z = pz + Math.sin(a) * rr;
+    if (!clearOfShop(x, z, 1.6)) continue;
     const sub = new MeshBuilder();
     const info = P.buildStall(sub, { seed: r.seed(), w: r.range(2.2, 3.1), d: r.range(1.3, 1.8), goods: goods[i % goods.length] });
     const yaw = Math.atan2(px - x, pz - z);
@@ -607,7 +663,12 @@ function dressPlaza(T, plan, put, r, blockers, lights, npcSpots, anchors) {
   /* a fire pit with a cauldron, and lanterns on posts round the green */
   {
     const a = r.range(0, TAU);
-    const fx = px + Math.cos(a) * R * 0.45, fz = pz + Math.sin(a) * R * 0.45;
+    let fx = px + Math.cos(a) * R * 0.45, fz = pz + Math.sin(a) * R * 0.45;
+    // nudge the cook fire round the green until it is off her doorstep
+    for (let k = 0; k < 10 && !clearOfShop(fx, fz, 1.2); k++) {
+      const a2 = a + (k + 1) * 0.72;
+      fx = px + Math.cos(a2) * R * 0.45; fz = pz + Math.sin(a2) * R * 0.45;
+    }
     const sub = new MeshBuilder(), g = new MeshBuilder();
     const info = P.buildFirePit(sub, { seed: r.seed(), r: 0.65, glow: g, cauldron: true });
     put('solid', sub, fx, fz, r.range(0, TAU));
@@ -620,6 +681,7 @@ function dressPlaza(T, plan, put, r, blockers, lights, npcSpots, anchors) {
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * TAU + 0.3;
     const x = px + Math.cos(a) * R * 1.02, z = pz + Math.sin(a) * R * 1.02;
+    if (!clearOfShop(x, z, 0.4)) continue;
     const sub = new MeshBuilder(), g = new MeshBuilder();
     const L = P.buildLantern(sub, { seed: r.seed(), kind: 'post', h: r.range(2.3, 2.7), glow: g });
     put('solid', sub, x, z, r.range(0, TAU));
@@ -634,14 +696,17 @@ function dressPlaza(T, plan, put, r, blockers, lights, npcSpots, anchors) {
     const sub = new MeshBuilder();
     P.buildTrough(sub, { seed: r.seed(), len: 1.8 });
     const x = px + Math.cos(a) * R * 0.85, z = pz + Math.sin(a) * R * 0.85;
-    put('solid', sub, x, z, r.range(0, TAU), 0, 0.3);
-    blockers.push({ x, z, r: 1.0 });
+    if (clearOfShop(x, z, 0.8)) {
+      put('solid', sub, x, z, r.range(0, TAU), 0, 0.3);
+      blockers.push({ x, z, r: 1.0 });
+    }
   }
   for (let i = 0; i < r.int(1, 3); i++) {
     const a = r.range(0, TAU);
     const sub = new MeshBuilder();
     const info = P.buildCart(sub, { seed: r.seed(), loaded: r.chance(0.7) });
     const x = px + Math.cos(a) * R * r.range(0.7, 1.0), z = pz + Math.sin(a) * R * r.range(0.7, 1.0);
+    if (!clearOfShop(x, z, 1.2)) continue;
     put('solid', sub, x, z, r.range(0, TAU), 0, 0.3);
     for (const b of info.blockers) blockers.push({ x, z, r: b.r });
   }
@@ -651,8 +716,10 @@ function dressPlaza(T, plan, put, r, blockers, lights, npcSpots, anchors) {
     const sub = new MeshBuilder();
     P.buildSign(sub, { seed: r.seed(), kind: 'post', glyph: 'home', h: 2.1, w: 1.0 });
     const x = px + r.range(-R, R) * 0.9, z = pz + R * 1.05;
-    put('solid', sub, x, z, r.range(0, TAU));
-    blockers.push({ x, z, r: 0.3 });
+    if (clearOfShop(x, z, 0.5)) {
+      put('solid', sub, x, z, r.range(0, TAU));
+      blockers.push({ x, z, r: 0.3 });
+    }
   }
 }
 
@@ -663,13 +730,86 @@ function dressWorkshop(T, a, put, r, blockers, lights, npcSpots) {
   const c = Math.cos(yaw), s = Math.sin(yaw);
   const L2W = (lx, lz) => [x + lx * c + lz * s, z - lx * s + lz * c];
 
+  /* THE PROPS ARE SCALED TO THE PEOPLE WHO USE THEM.
+     ----------------------------------------------------------------------
+     Every prop in PropArt is drawn at human scale, because that is the size
+     a bench, an anvil and a grindstone are. The Stickwright is a hare one
+     metre twenty-five tall with her shoulder at eighty-one centimetres, and
+     a bench with a ninety-four centimetre top puts her work up under her
+     chin — which is exactly how it rendered the first time the cutscene was
+     pointed at it: a wall of bench with two ears behind it. 0.72 brings the
+     working surfaces to 0.68, 0.56 and 0.53, which is where a person that
+     size wants them. */
+  const TOOL = 0.72;
+
+  /* A FLOOR. The shed had none, and it showed the moment anything was shot
+     from inside it: the most important interior in the game was a roof on
+     posts standing in a field, with the Stickwright ankle-deep in meadow
+     grass. Boards laid front to back, over a sill, with the whole thing
+     levelled to the HIGHEST corner of the footprint and given enough
+     thickness to bury itself in the low one — a floor that follows the
+     ground is not a floor, it is a carpet. */
+  {
+    const sub = new MeshBuilder();
+    const hw = info.w / 2 - 0.12, hd = info.d / 2 - 0.12;
+    /* A GRID, NOT THE CORNERS. The first version sampled nine points, found
+       a 2 cm rise, laid the boards 2 cm up — and the floor was invisible,
+       because the ground between those nine points goes higher than any of
+       them and the terrain simply won the depth test. The pad is flattened,
+       not flat. Sample it properly and then stand clear of it. */
+    let top = -Infinity;
+    for (let i = 0; i <= 10; i++) {
+      for (let j = 0; j <= 8; j++) {
+        const [px, pz] = L2W(-hw + (i / 10) * hw * 2, -hd + (j / 8) * hd * 2);
+        top = Math.max(top, T.height(px, pz));
+      }
+    }
+    top += 0.05;                           // a board's thickness of daylight
+    const rise = top - T.height(x, z);
+    const THICK = 0.30;                    // deep enough to reach the low corner
+    const n = Math.max(6, Math.round((hw * 2) / 0.3));
+    for (let i = 0; i < n; i++) {
+      const bw = (hw * 2) / n;
+      const bx = -hw + (i + 0.5) * bw;
+      r.chance(0.5)
+        ? sub.color(mixHex(BUILD.plank, BARK.oak, r.range(0.0, 0.45)), 0.07, r)
+        : sub.color(mixHex(BUILD.plankOld, BUILD.plank, r()), 0.07, r);
+      // a hair of gap between boards, and each one sits a millimetre or two
+      // proud of its neighbours, which is the whole reason it reads as boards
+      const lift = r.range(-0.006, 0.008);
+      box(sub, bx, rise + lift - THICK / 2, 0, bw * 0.94, THICK, hd * 2);
+    }
+    // the sill the boards die into, all the way round
+    sub.color(BARK.oak, 0.06, r);
+    for (const sx of [-1, 1]) box(sub, sx * hw, rise - 0.055, 0, 0.14, 0.13, hd * 2 + 0.14);
+    for (const sz of [-1, 1]) box(sub, 0, rise - 0.055, sz * hd, hw * 2 + 0.14, 0.13, 0.14);
+    put('solid', sub, x, z, yaw);
+    a.floorY = top;
+  }
+
+  /* Everything indoors stands ON the boards, not on the meadow under them.
+     It is only a couple of centimetres — until you remember the wood
+     shavings are twelve millimetres tall and would have been underground. */
+  const onFloor = (px, pz) => a.floorY - T.height(px, pz);
+
   /* the bench, inside, facing the counter */
   {
     const sub = new MeshBuilder();
     const bi = P.buildWorkbench(sub, { seed: r.seed(), w: 2.6 });
     const [bx, bz] = L2W(0.3, -info.d * 0.18);
-    put('solid', sub, bx, bz, yaw + Math.PI);
-    blockers.push({ x: bx, z: bz, r: 1.0 });
+    /* FACING HER, not away from her. The bench carries a board of hanging
+       tools on one side; turned the other way round it presents the whole
+       shop with a blank two-metre slab of plank, which is precisely what
+       every cutscene frame came back as. The tools go where the person
+       using them can reach. */
+    put('solid', sub, bx, bz, yaw, onFloor(bx, bz), 0, TOOL);
+    blockers.push({ x: bx, z: bz, r: 1.0 * TOOL });
+    /* The forge cutscene stages itself against these. It needs the bench as a
+       WORLD position and a working HEIGHT, not as a lot-relative offset,
+       because the workshop can be dropped anywhere in the plan and the
+       camera marks are computed from the anchor, not from the lot. */
+    a.benchAt = [bx, bz];
+    a.benchTop = T.height(bx, bz) + (bi?.topY ?? 0.94) * TOOL;  // 0.88 frame + half the 0.11 top
     // where the Stickwright actually stands
     const [sx, sz] = L2W(0.3, info.d * 0.06);
     npcSpots.push({ x: sx, z: sz, kind: 'stickwright', yaw });
@@ -687,8 +827,133 @@ function dressWorkshop(T, a, put, r, blockers, lights, npcSpots) {
     const sub = new MeshBuilder();
     const ri = P.buildWeaponRack(sub, { seed: r.seed(), w: r.range(1.4, 2.0) });
     const [rx, rz] = L2W(side * (info.w / 2 - 0.5), -info.d * 0.12);
-    put('solid', sub, rx, rz, yaw + side * Math.PI / 2);
-    blockers.push({ x: rx, z: rz, r: 0.5 });
+    put('solid', sub, rx, rz, yaw + side * Math.PI / 2, onFloor(rx, rz), 0, TOOL);
+    blockers.push({ x: rx, z: rz, r: 0.5 * TOOL });
+  }
+
+  /* --------------------------------------------------------------------
+     THE REST OF THE SHOP.
+
+     This is the building the player comes back to after every walk in the
+     wood, and it is the only interior they will ever look at properly. An
+     empty shed with a bench in it says the Stickwright turned up this
+     morning; an anvil, a furnace, a rack of tools, a bin of offcuts and a
+     drift of shavings on the floor say she has been doing this for forty
+     years. It is all static dressing and costs nothing to run.
+     -------------------------------------------------------------------- */
+
+  /* the anvil, on its own stump, where she can reach it from the bench */
+  {
+    const sub = new MeshBuilder();
+    P.buildAnvil(sub, { seed: r.seed() });
+    const [ax, az] = L2W(-info.w * 0.30, -info.d * 0.05);
+    put('solid', sub, ax, az, yaw + r.range(-0.4, 0.4), onFloor(ax, az), 0, TOOL);
+    blockers.push({ x: ax, z: az, r: 0.42 * TOOL });
+    a.anvilAt = [ax, az];
+    a.anvilTop = T.height(ax, az) + 0.76 * TOOL;
+  }
+
+  /* the grindstone, by the opening where the light is */
+  {
+    const sub = new MeshBuilder();
+    P.buildGrindstone(sub, { seed: r.seed() });
+    const [gx, gz] = L2W(info.w * 0.30, info.d * 0.16);
+    put('solid', sub, gx, gz, yaw + Math.PI / 2 + r.range(-0.3, 0.3), onFloor(gx, gz), 0, TOOL);
+    blockers.push({ x: gx, z: gz, r: 0.40 * TOOL });
+    a.grindAt = [gx, gz];
+    a.grindTop = T.height(gx, gz) + 1.02 * TOOL;   // the top of the wheel, not the frame
+  }
+
+  /* SHAVINGS. A drift of curled offcuts under the bench and round the
+     anvil — the cheapest possible detail and the one that most says
+     somebody works here rather than poses here. */
+  {
+    const sub = new MeshBuilder();
+    const n = r.int(26, 44);
+    for (let i = 0; i < n; i++) {
+      const ang = r.range(0, TAU);
+      const rad = Math.sqrt(r()) * 1.9;
+      const lx = 0.1 + Math.cos(ang) * rad;
+      const lz = -info.d * 0.14 + Math.sin(ang) * rad * 0.8;
+      sub.color(mixHex(BARK.deadWood, 0xe8d8b0, r.range(0.3, 0.9)), 0.09, r);
+      // a shaving is a curl, so it is a short flattened arc not a chip
+      const curl = r.range(0.4, 1.5), len = r.range(0.05, 0.13);
+      const pts = [];
+      for (let k = 0; k <= 3; k++) {
+        const u = k / 3;
+        pts.push([lx + Math.cos(ang + u * curl) * len * u,
+        0.012 + Math.sin(u * 3.1) * 0.012,
+        lz + Math.sin(ang + u * curl) * len * u]);
+      }
+      tube(sub, {
+        pts, radius: () => r.range(0.007, 0.016), radial: 3,
+        squash: () => [1, 0.35], capStart: false, capEnd: false, sway: () => 0,
+      });
+    }
+    const [sx2, sz2] = L2W(0, 0);
+    put('solid', sub, sx2, sz2, yaw, onFloor(sx2, sz2));
+  }
+
+  /* STACKS OF STICKS, sorted by length the way any workshop sorts stock —
+     the long ones upright in a barrel, the short ones in a crate */
+  {
+    const sub = new MeshBuilder();
+    P.buildBarrel(sub, { seed: r.seed() });
+    const [bx2, bz2] = L2W(-info.w * 0.40, -info.d * 0.32);
+    put('solid', sub, bx2, bz2, yaw, onFloor(bx2, bz2));
+    blockers.push({ x: bx2, z: bz2, r: 0.36 });
+    // the staves sticking out of it
+    const stx = new MeshBuilder();
+    for (let i = 0; i < r.int(5, 9); i++) {
+      const ang = r.range(0, TAU), rad = r.range(0, 0.19);
+      const lean = r.range(0.06, 0.26), la = r.range(0, TAU);
+      stx.color(mixHex(BARK.hazel, BARK.ash, r()), 0.1, r);
+      const h = r.range(0.9, 1.7);
+      tube(stx, {
+        pts: [[Math.cos(ang) * rad, 0.35, Math.sin(ang) * rad],
+        [Math.cos(ang) * rad + Math.cos(la) * lean * h, 0.35 + h, Math.sin(ang) * rad + Math.sin(la) * lean * h]],
+        radius: t => r.range(0.016, 0.028) * (1 - t * 0.25), radial: 5,
+        capStart: true, capEnd: true, sway: () => 0,
+      });
+    }
+    put('solid', stx, bx2, bz2, yaw, onFloor(bx2, bz2));
+  }
+  {
+    const sub = new MeshBuilder();
+    P.buildCrate(sub, { seed: r.seed() });
+    const [kx, kz] = L2W(info.w * 0.36, -info.d * 0.34);
+    put('solid', sub, kx, kz, yaw + r.range(-0.4, 0.4), onFloor(kx, kz));
+    blockers.push({ x: kx, z: kz, r: 0.34, low: true });
+  }
+
+  /* NOTE: no tool wall here. buildWorkbench already carries one — a plank
+     board behind the bench with hammers, rasps and a coil of cord hanging
+     off it, which is why the bench measures 2.3 m tall rather than 0.9. A
+     second one bolted to the shed wall put two boards of tools a few
+     centimetres apart. */
+
+  /* FINISHED WORK, leaning in the corner where it is out of the way */
+  {
+    const sub = new MeshBuilder();
+    for (let i = 0; i < r.int(2, 4); i++) {
+      const lx = -info.w * 0.44 + i * 0.09;
+      const h = r.range(0.85, 1.35);
+      sub.color(mixHex(BARK.ash, BARK.oak, r()), 0.09, r);
+      tube(sub, {
+        pts: [[lx, 0, -info.d * 0.40], [lx + r.range(-0.05, 0.05), h, -info.d * 0.40 + 0.22]],
+        radius: t => r.range(0.018, 0.026) * (1 - t * 0.2), radial: 5,
+        capStart: true, capEnd: true, sway: () => 0,
+      });
+      // a bound grip on each, so they read as finished rather than as stock
+      sub.color(BUILD.rope, 0.07, r);
+      for (let k = 0; k < 5; k++) {
+        const u = 0.18 + k * 0.035;
+        blob(sub, lx + r.range(-0.05, 0.05) * u, h * u, -info.d * 0.40 + 0.22 * u,
+          0.026, 3, 5, (px, py, pz) => [1, 0.45, 1]);
+      }
+    }
+    const [fx2, fz2] = L2W(0, 0);
+    put('solid', sub, fx2, fz2, yaw, onFloor(fx2, fz2));
   }
 
   /* stacks of branches leaning against the outside wall */
@@ -713,8 +978,8 @@ function dressWorkshop(T, a, put, r, blockers, lights, npcSpots) {
     const [fx, fz] = L2W(-info.w * 0.3, -info.d * 0.3);
     const sub = new MeshBuilder(), g = new MeshBuilder();
     P.buildFirePit(sub, { seed: r.seed(), r: 0.42, glow: g });
-    put('solid', sub, fx, fz, 0);
-    put('glow', g, fx, fz, 0);
+    put('solid', sub, fx, fz, 0, onFloor(fx, fz));
+    put('glow', g, fx, fz, 0, onFloor(fx, fz));
     lights.push({ x: fx, y: T.height(fx, fz) + 0.5, z: fz, color: BUILD.fire, intensity: 1.7, flicker: true });
   }
 

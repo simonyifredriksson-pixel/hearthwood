@@ -24,8 +24,8 @@
    impossible and pointless — what matters is the FAMILY and how heavy it is.
 */
 
-import { WEAPON_CLASSES } from '../data/WeaponData.js?v=20260920201841';
-import { clamp, clamp01, lerp, smoothstep } from '../core/Util.js?v=20260920201841';
+import { WEAPON_CLASSES } from '../data/WeaponData.js?v=20260921145028';
+import { clamp, clamp01, lerp, smoothstep } from '../core/Util.js?v=20260921145028';
 
 /* ========================================================================= */
 /* CARRY                                                                     */

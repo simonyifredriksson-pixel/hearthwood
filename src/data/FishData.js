@@ -11,7 +11,7 @@
    approach the sticks use, and for the same reason.
 */
 
-import { makeRng, clamp, clamp01, lerp } from '../core/Util.js?v=20260920201841';
+import { makeRng, clamp, clamp01, lerp } from '../core/Util.js?v=20260921145028';
 
 /**
  *   speed      how fast it travels along the bar, in bar-widths per second

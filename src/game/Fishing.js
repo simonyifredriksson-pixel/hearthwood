@@ -25,9 +25,9 @@
    UI layer reads this state and draws it.
 */
 
-import { rollFish, fishTier } from '../data/FishData.js?v=20260920201841';
-import { bus, EV } from '../core/Bus.js?v=20260920201841';
-import { clamp, clamp01, lerp, makeRng } from '../core/Util.js?v=20260920201841';
+import { rollFish, fishTier } from '../data/FishData.js?v=20260921145028';
+import { bus, EV } from '../core/Bus.js?v=20260921145028';
+import { clamp, clamp01, lerp, makeRng } from '../core/Util.js?v=20260921145028';
 
 /*
  * THE ZONE MUST BE ABLE TO OUTRUN THE FISH.
@@ -71,6 +71,7 @@ export class Fishing {
 
   reset() {
     this.fish = null;
+    this._rnd = null;
     this.zone = 0.35;        // centre of the player's zone, 0..1
     this.vel = 0;
     this.fishPos = 0.5;
@@ -119,6 +120,7 @@ export class Fishing {
 
   _strike() {
     this.fish = this._pending;
+    this._rnd = null;                  // a new fish gets its own stream
     this.state = FISH_STATE.FIGHT;
     this.stateT = 0;
     this.fishPos = 0.5;
@@ -202,15 +204,22 @@ export class Fishing {
     const M = this.fish.move;
     this.nextThink -= dt;
     if (this.nextThink <= 0) {
-      const r = Math.random();
-      this.nextThink = lerp(0.9, 0.16, clamp01(M.restless / 2.6)) * (0.6 + Math.random() * 0.9);
+      /* SEEDED, not Math.random.
+         The fish has to be unpredictable to the PLAYER; it does not have to
+         be unpredictable to the machine, and while it was, the balance test
+         measured a different fight every time it ran and drifted between
+         "always catchable" and "never" with nothing having changed. Every
+         other generator in this game runs off a seed. So does this one. */
+      const rnd = this._rnd || (this._rnd = makeRng((this.fish.seed ?? 1) ^ 0xf15b));
+      const r = rnd();
+      this.nextThink = lerp(0.9, 0.16, clamp01(M.restless / 2.6)) * (0.6 + rnd() * 0.9);
       if (r < M.pause) {
         this.fishTarget = this.fishPos;             // hold station
       } else if (r < M.pause + M.dart * 0.5) {
         // a dart: a big jump to somewhere else entirely
-        this.fishTarget = clamp01(this.fishPos + (Math.random() < 0.5 ? -1 : 1) * (0.25 + Math.random() * 0.5));
+        this.fishTarget = clamp01(this.fishPos + (rnd() < 0.5 ? -1 : 1) * (0.25 + rnd() * 0.5));
       } else {
-        this.fishTarget = clamp01(0.1 + Math.random() * 0.8);
+        this.fishTarget = clamp01(0.1 + rnd() * 0.8);
       }
     }
     // drift about the target even while "still"

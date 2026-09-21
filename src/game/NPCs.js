@@ -23,15 +23,15 @@
    is far worse than one who walks through the corner of a flowerbed.
 */
 
-import * as THREE from '../../lib/three.module.js?v=20260920201841';
-import { buildVillager, buildCritter } from '../art/VillagerArt.js?v=20260920201841';
-import { VILLAGERS, CRITTERS, STICKWRIGHT, FISHERMAN, SMALL_TALK } from '../data/VillagerData.js?v=20260920201841';
-import { MeshBuilder, blob, tube } from '../art/Geo.js?v=20260920201841';
-import { MATS } from '../art/Materials.js?v=20260920201841';
-import { BARK, BUILD, mixHex } from '../art/Palette.js?v=20260920201841';
-import { riverX, riverLevel } from '../world/Terrain.js?v=20260920201841';
-import { WORLD } from '../core/Config.js?v=20260920201841';
-import { makeRng, clamp, clamp01, lerp, damp, dampAngle, angleDelta, TAU, smoothstep } from '../core/Util.js?v=20260920201841';
+import * as THREE from '../../lib/three.module.js?v=20260921145028';
+import { buildVillager, buildCritter } from '../art/VillagerArt.js?v=20260921145028';
+import { VILLAGERS, CRITTERS, STICKWRIGHT, FISHERMAN, SMALL_TALK } from '../data/VillagerData.js?v=20260921145028';
+import { MeshBuilder, blob, tube } from '../art/Geo.js?v=20260921145028';
+import { MATS } from '../art/Materials.js?v=20260921145028';
+import { BARK, BUILD, mixHex } from '../art/Palette.js?v=20260921145028';
+import { riverX, riverLevel } from '../world/Terrain.js?v=20260921145028';
+import { WORLD } from '../core/Config.js?v=20260921145028';
+import { makeRng, clamp, clamp01, lerp, damp, dampAngle, angleDelta, TAU, smoothstep } from '../core/Util.js?v=20260921145028';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -70,10 +70,14 @@ export class NPCs {
     const z = V.cz + 34;
     const cx = riverX(z);
     const lvl = riverLevel(z);
+    /* Ask the world for its ground however it exposes it. The contact-sheet
+       renderer hands NPCs a cut-down world object with no `.terrain` on it,
+       and a fisherman is not worth crashing a render over. */
+    const groundAt = (x, zz) => (W.terrain ? W.terrain.height(x, zz) : W.groundAt(x, zz));
     for (const side of [1, -1]) {
       for (let d = WORLD.river.width * 0.4; d < WORLD.river.bankWidth * 2.4; d += 0.4) {
         const x = cx + side * d;
-        const h = W.terrain.height(x, z);
+        const h = groundAt(x, z);
         if (h > lvl + 0.35) {
           const bx = cx + side * (d + 0.55);
           return {
@@ -262,6 +266,10 @@ export class NPCs {
       const d2 = (npc.x - px) * (npc.x - px) + (npc.z - pz) * (npc.z - pz);
       if (d2 > 160 * 160) { npc.rig.root.visible = false; continue; }
       npc.rig.root.visible = true;
+      /* A cutscene director has taken this one over and is posing it itself.
+         Running the village brain underneath would fight it for every joint
+         and walk her back to her bench in the middle of a hammer stroke. */
+      if (npc.cutscene) continue;
       const far = d2 > 55 * 55;
       this._think(npc, far ? dt * 0.5 : dt, px, pz);
       this._move(npc, dt);
