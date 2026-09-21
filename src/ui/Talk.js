@@ -25,9 +25,9 @@
    dialogue in the place that knows what the branches mean.
 */
 
-import { ic } from './Icons.js?v=1790014861';
-import { input } from '../core/Input.js?v=1790014861';
-import { esc, clamp } from '../core/Util.js?v=1790014861';
+import { ic } from './Icons.js?v=1790019740';
+import { input } from '../core/Input.js?v=1790019740';
+import { esc, clamp } from '../core/Util.js?v=1790019740';
 
 export class Talk {
   constructor(root, { audio = null } = {}) {
@@ -79,8 +79,7 @@ export class Talk {
       this.root.appendChild(el);
       this.el = el;
       this.open = true;
-      input.blocked = true;
-      input.releaseLock();
+      input.hold('talk');
       this.audio?.ui?.('open');
 
       el.querySelectorAll('.talk-opt').forEach(li => {
@@ -138,12 +137,25 @@ export class Talk {
     return true;      // while a panel is up it eats everything else
   }
 
+  /**
+   * Put the panel away and answer whoever was waiting.
+   *
+   * THE CLAIM IS DROPPED BEFORE THE PROMISE RESOLVES, and that order is
+   * the whole fix. The caller's continuation usually opens the next thing
+   * — the rod shop, another question — and if it takes its claim before
+   * this one is dropped, dropping ours afterwards would unblock the world
+   * underneath a panel that is still up. Release first, then hand over.
+   *
+   * It is also safe to call twice: `ask()` calls it to clear any previous
+   * panel, and `release` on a claim nobody holds does nothing.
+   */
   close(value = null) {
     const el = this.el;
     const res = this._resolve;
     this.el = null;
     this._resolve = null;
     this.open = false;
+    input.release('talk');
     if (el) {
       el.classList.remove('in');
       setTimeout(() => el.remove(), 240);

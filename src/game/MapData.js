@@ -20,9 +20,9 @@
    the mountains and the lakes on the map are the real ones.
 */
 
-import { WORLD } from '../core/Config.js?v=1790014861';
-import { VILLAGES } from '../data/VillageData.js?v=1790014861';
-import { clamp, clamp01, lerp } from '../core/Util.js?v=1790014861';
+import { WORLD } from '../core/Config.js?v=1790019740';
+import { VILLAGES } from '../data/VillageData.js?v=1790019740';
+import { clamp, clamp01, lerp } from '../core/Util.js?v=1790019740';
 
 /** Metres per fog cell. 12 is fine: the map is drawn at a few pixels a cell. */
 export const FOG_CELL = 12;

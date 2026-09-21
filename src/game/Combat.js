@@ -24,8 +24,8 @@
    impossible and pointless — what matters is the FAMILY and how heavy it is.
 */
 
-import { WEAPON_CLASSES } from '../data/WeaponData.js?v=1790014861';
-import { clamp, clamp01, lerp, smoothstep } from '../core/Util.js?v=1790014861';
+import { WEAPON_CLASSES } from '../data/WeaponData.js?v=1790019740';
+import { clamp, clamp01, lerp, smoothstep } from '../core/Util.js?v=1790019740';
 
 /* ========================================================================= */
 /* CARRY                                                                     */
@@ -102,6 +102,26 @@ const REST = {
 };
 
 /** Which rest pose each weapon class uses. */
+/* --- THINGS THAT ARE NOT WEAPONS ------------------------------------------
+   A rod and a fish both end up in the same paw as a sword and both looked
+   wrong being carried like one: the rod was held out like a sabre instead
+   of sloped up over the shoulder, and a fish held at a blade's angle hangs
+   nose-down like something being taken to a bin. */
+REST.rod = {
+  /* sloped up and across, the way anybody carries a rod between casts */
+  rot: [-0.62, 0.10, 0.30], pos: [0, 0, 0],
+  main: { sx: -0.34, sz: 0.18, ex: -0.62 },
+  off: { sx: -0.30, sz: -0.26, ex: -0.70 }, offZ: 0.30,
+};
+REST.fish = {
+  /* HELD UP AND OUT, by the tail, turned so its flank faces outward.
+     The whole point of carrying a fish is showing it to somebody, so it
+     is presented rather than transported — and it is turned broadside,
+     because a fish seen end-on is a shape nobody can read. */
+  rot: [-1.15, 0.55, 0.18], pos: [0, 0.02, 0.03],
+  main: { sx: -1.05, sz: 0.30, ex: -0.72 },
+};
+
 const CARRY_OF = {
   dagger: 'blade1', shortsword: 'blade1', sword: 'blade1', sabre: 'blade1', rapier: 'blade1',
   longsword: 'blade2', greatsword: 'blade2',
@@ -111,6 +131,7 @@ const CARRY_OF = {
   spear: 'pole', polearm: 'pole', halberd: 'pole',
   staff: 'staff', walkingStick: 'staff',
   broom: 'broom', wand: 'wand', oddity: 'oddity',
+  rod: 'rod', fish: 'fish',
 };
 
 export function carryFor(cls) {

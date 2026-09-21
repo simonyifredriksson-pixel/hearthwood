@@ -11,15 +11,15 @@
    millisecond.
 */
 
-import { loadRaw, saveRaw, clearSave } from '../core/Save.js?v=1790014861';
-import { bus, EV } from '../core/Bus.js?v=1790014861';
-import { GAME } from '../core/Config.js?v=1790014861';
-import { rollStick, stickValue, stickTags, stickTier, stickName, stickComponents, RARE } from '../data/StickData.js?v=1790014861';
-import { forgeWeapon, WEAPON_CLASSES } from '../data/WeaponData.js?v=1790014861';
-import { catchValue, fishTitle, FISH } from '../data/FishData.js?v=1790014861';
-import { STARTER_ROD, rodOf, ROD_BY_ID } from '../data/RodData.js?v=1790014861';
-import { SPECIES } from './Anim.js?v=1790014861';
-import { clamp } from '../core/Util.js?v=1790014861';
+import { loadRaw, saveRaw, clearSave } from '../core/Save.js?v=1790019740';
+import { bus, EV } from '../core/Bus.js?v=1790019740';
+import { GAME } from '../core/Config.js?v=1790019740';
+import { rollStick, stickValue, stickTags, stickTier, stickName, stickComponents, RARE } from '../data/StickData.js?v=1790019740';
+import { forgeWeapon, WEAPON_CLASSES } from '../data/WeaponData.js?v=1790019740';
+import { catchValue, fishTitle, FISH } from '../data/FishData.js?v=1790019740';
+import { STARTER_ROD, rodOf, ROD_BY_ID } from '../data/RodData.js?v=1790019740';
+import { SPECIES } from './Anim.js?v=1790019740';
+import { clamp } from '../core/Util.js?v=1790019740';
 
 let nextUid = 1;
 
@@ -45,6 +45,7 @@ export class GameState {
     this.rods = [];               // rod ids owned
     this.rod = null;              // rod id equipped
     this.fish = [];               // the creel: catch records with uid + fav
+    this.heldFish = null;         // uid of the one being carried in the paw
     this.seenFish = new Set();    // species logged, for the almanac
     this.seenMutations = new Set();
     this.seenVillages = new Set(['home']);
@@ -93,11 +94,52 @@ export class GameState {
    * all read the same value.
    */
   get holding() { return this._holding || 'weapon'; }
-  set holding(v) { this._holding = v === 'rod' ? 'rod' : 'weapon'; this._dirty = true; bus.emit(EV.ROD_CHANGED, { rod: this.currentRod, holding: this.holding }); }
+  set holding(v) {
+    this._holding = (v === 'rod' || v === 'fish') ? v : 'weapon';
+    if (this._holding !== 'fish') this.heldFish = null;
+    this._dirty = true;
+    bus.emit(EV.ROD_CHANGED, { rod: this.currentRod, holding: this.holding });
+  }
   get holdingRod() { return this.hasRod && this.holding === 'rod'; }
+  get holdingFish() { return this.holding === 'fish' && !!this.heldFishRecord; }
+
+  /**
+   * THE FISH IN YOUR PAW.
+   *
+   * Carrying a catch around is the point of catching a rare one — the
+   * brief's words are that the player should be able to walk up to
+   * somebody and show them. So it is a third thing the paw can hold,
+   * alongside the weapon and the rod, and it is stored as a uid into the
+   * creel rather than as a copy: sell the fish and it leaves your paw,
+   * because you no longer have it.
+   */
+  get heldFishRecord() {
+    return this.heldFish ? this.fishById(this.heldFish) : null;
+  }
+
+  /** @returns true if it went into the paw. */
+  holdFish(uid) {
+    const f = this.fishById(uid);
+    if (!f) return false;
+    this.heldFish = uid;
+    this._holding = 'fish';
+    this._dirty = true;
+    bus.emit(EV.ROD_CHANGED, { rod: this.currentRod, holding: 'fish', fish: f });
+    return true;
+  }
+
+  /** Put it back in the creel and take the weapon out again. */
+  stowFish() {
+    this.heldFish = null;
+    this.holding = 'weapon';
+  }
 
   /** Swap between the rod and the weapon. Only possible if you own a rod. */
   toggleHold() {
+    /* holding a fish is a third state, but it is not part of the cycle —
+       pressing the swap key while showing somebody a trout should put the
+       trout away, not deal you a rod */
+    if (this.holding === 'fish') { this.stowFish(); return 'weapon'; }
     if (!this.hasRod) { this.holding = 'weapon'; return 'weapon'; }
     this.holding = this.holding === 'rod' ? 'weapon' : 'rod';
     return this.holding;
@@ -312,6 +354,10 @@ export class GameState {
     if (i < 0) return { ok: false, reason: 'missing' };
     if (this.fish[i].fav) return { ok: false, reason: 'favourite' };   // THE gate
     const [f] = this.fish.splice(i, 1);
+    /* IT CANNOT STAY IN YOUR PAW AFTER YOU HAVE SOLD IT. Every route out
+       of the creel goes through here or through dropFish, so this is the
+       only place that has to remember. */
+    if (this.heldFish === f.uid) this.stowFish();
     const coin = this.earn(catchValue(f));
     this.stats.sold++;
     this._dirty = true;
@@ -338,6 +384,7 @@ export class GameState {
     const i = this.fish.findIndex(f => f.uid === uid);
     if (i < 0 || this.fish[i].fav) return null;
     const [f] = this.fish.splice(i, 1);
+    if (this.heldFish === f.uid) this.stowFish();
     this._dirty = true;
     return f;
   }
@@ -436,6 +483,8 @@ export class GameState {
       hasRod: this.hasRod,
       rods: this.rods,
       rod: this.rod,
+      holding: this.holding,
+      heldFish: this.heldFish,
       fish: this.fish.map(f => ({
         uid: f.uid, id: f.id, name: f.name, rarity: f.rarity,
         mutation: f.mutation, len: f.len, size: f.size, seed: f.seed,
@@ -510,6 +559,13 @@ export class GameState {
           fav: !!f.fav, at: f.at || Date.now(),
         };
       }).filter(Boolean);
+      /* Restore the paw, but only to something that survived the load —
+         a save naming a fish that is no longer in the creel would leave
+         the fox holding nothing and `holding` stuck on 'fish', which
+         means no weapon and no rod either. */
+      st.heldFish = st.fish.some(f => f.uid === o.heldFish) ? o.heldFish : null;
+      st._holding = (o.holding === 'rod' && st.hasRod) ? 'rod'
+        : (o.holding === 'fish' && st.heldFish) ? 'fish' : 'weapon';
       st.seenFish = new Set(o.seenFish || st.fish.map(f => f.id));
       st.seenMutations = new Set(o.seenMutations || []);
       st.seenVillages = new Set(o.seenVillages || ['home']);

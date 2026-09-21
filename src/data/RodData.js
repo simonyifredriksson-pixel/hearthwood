@@ -86,7 +86,7 @@ export const RODS = [
     art: {
       shaft: 'steel', len: 2.20, taper: 0.58, joints: 1, bend: 0.09,
       reel: 'geared', guides: 6, grip: 'leather', wrap: 0x2e3238, butt: 'weight',
-      tipCol: 0x9aa2a8, lineCol: 0xd8dce0, plates: true,
+      tipCol: 0x9aa2a8, lineCol: 0xd8dce0, plates: true, flair: 'outriggers',
     },
   },
   {
@@ -97,7 +97,7 @@ export const RODS = [
     art: {
       shaft: 'bone', len: 2.55, taper: 0.70, joints: 2, bend: 0.14,
       reel: 'big', guides: 7, grip: 'double', wrap: 0x3a4650, butt: 'spike',
-      tipCol: 0xc8d4d8, lineCol: 0xbfe0f0, plates: true,
+      tipCol: 0xc8d4d8, lineCol: 0xbfe0f0, plates: true, flair: 'outriggers',
     },
   },
   {
@@ -108,7 +108,7 @@ export const RODS = [
     art: {
       shaft: 'stormwood', len: 2.45, taper: 0.68, joints: 1, bend: 0.22,
       reel: 'geared', guides: 7, grip: 'wrapcord', wrap: 0x4a3a5a, butt: 'brass',
-      tipCol: 0xb49aff, lineCol: 0xd8c8ff, glow: 0x8a6aff, bindings: 5,
+      tipCol: 0xb49aff, lineCol: 0xd8c8ff, glow: 0x8a6aff, bindings: 5, flair: 'lantern',
     },
   },
   {
@@ -119,7 +119,7 @@ export const RODS = [
     art: {
       shaft: 'gilt', len: 2.35, taper: 0.72, joints: 2, bend: 0.18,
       reel: 'ornate', guides: 8, grip: 'leather', wrap: 0x8a6a1a, butt: 'jewel',
-      tipCol: 0xf6dc86, lineCol: 0xfff0c0, glow: 0xffd24a, filigree: true,
+      tipCol: 0xf6dc86, lineCol: 0xfff0c0, glow: 0xffd24a, filigree: true, flair: 'ribbons',
     },
   },
   {
@@ -130,7 +130,7 @@ export const RODS = [
     art: {
       shaft: 'rib', len: 2.70, taper: 0.64, joints: 0, bend: 0.28,
       reel: 'big', guides: 8, grip: 'double', wrap: 0x6a5a48, butt: 'spike',
-      tipCol: 0xf0e4c8, lineCol: 0xe8f8ff, glow: 0x9fe8d8, plates: true, filigree: true,
+      tipCol: 0xf0e4c8, lineCol: 0xe8f8ff, glow: 0x9fe8d8, plates: true, filigree: true, flair: 'twintip',
     },
   },
   {
@@ -141,7 +141,7 @@ export const RODS = [
     art: {
       shaft: 'glass', len: 2.60, taper: 0.80, joints: 0, bend: 0.16,
       reel: 'ornate', guides: 9, grip: 'wrapcord', wrap: 0x1a2a34, butt: 'jewel',
-      tipCol: 0xdcf8ff, lineCol: 0xffffff, glow: 0x9fe4ff, filigree: true, spectral: true,
+      tipCol: 0xdcf8ff, lineCol: 0xffffff, glow: 0x9fe4ff, filigree: true, spectral: true, flair: 'finial',
     },
   },
 ];

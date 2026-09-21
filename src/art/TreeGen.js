@@ -24,10 +24,10 @@
         stops the mass reading as a sphere.
 */
 
-import * as THREE from '../../lib/three.module.js?v=1790014861';
-import { MeshBuilder, tube, blob, blade, cylinder, smoothPath, rotAxis, perp, norm3 } from './Geo.js?v=1790014861';
-import { BARK, LEAF, MOSS, MUSHROOM, mixHex, tweak, shade } from './Palette.js?v=1790014861';
-import { makeRng, clamp, lerp, TAU, smoothstep } from '../core/Util.js?v=1790014861';
+import * as THREE from '../../lib/three.module.js?v=1790019740';
+import { MeshBuilder, tube, blob, blade, cylinder, smoothPath, rotAxis, perp, norm3 } from './Geo.js?v=1790019740';
+import { BARK, LEAF, MOSS, MUSHROOM, mixHex, tweak, shade } from './Palette.js?v=1790019740';
+import { makeRng, clamp, lerp, TAU, smoothstep } from '../core/Util.js?v=1790019740';
 
 /* ========================================================================= */
 /* SPECIES                                                                   */

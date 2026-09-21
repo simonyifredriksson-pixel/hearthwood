@@ -16,10 +16,10 @@
    the player is standing on a riverbank talking to somebody.
 */
 
-import { rodsAt, rodOf, ROD_STATS, ROD_BY_ID } from '../data/RodData.js?v=1790014861';
-import { ic } from './Icons.js?v=1790014861';
-import { input } from '../core/Input.js?v=1790014861';
-import { esc, clamp } from '../core/Util.js?v=1790014861';
+import { rodsAt, rodOf, ROD_STATS, ROD_BY_ID } from '../data/RodData.js?v=1790019740';
+import { ic } from './Icons.js?v=1790019740';
+import { input } from '../core/Input.js?v=1790019740';
+import { esc, clamp } from '../core/Util.js?v=1790019740';
 
 const money = n => '$' + Math.round(n).toLocaleString('en-US');
 
@@ -49,8 +49,7 @@ export class RodShop {
       this.el = el;
       this.root.appendChild(el);
       this.open = true;
-      input.blocked = true;
-      input.releaseLock();
+      input.hold('shop');
       this.audio?.ui?.('open');
       this._render();
       requestAnimationFrame(() => el.classList.add('in'));
@@ -170,6 +169,7 @@ export class RodShop {
     const el = this.el;
     const res = this._resolve;
     this.el = null; this._resolve = null; this.open = false;
+    input.release('shop');        // before the promise resolves -- see Talk.close
     if (el) { el.classList.remove('in'); setTimeout(() => el.remove(), 240); }
     this.audio?.ui?.('close');
     if (res) res();

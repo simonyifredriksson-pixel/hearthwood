@@ -340,6 +340,94 @@ kbd {
 }
 
 /* ========================================================================= */
+/* THE MINIMAP                                                               */
+/* ========================================================================= */
+/* Top right, small, and quiet. It is glanced at, not read: one dial, one
+   arrow, a ring and a name. Everything on it is either the ground you
+   have walked or a thing you have found. */
+
+.mmap {
+  position: fixed; top: 1.1rem; right: 1.1rem; z-index: 6;
+  width: 168px; height: 168px; pointer-events: none;
+  transition: opacity .3s ease;
+}
+.mmap.hidden { opacity: 0; }
+.mmap-c {
+  position: absolute; inset: 0; border-radius: 50%;
+  box-shadow: 0 6px 22px rgba(12, 16, 8, .45);
+}
+/* the bezel: a carved wooden ring rather than a UI border */
+.mmap-ring {
+  position: absolute; inset: -5px; border-radius: 50%;
+  border: 5px solid #6b5433;
+  box-shadow:
+    inset 0 0 0 2px rgba(232, 214, 168, .35),
+    inset 0 0 14px rgba(20, 14, 6, .55),
+    0 2px 6px rgba(10, 12, 6, .5);
+  background:
+    conic-gradient(from 0deg, rgba(255, 244, 214, .10), rgba(0, 0, 0, .10) 25%,
+      rgba(255, 244, 214, .10) 50%, rgba(0, 0, 0, .10) 75%, rgba(255, 244, 214, .10));
+  -webkit-mask: radial-gradient(circle, transparent 0 calc(50% - 5px), #000 calc(50% - 5px));
+  mask: radial-gradient(circle, transparent 0 calc(50% - 5px), #000 calc(50% - 5px));
+}
+.mmap-n {
+  position: absolute; top: -2px; left: 50%; transform: translateX(-50%);
+  font-family: var(--sans); font-size: .58rem; font-weight: 700;
+  letter-spacing: .12em; color: #f0dfae;
+  text-shadow: 0 1px 2px rgba(20, 14, 6, .9);
+}
+.mmap-place {
+  position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  margin-top: .45rem; white-space: nowrap;
+  font-family: var(--sans); font-size: .68rem; letter-spacing: .14em;
+  text-transform: uppercase; color: #f4e6bc;
+  text-shadow: 0 1px 3px rgba(16, 20, 10, .9);
+  opacity: 0; transition: opacity .35s ease;
+}
+.mmap-place.on { opacity: .9; }
+
+/* ========================================================================= */
+/* HITS                                                                      */
+/* ========================================================================= */
+/* A number when you connect and a bar for a second afterwards. Both are
+   positioned from world space every frame, so neither is in the layout. */
+
+.cfx { position: fixed; inset: 0; z-index: 7; pointer-events: none; }
+.cfx-num {
+  position: absolute; top: 0; left: 0; will-change: transform, opacity;
+  font-family: var(--display); font-weight: 700; font-size: 1.5rem;
+  color: #fff0cc;
+  text-shadow: 0 2px 0 rgba(40, 26, 10, .85), 0 0 12px rgba(0, 0, 0, .5);
+}
+/* a charged or combo-finishing blow, which is how the combo teaches itself */
+.cfx-num.crit {
+  font-size: 2.1rem; color: #ffd06a;
+  text-shadow: 0 2px 0 rgba(60, 26, 6, .9), 0 0 18px rgba(255, 160, 60, .65);
+}
+.cfx-bar {
+  position: absolute; top: 0; left: 0; width: 86px;
+  will-change: transform, opacity;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+}
+.cfx-name {
+  font-family: var(--sans); font-size: .58rem; letter-spacing: .1em;
+  text-transform: uppercase; color: #f2e4c4;
+  text-shadow: 0 1px 2px rgba(10, 8, 4, .95);
+}
+.cfx-bar i {
+  display: block; width: 100%; height: 5px; border-radius: 3px;
+  background: rgba(16, 14, 10, .72);
+  box-shadow: inset 0 0 0 1px rgba(240, 226, 190, .30);
+  overflow: hidden;
+}
+.cfx-bar u {
+  display: block; height: 100%; width: 100%; text-decoration: none;
+  background: linear-gradient(90deg, #8fc46a, #c8d858);
+  transition: width .16s ease-out;
+}
+.cfx-bar.hurt u { background: linear-gradient(90deg, #d8734a, #e8a13c); }
+
+/* ========================================================================= */
 /* HUD                                                                       */
 /* ========================================================================= */
 
@@ -1311,6 +1399,50 @@ body:has(.cine.in) #prompt { opacity: 0; transition: opacity .4s ease; }
   color: #d8cba8; text-shadow: 0 2px 10px rgba(0, 0, 0, .9);
 }
 .banner.long b { font-size: clamp(1.7rem, 4.2vw, 2.9rem); }
+
+/* ------------------------------------------------------- region titles -- */
+/* The game saying where you are, which is a different job from the banner
+   saying what just happened. Everything here is about AIR: the letters are
+   spaced wide, the rules are hairlines with generous gaps, and it fades in
+   and out slowly enough that it never feels like a notification. It sits
+   at 30% so it clears both the middle of the screen and the HUD. */
+
+.region {
+  position: fixed; left: 50%; top: 30%; transform: translate(-50%, -50%);
+  z-index: 8; width: min(46rem, 90vw); text-align: center; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; gap: 1.05rem;
+  opacity: 0; transition: opacity 1.1s ease;
+}
+.region.in { opacity: 1; }
+.region b {
+  display: block; font-family: var(--display); font-weight: 500;
+  font-size: clamp(1.9rem, 4.4vw, 3.1rem);
+  /* THE SPACING IS THE FIX. The complaint was that region names were
+     cramped; a third of an em between letters is what turns a word into
+     a place name. */
+  letter-spacing: .34em; text-indent: .34em;
+  text-transform: uppercase; line-height: 1.1; color: #fdf4dc;
+  text-shadow: 0 2px 20px rgba(0, 0, 0, .95), 0 1px 4px rgba(0, 0, 0, .9);
+  transform: translateY(8px);
+  transition: transform 1.3s cubic-bezier(.16, 1, .3, 1);
+}
+.region.in b { transform: none; }
+.region i {
+  display: block; font-style: italic; font-size: clamp(.9rem, 1.5vw, 1.05rem);
+  letter-spacing: .04em; color: #dccfa8;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, .95);
+}
+/* hairlines that grow outward from the centre as it arrives */
+.region .rg-rule {
+  display: block; height: 1px; width: 0;
+  background: linear-gradient(90deg, transparent, rgba(240, 226, 186, .62), transparent);
+  transition: width 1.4s cubic-bezier(.16, 1, .3, 1);
+}
+.region.in .rg-rule { width: min(26rem, 70vw); }
+
+@media (prefers-reduced-motion: reduce) {
+  .region b, .region .rg-rule { transition: none; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .guide, .hud-objective.in { animation: none !important; }

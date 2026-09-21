@@ -15,14 +15,40 @@
    game, so `rig.root.rotation.y = yaw` points a beast the way it is going.
 */
 
-import * as THREE from '../../lib/three.module.js?v=1790014861';
-import { MeshBuilder, blob, tube, box } from './Geo.js?v=1790014861';
-import { MATS } from './Materials.js?v=1790014861';
-import { mixHex, shade, tweak } from './Palette.js?v=1790014861';
-import { makeRng, clamp, lerp, TAU } from '../core/Util.js?v=1790014861';
+import * as THREE from '../../lib/three.module.js?v=1790019740';
+import { MeshBuilder, blob, tube, box } from './Geo.js?v=1790019740';
+import { MATS } from './Materials.js?v=1790019740';
+import { mixHex, shade, tweak } from './Palette.js?v=1790019740';
+import { makeRng, clamp, lerp, TAU } from '../core/Util.js?v=1790019740';
 
 /** Proportions per body plan, as fractions of the creature's length. */
 const PLAN = {
+  /*
+   * THE BEAR, and why the wood needed one.
+   *
+   * There was no bear at all — the five plans were hare, boar, wolf, cat
+   * and stag, and the biggest thing in the game was a direwolf standing
+   * about as tall as the fox. Nothing in the wood was IMPOSING.
+   *
+   * A bear is not a big wolf, and building it as one is exactly the
+   * "basic reskin" the brief objects to. The proportions that make it a
+   * bear: a chest half again as deep as the hips so it is front-heavy, a
+   * pronounced shoulder hump, SHORT legs for its bulk (this is what
+   * makes a bear read as heavy rather than as tall), a short thick neck
+   * carried low, a broad blunt head and essentially no tail. Round ears
+   * set wide on the skull are most of what makes it read as cute rather
+   * than as a monster, which is the line the art style has to walk.
+   */
+  bear: {
+    /* The neck looks too long for a bear on paper and is not: at 0.12 the
+       head was swallowed by the shoulder hump and the animal read as a
+       slab with ears. It needs enough neck to carry the head CLEAR of the
+       hump and forward of the chest — a bear's head is low and out in
+       front, which is where the whole silhouette comes from. */
+    len: 1.16, chest: 0.47, hip: 0.40, legs: 0.44, neck: 0.30, headL: 0.42,
+    snout: 0.46, ears: 'round', tail: 'stub', back: -0.04, shoulder: 0.18,
+    heavy: true,
+  },
   wolf: {
     len: 1.00, chest: 0.30, hip: 0.26, legs: 0.52, neck: 0.22, headL: 0.30,
     snout: 0.55, ears: 'point', tail: 'brush', back: 0.02, shoulder: 0.03,
@@ -205,6 +231,17 @@ export function buildBeast(spec, { seed = 1 } = {}) {
           pts: [[s * hl * 0.24, hl * 0.30, 0], [s * hl * 0.30, hl * 0.62, -hl * 0.04]],
           radius: t => hl * 0.13 * (1 - t), radial: 4, capStart: false, capEnd: true, sway: () => 0,
         });
+      } else if (P.ears === 'round') {
+        /* BIG ROUND EARS, SET WIDE. This is the single detail that keeps
+           a two-and-a-half-metre predator on the right side of the art
+           style: the same animal with small flat ears is a monster, and
+           with these it is something you would still rather not meet but
+           would recognise from a picture book. */
+        const ex = s * hl * 0.42, ey = hl * 0.34, ez = -hl * 0.06;
+        blob(b, ex, ey, ez, hl * 0.23, 4, 8, () => [0.42, 1.0, 1.0]);
+        b.color(mixHex(coat, 0xd8a89a, 0.45), 0.05, r);
+        blob(b, ex + s * hl * 0.05, ey, ez + hl * 0.02, hl * 0.15, 3, 7, () => [0.30, 0.90, 0.90]);
+        b.color(mixHex(coat, dark, 0.35), 0.06, r);
       } else {
         blob(b, s * hl * 0.30, hl * 0.20, -hl * 0.04, hl * 0.17, 3, 6, (x, y, z) => [0.45, 1.5, 0.6]);
       }
@@ -298,6 +335,9 @@ export function buildBeast(spec, { seed = 1 } = {}) {
       });
     } else if (P.tail === 'puff') {
       blob(b, 0, 0, -S * 0.12, S * 0.12, 3, 7);
+    } else if (P.tail === 'stub') {
+      /* barely there, which is itself a recognisable silhouette cue */
+      blob(b, 0, -S * 0.02, -S * 0.07, S * 0.075, 3, 6, () => [1, 0.85, 1]);
     } else {
       tube(b, {
         pts: [[0, 0, 0], [0, -S * 0.06, -S * 0.22]],

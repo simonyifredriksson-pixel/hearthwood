@@ -20,10 +20,10 @@
    themselves, and it fades down when nothing has changed for a while.
 */
 
-import { ic } from './Icons.js?v=1790014861';
-import { rarityOf, MUTATION_BY_ID, catchValue, fishTitle } from '../data/FishData.js?v=1790014861';
-import { RARITY } from '../art/Palette.js?v=1790014861';
-import { esc, clamp, clamp01 } from '../core/Util.js?v=1790014861';
+import { ic } from './Icons.js?v=1790019740';
+import { rarityOf, MUTATION_BY_ID, catchValue, fishTitle } from '../data/FishData.js?v=1790019740';
+import { RARITY } from '../art/Palette.js?v=1790019740';
+import { esc, clamp, clamp01 } from '../core/Util.js?v=1790019740';
 
 const money = n => '$' + Math.round(n).toLocaleString('en-US');
 
@@ -61,17 +61,32 @@ export class Hotbar {
     this.render();
   }
 
-  /** Pick a slot. Only the first two are selectable — fish are not held. */
+  /**
+   * Pick a slot. All five are selectable now: the fish slots used to be a
+   * read-only showcase, but a fish you can take out and carry is the
+   * point of having caught it, so 3/4/5 put that fish in the paw.
+   */
   select(i) {
-    if (i > 1) return;
-    if (i === 1 && !this.state.hasRod) { this.audio?.denied?.(); return; }
-    this.sel = i;
-    this.state.holding = i === 1 ? 'rod' : 'weapon';
+    const S = this.state;
+    if (i === 1 && !S.hasRod) { this.audio?.denied?.(); return; }
+
+    if (i > 1) {
+      const f = this._shown?.[i - 2];
+      if (!f) { this.audio?.denied?.(); return; }
+      /* pressing the slot the fish is already in puts it away, so the
+         same key both takes it out and stows it */
+      if (S.heldFish === f.uid) { S.stowFish(); this.sel = 0; }
+      else { S.holdFish(f.uid); this.sel = i; }
+    } else {
+      this.sel = i;
+      S.holding = i === 1 ? 'rod' : 'weapon';
+    }
+
     this.audio?.ui?.('tick');
     this._pulse = 1;
     this._sig = '';
     this.render();
-    this.onSelect?.(this.state.holding);
+    this.onSelect?.(S.holding);
   }
 
   /** 1..5, and Tab/X to flip between the weapon and the rod. */
@@ -98,9 +113,12 @@ export class Hotbar {
     /* the three best fish, which is what the player wants to look at */
     const fish = [...S.fish].sort((a, b) => catchValue(b) - catchValue(a)).slice(0, 3);
 
+    /* which fish are in which slot, so `select` knows what slot 3 means */
+    this._shown = fish;
+
     /* redraw only when something actually changed — this runs every frame */
     const sig = [
-      this.sel, w?.uid, w?.name, rod?.id, S.coin,
+      this.sel, w?.uid, w?.name, rod?.id, S.coin, S.holding, S.heldFish,
       fish.map(f => `${f.uid}:${f.fav ? 1 : 0}`).join(','), S.fish.length,
     ].join('|');
     if (sig === this._sig) return;
@@ -140,7 +158,10 @@ export class Hotbar {
       slots.push(this._slot(2 + i, {
         kind: 'fish', icon: 'drop',
         name: fishTitle(f),
-        sub: money(catchValue(f)),
+        /* while it is in your paws the slot says so instead of the price:
+           the price is what it is worth to a fisherman, and right now you
+           are carrying it about rather than selling it */
+        sub: S.heldFish === f.uid ? 'in your paws' : money(catchValue(f)),
         rare: R.css, mut: mut?.css || null, fav: f.fav, uid: f.uid,
         tag: R.name,
       }));

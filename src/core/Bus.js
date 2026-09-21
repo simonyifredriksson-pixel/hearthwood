@@ -72,6 +72,14 @@ export const EV = {
   /* --- fishing and the economy ----------------------------------------- */
   ROD_GIVEN: 'rod:given',
   ROD_CHANGED: 'rod:changed',
+  /* the cast landing and the bite are WORLD events before they are UI
+     events: the rig listens for them to splash, ring and boil the water,
+     and the reeling panel deliberately does not listen to either */
+  FISH_SPLASH: 'fish:splash',    // the bobber has hit the water
+  FISH_BITING: 'fish:biting',    // something is down there; the water boils
+  FISH_OFF: 'fish:off',          // ...and it lost interest
+  BEAST_HURT: 'beast:hurt',      // carries the damage, the hp and where to draw it
+  BEAST_LOST: 'beast:lost',      // gave up the chase and is going home
   FISH_HOOKED: 'fish:hooked',
   FISH_CAUGHT: 'fish:caught',
   FISH_LOST: 'fish:lost',

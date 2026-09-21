@@ -19,8 +19,8 @@
    joints. Nothing rebuilds geometry, ever.
 */
 
-import { clamp, clamp01, lerp, damp, dampAngle, TAU, smoothstep, makeRng } from '../core/Util.js?v=1790014861';
-import { applyCarry, applyAttack, applyCharge } from './Combat.js?v=1790014861';
+import { clamp, clamp01, lerp, damp, dampAngle, TAU, smoothstep, makeRng } from '../core/Util.js?v=1790019740';
+import { applyCarry, applyAttack, applyCharge } from './Combat.js?v=1790019740';
 
 /* ========================================================================= */
 /* SPECIES DEFINITIONS                                                       */
@@ -185,8 +185,130 @@ export function poseAnimal(rig, st) {
     default: poseFox(rig, A, st, dt, speed, moving); break;
   }
 
+  /* THE CAST GOES ON TOP of whatever the gait left behind, the same way
+     the worker actions do — it only writes the arms, the shoulders and a
+     little spine, so the fox keeps breathing and its tail keeps moving
+     underneath a throw. */
+  if (st.cast) applyCast(rig, A, st.cast, dt);
+
   headLook(rig, A, st, dt);
   return { bodyY: A.bodyY };
+}
+
+/* ========================================================================= */
+/* CASTING A LINE                                                            */
+/* ========================================================================= */
+
+/**
+ * The throw, in four movements.
+ *
+ *   LOAD   (0.00–0.34)  the rod comes back over the shoulder and the body
+ *                       turns with it. Slow, because the wind-up is what
+ *                       tells the player a throw is about to happen.
+ *   SNAP   (0.34–0.52)  everything comes forward at once. Short — a cast
+ *                       is a flick, and a wind-up and a release that take
+ *                       the same time read as a slow-motion replay.
+ *   FOLLOW (0.52–0.75)  the rod carries past the stop and settles.
+ *   SETTLE (0.75–1.00)  back to holding it out over the water.
+ *
+ * The asymmetry between LOAD and SNAP is the whole animation. A sine wave
+ * in both directions is a wave, not a throw — the same lesson the
+ * Stickwright's hammer beat learned.
+ *
+ * Afterwards it holds a rod-out pose for as long as the line is in the
+ * water, with a slow drift so the fox is never a statue, and the arms
+ * brace and pull while a fish is fighting.
+ *
+ * @param cast {{t:number, state:string, pull:number}}
+ */
+function applyCast(rig, A, cast, dt) {
+  const p = rig.parts;
+  if (!p.arms?.length) return;
+  const L = p.arms[0], R = p.arms[1];
+  const st = cast.state;
+
+  /* --- the rod-out rest pose, which everything else departs from ------- */
+  const rest = () => {
+    R.shoulder.rotation.x = -0.92;
+    R.shoulder.rotation.z = R.side * 0.20;
+    R.elbow.rotation.x = -0.55;
+    L.shoulder.rotation.x = -0.70;
+    L.shoulder.rotation.z = L.side * 0.34;
+    L.elbow.rotation.x = -0.95;
+    p.torso.rotation.y = 0;
+    p.torso.rotation.x = 0.04;
+  };
+
+  if (st === 'casting') {
+    const u = clamp01(cast.t);
+    let load = 0, snap = 0, follow = 0;
+    if (u < 0.34) {
+      load = smoothstep(u / 0.34);
+    } else if (u < 0.52) {
+      const k = (u - 0.34) / 0.18;
+      load = 1 - k;
+      snap = k * k;                               // accelerating out of the stop
+    } else if (u < 0.75) {
+      const k = (u - 0.52) / 0.23;
+      snap = 1 - smoothstep(k);
+      follow = Math.sin(k * Math.PI) * 0.5;
+    } else {
+      follow = (1 - (u - 0.75) / 0.25) * 0.25;
+    }
+
+    rest();
+    /* back over the shoulder, then through and down */
+    R.shoulder.rotation.x = -0.92 - load * 1.45 + snap * 1.30;
+    R.shoulder.rotation.z = R.side * (0.20 + load * 0.34) - snap * 0.12;
+    R.elbow.rotation.x = -0.55 - load * 0.95 + snap * 0.60 - follow * 0.25;
+    L.shoulder.rotation.x = -0.70 - load * 0.45 + snap * 0.55;
+    L.elbow.rotation.x = -0.95 - load * 0.30 + snap * 0.35;
+    /* the whole body turns into it: a cast from the arm alone is a wave */
+    p.torso.rotation.y = load * 0.26 - snap * 0.30;
+    p.torso.rotation.x = -load * 0.10 + snap * 0.20 - follow * 0.06;
+    p.head.rotation.y = load * 0.14 - snap * 0.10;
+    p.head.rotation.x = snap * 0.12;
+    if (p.hip) p.hip.rotation.y = load * 0.10 - snap * 0.12;
+    return;
+  }
+
+  rest();
+
+  if (st === 'fight') {
+    /* BRACED. Leaning back against it, both paws on the rod, with a
+       heave whenever the player is holding the button — so from outside
+       the interface you can still see who is winning. */
+    const heave = clamp01(cast.pull ?? 0);
+    const w = Math.sin(A.t * 5.2) * 0.5 + 0.5;
+    R.shoulder.rotation.x = -1.10 - heave * 0.30 - w * 0.10;
+    R.elbow.rotation.x = -0.80 - heave * 0.35;
+    L.shoulder.rotation.x = -0.95 - heave * 0.22;
+    L.elbow.rotation.x = -1.15 - heave * 0.25;
+    p.torso.rotation.x = -0.12 - heave * 0.16;    // leaning back
+    p.torso.rotation.y = Math.sin(A.t * 1.7) * 0.08;
+    p.head.rotation.x = 0.10;
+    if (p.hip) p.hip.rotation.x = -0.06 - heave * 0.08;
+    return;
+  }
+
+  if (st === 'bite') {
+    /* alert: the rod comes up a little and the head drops to the water */
+    R.shoulder.rotation.x = -1.02;
+    R.elbow.rotation.x = -0.62;
+    p.torso.rotation.x = 0.10;
+    p.head.rotation.x = 0.22;
+    return;
+  }
+
+  /* WAITING. Almost nothing, but never nothing: a two-second drift on the
+     rod hand and a slow breath, so a player who stands still for thirty
+     seconds is watching a fox fish rather than a paused frame. */
+  const d = A.t * 0.5;
+  R.shoulder.rotation.x += Math.sin(d) * 0.045;
+  R.shoulder.rotation.z += Math.sin(d * 0.73 + 1.1) * 0.03;
+  L.elbow.rotation.x += Math.sin(d * 0.9 + 2.0) * 0.04;
+  p.torso.rotation.y += Math.sin(d * 0.61) * 0.035;
+  p.head.rotation.x += 0.10 + Math.sin(d * 0.8) * 0.03;
 }
 
 /* ========================================================================= */

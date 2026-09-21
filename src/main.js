@@ -13,45 +13,61 @@
      7. ui, then render
 */
 
-import * as THREE from '../lib/three.module.js?v=1790014861';
-import { input } from './core/Input.js?v=1790014861';
-import { CameraRig } from './core/CameraRig.js?v=1790014861';
-import { audio } from './core/Audio.js?v=1790014861';
-import { bus, EV } from './core/Bus.js?v=1790014861';
-import { BUILD, RENDER, WORLD, GAME, PLAYER } from './core/Config.js?v=1790014861';
-import { clamp, clamp01, lerp, now, Rolling } from './core/Util.js?v=1790014861';
+import * as THREE from '../lib/three.module.js?v=1790019740';
+import { input } from './core/Input.js?v=1790019740';
+import { CameraRig } from './core/CameraRig.js?v=1790019740';
+import { audio } from './core/Audio.js?v=1790019740';
+import { bus, EV } from './core/Bus.js?v=1790019740';
+import { BUILD, RENDER, WORLD, GAME, PLAYER } from './core/Config.js?v=1790019740';
+import { clamp, clamp01, lerp, now, Rolling } from './core/Util.js?v=1790019740';
 
-import { MATS } from './art/Materials.js?v=1790014861';
-import { World } from './world/World.js?v=1790014861';
-import { Player } from './game/Player.js?v=1790014861';
-import { NPCs } from './game/NPCs.js?v=1790014861';
-import { GameState } from './game/State.js?v=1790014861';
-import { SPECIES } from './game/Anim.js?v=1790014861';
-import { weaponMeshes } from './art/WeaponArt.js?v=1790014861';
-import { rodMeshes } from './art/RodArt.js?v=1790014861';
-import { WEAPON_CLASSES } from './data/WeaponData.js?v=1790014861';
-import { RARITY } from './art/Palette.js?v=1790014861';
-import { STICKWRIGHT, FISHERMAN } from './data/VillagerData.js?v=1790014861';
-import { RARE } from './data/StickData.js?v=1790014861';
-import { STARTER_ROD } from './data/RodData.js?v=1790014861';
+import { MATS } from './art/Materials.js?v=1790019740';
+import { World } from './world/World.js?v=1790019740';
+import { Player } from './game/Player.js?v=1790019740';
+import { NPCs } from './game/NPCs.js?v=1790019740';
+import { GameState } from './game/State.js?v=1790019740';
+import { SPECIES } from './game/Anim.js?v=1790019740';
+import { weaponMeshes } from './art/WeaponArt.js?v=1790019740';
+import { rodMeshes } from './art/RodArt.js?v=1790019740';
+import { fishMeshes } from './art/FishArt.js?v=1790019740';
+import { fishTitle } from './data/FishData.js?v=1790019740';
+import { dangerBand, BAND_NAMES } from './data/VillageData.js?v=1790019740';
 
-import { UI } from './ui/UI.js?v=1790014861';
-import { Talk } from './ui/Talk.js?v=1790014861';
-import { RodShop } from './ui/RodShop.js?v=1790014861';
-import { Hotbar } from './ui/Hotbar.js?v=1790014861';
-import { MapScreen } from './ui/MapScreen.js?v=1790014861';
-import { Fog } from './game/MapData.js?v=1790014861';
-import { Effects } from './game/Effects.js?v=1790014861';
-import { SatchelScreen, Turntable } from './ui/Satchel.js?v=1790014861';
-import { WorkshopScreen, RevealScreen } from './ui/Workshop.js?v=1790014861';
-import { ForgeScene } from './game/Forge.js?v=1790014861';
-import { Workers } from './game/Workers.js?v=1790014861';
-import { Wildlife } from './game/Wildlife.js?v=1790014861';
-import { Fishing, FISH_STATE } from './game/Fishing.js?v=1790014861';
-import { FishingUI } from './ui/FishingUI.js?v=1790014861';
-import { Quest, FESTIVAL_SPEECH } from './game/Quest.js?v=1790014861';
-import { CHARGE } from './game/Combat.js?v=1790014861';
-import { ic } from './ui/Icons.js?v=1790014861';
+/**
+ * A line under each region name. The name says where; this says what it
+ * is like there, which is the whole reason the player cares which band
+ * they are standing in.
+ */
+const BAND_SUB = [
+  '', 'Quiet water and easy fish', 'The wood thickens',
+  'Something is watching', 'Few come back this far', 'Where the old fish live',
+];
+import { WEAPON_CLASSES } from './data/WeaponData.js?v=1790019740';
+import { RARITY } from './art/Palette.js?v=1790019740';
+import { STICKWRIGHT, FISHERMAN } from './data/VillagerData.js?v=1790019740';
+import { RARE } from './data/StickData.js?v=1790019740';
+import { STARTER_ROD } from './data/RodData.js?v=1790019740';
+
+import { UI } from './ui/UI.js?v=1790019740';
+import { Talk } from './ui/Talk.js?v=1790019740';
+import { RodShop } from './ui/RodShop.js?v=1790019740';
+import { Minimap } from './ui/Minimap.js?v=1790019740';
+import { Combatant } from './ui/Combatant.js?v=1790019740';
+import { Hotbar } from './ui/Hotbar.js?v=1790019740';
+import { MapScreen } from './ui/MapScreen.js?v=1790019740';
+import { Fog } from './game/MapData.js?v=1790019740';
+import { Effects } from './game/Effects.js?v=1790019740';
+import { SatchelScreen, Turntable } from './ui/Satchel.js?v=1790019740';
+import { WorkshopScreen, RevealScreen } from './ui/Workshop.js?v=1790019740';
+import { ForgeScene } from './game/Forge.js?v=1790019740';
+import { Workers } from './game/Workers.js?v=1790019740';
+import { Wildlife } from './game/Wildlife.js?v=1790019740';
+import { Fishing, FISH_STATE } from './game/Fishing.js?v=1790019740';
+import { FishingRig } from './game/FishingRig.js?v=1790019740';
+import { FishingUI } from './ui/FishingUI.js?v=1790019740';
+import { Quest, FESTIVAL_SPEECH } from './game/Quest.js?v=1790019740';
+import { CHARGE } from './game/Combat.js?v=1790019740';
+import { ic } from './ui/Icons.js?v=1790019740';
 
 /* ========================================================================= */
 
@@ -85,7 +101,8 @@ input.attach(canvas);
 
 const G = {
   state: null, world: null, player: null, npcs: null, ui: null,
-  workers: null, wildlife: null, fishing: null, fishUI: null, quest: null, forge: null,
+  workers: null, wildlife: null, fishing: null, fishRig: null, fishUI: null,
+  quest: null, forge: null, minimap: null, cfx: null,
   talk: null, rodShop: null, hotbar: null, fog: null,
   fx: null, turntable: null,
   /* the cutscene director needs these two by name */
@@ -127,11 +144,17 @@ async function boot() {
   G.workers.plan(7);
   G.wildlife = new Wildlife(G.world, scene);
   G.fishing = new Fishing({ audio });
+  /* the float, the line and the water effects. The minigame is the rules;
+     this is the part of fishing that happens where the player is looking. */
+  G.fishRig = new FishingRig(scene, G.world);
   G.fishUI = new FishingUI(document.getElementById('ui'));
   G.audio = audio;
   G.forge = new ForgeScene(G);
   G.fx = new Effects(scene);
   G.talk = new Talk(document.getElementById('ui'), { audio });
+  /* the dial in the corner, and the two bits of combat feedback */
+  G.minimap = new Minimap(document.getElementById('ui'), G);
+  G.cfx = new Combatant(document.getElementById('ui'), camera);
 
   setBoot(0.96, 'lighting the lanterns');
   await new Promise(r => setTimeout(r, 60));
@@ -217,7 +240,7 @@ function startGame(species, saved) {
   if (G.state.equipped) equipFromState();
 
   G.mode = 'play';
-  input.blocked = false;
+  input.releaseAll();      // whatever the title screen was holding, let go
 
   G.ui.setSatchel(G.state.sticks.length, G.state.capacity);
   G.ui.setWeapon(G.state.equippedWeapon);
@@ -325,7 +348,46 @@ function doInteract() {
   }
 }
 
+/**
+ * Talk to somebody, and ALWAYS come back from it.
+ *
+ * The conversation holds its own claim on the input for its whole
+ * duration, in a try/finally, and that is deliberately belt and braces
+ * over the per-panel claims underneath it:
+ *
+ *   - Without it there are gaps. Selling a fish closes the panel, waits
+ *     700 ms for the "Here's your money" line and then opens the panel
+ *     again; in between, nothing held a claim, so the fox could take a
+ *     step and the mouse could get captured before the menu snapped back.
+ *   - With it, a throw anywhere inside — a bad fish record, a missing
+ *     village, anything — still gives the player their legs back. The
+ *     reported bug was that you had to reload the page after talking to
+ *     anyone, and no amount of careful release-on-every-path is worth as
+ *     much as one `finally`.
+ *
+ * It is also not re-entrant: walking into a second NPC mid-sentence used
+ * to start a second conversation over the top of the first.
+ */
+let _talking = false;
+
 async function talkTo(npc) {
+  if (_talking) return;
+  _talking = true;
+  input.hold('convo');
+  try {
+    await _converse(npc);
+  } catch (e) {
+    console.error('[talk] conversation threw', e);
+  } finally {
+    _talking = false;
+    input.release('convo');
+    G.talk?.close(null);
+    G.rodShop?.close();
+    if (G.player) G.player.lookAt = null;
+  }
+}
+
+async function _converse(npc) {
   G.player.lookAt = [npc.x, npc.y + npc.rig.metrics.eyeHeight, npc.z];
   npc.talkT = Math.max(npc.talkT, 4);
   npc.targetYaw = Math.atan2(G.player.x - npc.x, G.player.z - npc.z);
@@ -555,11 +617,20 @@ bus.on(EV.FISH_CAUGHT, ({ fish }) => {
   G.fishUI.reveal(fish).then(() => {
     G.fishing.reset();
     G.fishing.state = 'idle';
+    G.fishRig?.end();
   });
 });
 
+/* THE NUMBER, on the frame the blow lands. */
+bus.on(EV.BEAST_HURT, ({ at, damage, crit }) => {
+  G.cfx?.damage(at, damage, { crit });
+});
+
 bus.on(EV.FISH_LOST, () => {
-  setTimeout(() => { if (G.fishing) { G.fishing.reset(); G.fishing.state = 'idle'; } }, 1400);
+  setTimeout(() => {
+    if (G.fishing) { G.fishing.reset(); G.fishing.state = 'idle'; }
+    G.fishRig?.end();
+  }, 1400);
 });
 
 /* A VILLAGE IS PEOPLED THE MOMENT IT IS RAISED.
@@ -610,13 +681,17 @@ function startFishing(spot = null) {
      and fortune bias what is down there — so a better rod genuinely changes
      what comes out of the same pond. */
   const rod = G.state.currentRod;
-  G.fishing.cast({
+  const where = {
     ...s,
     depth: Math.min(s.depth ?? 0.45, rod.reach),
     remoteness: clamp01(Math.hypot(P.x - WORLD.village.cx, P.z - WORLD.village.cz) / 700),
     night: G.world.sky.night,
     rod,
-  });
+  };
+  G.fishing.cast(where);
+  /* The float flies from the rod tip, which is on the end of a moving
+     arm — so the rig is handed a function rather than a position. */
+  G.fishRig?.begin(where, () => P.rodTip() || new THREE.Vector3(P.x, P.y + 1.0, P.z));
 }
 
 /**
@@ -719,6 +794,29 @@ async function runForge(stick) {
 function equipFromState() {
   const S = G.state;
   if (!G.player) return;
+
+  /* A FISH IN THE PAW, AT ITS REAL SIZE.
+     The whole reason to carry one around is to show somebody, so nothing
+     here normalises the scale: a 9 cm minnow is a scrap between the
+     fox's fingers and a 1.4 m river father is an armful. `Player.equip`
+     scales a weapon to fit the wielder, which is right for a three-metre
+     branch and exactly wrong here, so the fish reports a length of 1 and
+     carries its true size in the mesh. */
+  if (S.holdingFish) {
+    const f = S.heldFishRecord;
+    if (G.player.heldFishUid !== f.uid) {
+      const built = fishMeshes(f, MATS, { lod: 0 });
+      G.player.equip({
+        meshes: built.meshes, info: { length: 1 },
+        weapon: null, cls: 'fish', fish: f,
+      });
+      G.player.heldFishUid = f.uid;
+      G.player.heldRodId = null;
+    }
+    G.ui.setWeapon({ name: fishTitle(f) });
+    return;
+  }
+  G.player.heldFishUid = null;
 
   if (S.holdingRod) {
     const rod = S.currentRod;
@@ -842,7 +940,7 @@ function frame() {
        strikes the bite. */
     if (G.fishing.active) {
       if (input.mouseDown) G.fishing.press(); else G.fishing.release();
-      if (input.rawPressed('Escape', 'KeyQ')) G.fishing.cancel();
+      if (input.rawPressed('Escape', 'KeyQ')) { G.fishing.cancel(); G.fishRig?.end(); }
     } else if (input.rawPressed('KeyR') && G.state.hasRod) {
       startFishing();
     }
@@ -903,6 +1001,42 @@ function frame() {
   G.fx?.sprint(P, dt, P.quad);
   G.fx?.update(dt);
 
+  /* --- HIT FEEDBACK ----------------------------------------------------
+     Every creature that has been hit in the last second keeps its bar up;
+     the rest have none. Driven from the creature's own `barT` rather than
+     from a list the UI maintains, so a creature that despawns mid-fight
+     cannot leave a bar floating over empty ground. */
+  for (const b of G.wildlife?.list || []) {
+    if ((b.barT || 0) <= 0) continue;
+    G.cfx?.track(b, [b.x, b.y + (b.spec.size || 0.7) * 1.7, b.z],
+      b.hp, b.maxHp ?? b.spec.hp, b.spec.name, b.barT);
+  }
+  G.cfx?.update(dt);
+  G.minimap?.update(dt);
+  G.minimap?.show(!uiUp && !cine);
+
+  /* --- WHERE YOU ARE, announced once when you get there ----------------
+     Hysteresis, not a bare comparison: the bands are concentric rings and
+     walking along one would otherwise fire the title over and over. The
+     band has to be held for a couple of seconds before it counts as
+     having been entered. */
+  {
+    const band = dangerBand(P.x, P.z);
+    if (band !== G._bandSeen) {
+      if (band === G._bandPending) {
+        G._bandHold = (G._bandHold || 0) + dt;
+        if (G._bandHold > 2.0) {
+          G._bandSeen = band;
+          G._bandHold = 0;
+          if (!cine && !uiUp && G._bandReady) {
+            G.ui.region(BAND_NAMES[band], BAND_SUB[band] || '');
+          }
+          G._bandReady = true;      // the first one is just where you woke up
+        }
+      } else { G._bandPending = band; G._bandHold = 0; }
+    } else { G._bandPending = band; G._bandHold = 0; }
+  }
+
   /* --- THE MAP FILLS IN BY WALKING ------------------------------------
      Revealed here, in the world, rather than when the map is opened: the
      point of the fog is that it is a record of where the player has
@@ -914,7 +1048,17 @@ function frame() {
   }
 
   G.fishing.update(dt);
+  G.fishRig?.update(dt, G.fishing);
   G.fishUI.update(G.fishing);
+
+  /* THE FOX KNOWS IT IS FISHING.
+     The animator is told which part of the cast we are in; everything
+     else about the pose — the gait, the tail, the breathing — carries on
+     underneath it. When there is no line out this is null and the
+     animator does not touch the arms at all. */
+  P.castPose = G.fishing.active
+    ? { t: G.fishing.castT, state: G.fishing.state, pull: G.fishing.holding ? 1 : 0 }
+    : null;
 
   /* --- 6. interaction --------------------------------------------------- */
   G.target = (uiUp || cine) ? null : pickTarget();
@@ -1009,7 +1153,12 @@ addEventListener('resize', () => {
 canvas.addEventListener('mousedown', e => {
   if (e.button !== 0) return;
   audio.unlock();
-  if (G.mode === 'play' && !G.ui.busy && !input.pointerLocked) input.requestLock();
+  /* `input.blocked`, not `G.ui.busy`: ui.busy only knows about the screen
+     stack and the dialogue box, so a click anywhere near the compact talk
+     panel or the rod shop used to re-capture the mouse underneath them and
+     the options stopped being clickable. The claim set knows about all of
+     them. */
+  if (G.mode === 'play' && !input.blocked && !input.pointerLocked) input.requestLock();
 });
 addEventListener('keydown', () => audio.unlock(), { once: true });
 

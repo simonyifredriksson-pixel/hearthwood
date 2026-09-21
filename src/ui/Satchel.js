@@ -14,24 +14,24 @@
    row of tabs, and the sort control applies to all of them.
 */
 
-import * as THREE from '../../lib/three.module.js?v=1790014861';
-import { MeshBuilder } from '../art/Geo.js?v=1790014861';
-import { buildStick } from '../art/StickGen.js?v=1790014861';
-import { buildWeapon } from '../art/WeaponArt.js?v=1790014861';
-import { buildFish } from '../art/FishArt.js?v=1790014861';
-import { buildRod } from '../art/RodArt.js?v=1790014861';
-import { MATS } from '../art/Materials.js?v=1790014861';
+import * as THREE from '../../lib/three.module.js?v=1790019740';
+import { MeshBuilder } from '../art/Geo.js?v=1790019740';
+import { buildStick } from '../art/StickGen.js?v=1790019740';
+import { buildWeapon } from '../art/WeaponArt.js?v=1790019740';
+import { buildFish } from '../art/FishArt.js?v=1790019740';
+import { buildRod } from '../art/RodArt.js?v=1790019740';
+import { MATS } from '../art/Materials.js?v=1790019740';
 
-import { stickBlurb, stickValue, SPECIES as WOOD } from '../data/StickData.js?v=1790014861';
+import { stickBlurb, stickValue, SPECIES as WOOD } from '../data/StickData.js?v=1790019740';
 import {
   catchValue, fishTitle, rarityOf, MUTATION_BY_ID, FISH,
 } from '../data/FishData.js';
-import { RODS, ROD_STATS, rodOf } from '../data/RodData.js?v=1790014861';
-import { VILLAGE_BY_ID } from '../data/VillageData.js?v=1790014861';
-import { RARITY, onPaper } from '../art/Palette.js?v=1790014861';
-import { ic } from './Icons.js?v=1790014861';
-import { makeScreen, stickRow, stickDetail } from './UI.js?v=1790014861';
-import { esc, clamp, clamp01, damp, TAU } from '../core/Util.js?v=1790014861';
+import { RODS, ROD_STATS, rodOf } from '../data/RodData.js?v=1790019740';
+import { VILLAGE_BY_ID } from '../data/VillageData.js?v=1790019740';
+import { RARITY, onPaper } from '../art/Palette.js?v=1790019740';
+import { ic } from './Icons.js?v=1790019740';
+import { makeScreen, stickRow, stickDetail } from './UI.js?v=1790019740';
+import { esc, clamp, clamp01, damp, TAU } from '../core/Util.js?v=1790019740';
 
 /* ========================================================================= */
 /* A REUSABLE TURNTABLE                                                      */
@@ -461,6 +461,12 @@ export class SatchelScreen {
       this._lastSig = '';
       this.pick(l.length ? this._uid(l[0]) : null);
     });
+    on('#act-hold', () => {
+      /* a second press puts it away again, so the button is a toggle and
+         the player is never stuck holding a fish they cannot stow */
+      if (S.heldFish === this.sel) S.stowFish(); else S.holdFish(this.sel);
+      this.render();
+    });
     on('#act-fav', () => {
       S.toggleFavourite(this.sel);
       this._lastSig = '';
@@ -535,7 +541,12 @@ export class SatchelScreen {
     if (!x) return '';
 
     if (this.tab === 'fish') {
-      return `<button class="btn${x.fav ? ' on' : ''}" id="act-fav">${ic('star')} ${x.fav ? 'Kept back' : 'Keep this one'}</button>`
+      /* HOLDING IT UP is the first action, not the third: a rare catch is
+         worth carrying around and showing people, and that has to be one
+         obvious button rather than something the player discovers. */
+      const held = S.heldFish === x.uid;
+      return `<button class="btn${held ? ' on' : ''}" id="act-hold">${ic(held ? 'check' : 'paw')} ${held ? 'In your paws' : 'Hold it up'}</button>`
+        + `<button class="btn ghost${x.fav ? ' on' : ''}" id="act-fav">${ic('star')} ${x.fav ? 'Kept back' : 'Keep this one'}</button>`
         + (x.fav ? '' : `<button class="btn ghost" id="act-release">${ic('drop')} Put it back</button>`);
     }
     if (this.tab === 'sticks') {

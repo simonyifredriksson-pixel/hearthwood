@@ -15,13 +15,13 @@
    with its vertex red channel carrying depth for the shader.
 */
 
-import * as THREE from '../../lib/three.module.js?v=1790014861';
-import { MeshBuilder, quadIdx } from '../art/Geo.js?v=1790014861';
-import { WORLD } from '../core/Config.js?v=1790014861';
-import { riverX, riverLevel } from './Terrain.js?v=1790014861';
-import { WATER, mixHex } from '../art/Palette.js?v=1790014861';
-import { Fields } from './Scatter.js?v=1790014861';
-import { clamp, clamp01, lerp, invLerp } from '../core/Util.js?v=1790014861';
+import * as THREE from '../../lib/three.module.js?v=1790019740';
+import { MeshBuilder, quadIdx } from '../art/Geo.js?v=1790019740';
+import { WORLD } from '../core/Config.js?v=1790019740';
+import { riverX, riverLevel } from './Terrain.js?v=1790019740';
+import { WATER, mixHex } from '../art/Palette.js?v=1790019740';
+import { Fields } from './Scatter.js?v=1790019740';
+import { clamp, clamp01, lerp, invLerp } from '../core/Util.js?v=1790019740';
 
 /** Vertices along a tile edge, by LOD. LOD 0 is 2.5 m steps. */
 export const TILE_RES = [26, 14, 8, 4];

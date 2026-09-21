@@ -86,6 +86,34 @@ export const BEASTS = {
     blurb: 'A charge you can hear coming and still not get out of the way of.',
   },
 
+  /*
+   * THE BEARS.
+   *
+   * There were none, and the biggest thing in the wood was a direwolf
+   * standing about as tall as the fox — nothing was imposing, which is
+   * the complaint. A bear is the animal that does that job: it is not
+   * fast and it does not circle, it simply arrives and is enormous.
+   *
+   * SIZE IS THE DESIGN. The fox's eyes are at 0.92 m. A Bramblecoat at
+   * 1.95 is head and shoulders over it and a Greatmaw at 2.60 is nearly
+   * three times its height — which is the whole point, and it is why
+   * they are deliberately SLOW. Something that big and that quick would
+   * be unfair; something that big and ponderous is a thing you decide
+   * whether to fight, which is the encounter worth having.
+   *
+   * Their difficulty is still behaviour, not health: they barely dodge
+   * and they telegraph hugely, but the wind-up is long, the swing
+   * chains, and the recovery is short enough that there is only a small
+   * window to be in front of them.
+   */
+  bramblecoat: {
+    id: 'bramblecoat', name: 'Bramblecoat Bear', band: 3, w: 9,
+    hp: 7, notice: 30, lose: 48, speed: 5.2, circle: 0.05, wind: 0.85, recover: 0.55,
+    chain: 2, dodge: 0.05, pack: 1, calls: false, rout: 4,
+    size: 1.95, build: 'bear', cols: [0x5a4230, 0x8a6a48, 0x2e2018],
+    blurb: 'It stands up to see you better, and that is worse.',
+  },
+
   /* ------------------------------------------ BAND 4: dangerous wilderness */
   direwolf: {
     id: 'direwolf', name: 'Direwolf', band: 4, w: 10,
@@ -110,6 +138,14 @@ export const BEASTS = {
     size: 1.45, build: 'wolf', cols: [0xcfe0ea, 0xf4fbff, 0x7fa8c4],
     glow: 0x9fd8ff,
     blurb: 'The cold arrives slightly before it does.',
+  },
+  greatmaw: {
+    id: 'greatmaw', name: 'Greatmaw', band: 5, w: 4,
+    hp: 8, notice: 34, lose: 60, speed: 5.8, circle: 0.08, wind: 0.72, recover: 0.34,
+    chain: 3, dodge: 0.04, pack: 1, calls: false, rout: 6,
+    size: 2.60, build: 'bear', cols: [0x2a2622, 0x4e463c, 0x14110e],
+    glow: 0xff8a4a,
+    blurb: 'The wood goes quiet a long way before you see it.',
   },
   mirestalker: {
     id: 'mirestalker', name: 'Mire Stalker', band: 5, w: 5,

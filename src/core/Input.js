@@ -19,8 +19,26 @@ class InputSystem {
     this.justPressed = new Set();
     this.justReleased = new Set();
 
-    /** Set while a UI screen or a conversation owns the input. */
-    this.blocked = false;
+    /**
+     * WHO CURRENTLY OWNS THE INPUT, by name.
+     *
+     * This was one boolean, `blocked`, assigned from five different places.
+     * It was fine until two of them could be up at once: the compact talk
+     * panel set it true and never set it false, so selecting ANY option
+     * from a fisherman left the fox unable to move for the rest of the
+     * session — the only way out was reloading the page. The screen stack
+     * had the opposite failure waiting: closing a screen recomputed the
+     * flag from `screens.length` alone, which would have unblocked the
+     * world while a talk panel was still up.
+     *
+     * A single shared boolean written by several owners cannot express
+     * "two things are open", so it is a set of claims instead. Each
+     * overlay takes its own named claim and drops its own, nobody can
+     * drop anybody else's, and `blocked` is derived rather than assigned.
+     * Forgetting to release is now the only way to get stuck, and
+     * `test_game` asserts the set is empty after every interaction.
+     */
+    this._holds = new Set();
 
     this.mouse = { x: 0, y: 0, nx: 0, ny: 0, wheel: 0 };
     this.lookDx = 0;
@@ -175,6 +193,36 @@ class InputSystem {
   }
 
   onLockChange(fn) { this._onLockChange = fn; }
+
+  /* ====================================================================== */
+  /* WHO OWNS THE INPUT                                                     */
+  /* ====================================================================== */
+
+  /**
+   * Claim the input for an overlay. Taking a claim always drops the
+   * pointer lock, because every caller wants a cursor.
+   * @param {string} id  a stable name: 'screen', 'dialogue', 'talk', 'shop'
+   */
+  hold(id) {
+    this._holds.add(id);
+    this.releaseLock();
+    /* anything held down when the menu opened must not still be held when
+       it closes — otherwise you shut a shop and walk off in whatever
+       direction you happened to be pressing */
+    this.keys.clear();
+    this.buttons = [false, false, false];
+  }
+
+  /** Drop one claim. Safe to call when it was never taken. */
+  release(id) { this._holds.delete(id); }
+
+  /** Drop every claim. For boot, and for "get me out of here". */
+  releaseAll() { this._holds.clear(); }
+
+  /** @returns {string[]} for tests and for the debug overlay */
+  get holds() { return [...this._holds]; }
+
+  get blocked() { return this._holds.size > 0; }
 
   get lookActive() { return !this.blocked && (this.pointerLocked || this.buttons[2]); }
 

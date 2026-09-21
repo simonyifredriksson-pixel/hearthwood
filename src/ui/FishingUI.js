@@ -21,10 +21,10 @@
    this is the view while you do it.
 */
 
-import { FISH_STATE } from '../game/Fishing.js?v=1790014861';
-import { rarityOf, fishTitle, MUTATION_BY_ID, catchValue, FISH } from '../data/FishData.js?v=1790014861';
-import { ic } from './Icons.js?v=1790014861';
-import { esc, clamp, clamp01 } from '../core/Util.js?v=1790014861';
+import { FISH_STATE } from '../game/Fishing.js?v=1790019740';
+import { rarityOf, fishTitle, MUTATION_BY_ID, catchValue, FISH } from '../data/FishData.js?v=1790019740';
+import { ic } from './Icons.js?v=1790019740';
+import { esc, clamp, clamp01 } from '../core/Util.js?v=1790019740';
 
 /** Carved into the timber down the side of the gauge. */
 const DEPTHS = ['shallows', '', 'weed', '', 'deep', '', 'dark'];
@@ -85,20 +85,42 @@ export class FishingUI {
   /** Called every frame with the Fishing model. */
   update(F) {
     if (!F || !F.active) { this.show(false); return; }
-    this.show(true);
+
+    /*
+     * THE INTERFACE IS NOT HOW YOU FIND OUT A FISH IS ON.
+     *
+     * It used to appear the instant you pressed cast and sit there
+     * through the whole wait, which meant the player watched a gauge
+     * rather than the water, and the bite was something the panel told
+     * them about. The brief is explicit about the order: the fish bites,
+     * the water bubbles, the float reacts, and ONLY THEN does the reeling
+     * interface come up.
+     *
+     * So during the throw and the wait there is no panel at all — there
+     * is a fox holding a rod and a float sitting on a river, which is the
+     * whole point of the activity. The boil gets four tenths of a second
+     * on its own, which is long enough to be seen and short enough that
+     * nobody misses a strike because of it.
+     */
+    const st = F.state;
+    const reeling = st === FISH_STATE.FIGHT
+      || st === FISH_STATE.CAUGHT
+      || st === FISH_STATE.LOST
+      || (st === FISH_STATE.BITE && F.stateT > 0.42);
+    this.show(reeling);
+    if (!reeling) { this._lastState = null; return; }
 
     if (F.rod && F.rod.id !== this._lastRod) {
       this._lastRod = F.rod.id;
       this.rodPlate.textContent = F.rod.name;
     }
 
-    const st = F.state;
     if (st !== this._lastState) {
       this._lastState = st;
       this.el.dataset.state = st;
       this.say.textContent = {
         [FISH_STATE.CAST]: 'The float sits still…',
-        [FISH_STATE.BITE]: 'A bite!',
+        [FISH_STATE.BITE]: 'Strike!',
         [FISH_STATE.FIGHT]: '',
         [FISH_STATE.CAUGHT]: '',
         [FISH_STATE.LOST]: 'It slipped the line.',

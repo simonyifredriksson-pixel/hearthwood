@@ -21,18 +21,18 @@
    generated plants in it draws in two calls.
 */
 
-import * as THREE from '../../lib/three.module.js?v=1790014861';
-import { MeshBuilder } from '../art/Geo.js?v=1790014861';
-import { buildTree, TREES, orient } from '../art/TreeGen.js?v=1790014861';
+import * as THREE from '../../lib/three.module.js?v=1790019740';
+import { MeshBuilder } from '../art/Geo.js?v=1790019740';
+import { buildTree, TREES, orient } from '../art/TreeGen.js?v=1790019740';
 import {
   buildFern, buildBush, buildGrassTuft, buildFlower, buildMushrooms, buildReeds,
   buildWeed, buildGroundCover, buildRock, buildFallenLog, buildStump, buildBrash,
   FLOWER_NAMES, SHROOM_NAMES,
 } from '../art/PlantGen.js';
-import { PLANT, GROUND, LEAF, mixHex, tweak } from '../art/Palette.js?v=1790014861';
-import { WORLD, GAME } from '../core/Config.js?v=1790014861';
-import { makeRng, hash2, clamp, clamp01, lerp, TAU, smoothstep, invLerp } from '../core/Util.js?v=1790014861';
-import { riverX, riverLevel } from './Terrain.js?v=1790014861';
+import { PLANT, GROUND, LEAF, mixHex, tweak } from '../art/Palette.js?v=1790019740';
+import { WORLD, GAME } from '../core/Config.js?v=1790019740';
+import { makeRng, hash2, clamp, clamp01, lerp, TAU, smoothstep, invLerp } from '../core/Util.js?v=1790019740';
+import { riverX, riverLevel } from './Terrain.js?v=1790019740';
 
 /* ========================================================================= */
 /* LAYERS                                                                    */
@@ -147,6 +147,58 @@ export class Fields {
     const l = Math.hypot(nx, ny, nz) || 1;
     return [nx / l, ny / l, nz / l];
   }
+}
+
+/* ========================================================================= */
+/* GLADES                                                                    */
+/* ========================================================================= */
+
+/**
+ * HOW OPEN IT IS HERE, 0 (a clearing) .. 1 (full thickness).
+ *
+ * The wood was too tightly packed, but the fix was explicitly NOT to thin
+ * it out everywhere — an evenly thinned forest is a car park with trees
+ * in it. What was wanted was the same density arranged with gaps:
+ *
+ *     before   ||||||||||||||||||||
+ *     after    |||||  ||||||  |||||  ||||
+ *
+ * So this is a low-frequency field, sampled at two scales, that mostly
+ * sits near 1 and occasionally dives. Where it dives you get a clearing
+ * with a soft edge; everywhere else the wood is as thick as it ever was.
+ * Big trees are affected less than small ones, because a clearing in real
+ * woodland is defined by the absence of canopy rather than by bare earth,
+ * and leaving the odd standard in the middle of a glade is what stops it
+ * reading as a crop circle.
+ *
+ * Two octaves at 74 m and 31 m: the first makes the glade, the second
+ * stops its edge being a circle.
+ */
+export function gladeAt(x, z) {
+  /* 46 m and 19 m. The first pass used 74 m and opened clearings two
+     hundred metres across, which is a meadow with a wood round it — a
+     glade you can see the far side of is the right size. */
+  const a = smoothNoise(x / 46, z / 46, 0x91ad);
+  const b = smoothNoise(x / 19, z / 19, 0x5c0f);
+  const n = a * 0.70 + b * 0.30;
+  /* THE FLOOR IS 0.34, NOT ZERO. A clearing still keeps a third of its
+     trees; what makes it read as a clearing is that the canopy opens,
+     not that the ground is swept. And the band is narrow, so only the
+     bottom of the noise range opens at all — the brief asked for a
+     slight reduction, and the first attempt cut the wood by 29%. */
+  return clamp01(0.34 + 0.66 * smoothstep(clamp01((n - 0.20) / 0.24)));
+}
+
+/** Value noise with a smooth interpolant, on the shared hash.
+ *  `hash2` hands back a raw uint32, NOT a unit float — using it directly
+ *  made every sample saturate and the whole field came out flat at 1. */
+const U32 = 4294967296;
+function smoothNoise(u, v, salt) {
+  const i = Math.floor(u), j = Math.floor(v);
+  const fu = u - i, fv = v - j;
+  const su = fu * fu * (3 - 2 * fu), sv = fv * fv * (3 - 2 * fv);
+  const h = (a, b) => hash2(a, b, salt) / U32;
+  return lerp(lerp(h(i, j), h(i + 1, j), su), lerp(h(i, j + 1), h(i + 1, j + 1), su), sv);
 }
 
 /* ========================================================================= */
@@ -272,8 +324,10 @@ export function scatterTile(T, tx, tz, detail, tileSize = WORLD.tile, only = nul
       const d = F.forestAt(x, z);
       if (d < 0.22) return 0;
       if (F.slopeAt(x, z) > 0.44) return 0;
-      // big trees are the minority even in thick wood
-      return clamp01((d - 0.22) * 1.25) * 0.55;
+      /* big trees are the minority even in thick wood, and a glade thins
+         them only a little — a standard left in an open patch is what
+         makes the patch read as a clearing rather than as a hole */
+      return clamp01((d - 0.22) * 1.25) * 0.55 * lerp(0.55, 1, gladeAt(x, z));
     }, (x, z, r, h) => {
       const species = pickSpecies(T, x, z, r, 'big');
       const sub = new MeshBuilder();
@@ -295,7 +349,10 @@ export function scatterTile(T, tx, tz, detail, tileSize = WORLD.tile, only = nul
       const d = F.forestAt(x, z);
       if (d < 0.10) return 0;
       if (F.slopeAt(x, z) > 0.50) return 0;
-      return clamp01(d * 1.15) * 0.75 * shadeOut(claimed, x, z, 0.45);
+      /* 0.75 -> 0.66 is the slight overall trim the brief asked for; the
+         glade term is what turns that trim into clearings instead of an
+         evenly thinner wood everywhere */
+      return clamp01(d * 1.15) * 0.66 * gladeAt(x, z) * shadeOut(claimed, x, z, 0.45);
     }, (x, z, r, h) => {
       const species = pickSpecies(T, x, z, r, 'mid');
       const sub = new MeshBuilder();
@@ -317,7 +374,13 @@ export function scatterTile(T, tx, tz, detail, tileSize = WORLD.tile, only = nul
       // saplings crowd the EDGES of a wood and the gaps in it, not the deep
       // shade under a closed canopy, where nothing gets enough light
       const edge = 1 - Math.abs(d - 0.42) * 2.2;
-      return clamp01(edge) * 0.55;
+      /* AND THEY LOVE A GLADE. Saplings go UP where the canopy opens —
+         the light is the whole reason they are there — so the glade term
+         is inverted here. A clearing therefore fills with knee-high
+         growth rather than becoming bare ground, which is what keeps the
+         thinned wood from reading as empty. */
+      const open = 1 - gladeAt(x, z);
+      return clamp01(edge) * 0.55 * (1 + open * 1.5);
     }, (x, z, r, h) => {
       const species = pickSpecies(T, x, z, r, 'small');
       const sub = new MeshBuilder();

@@ -20,13 +20,13 @@
    and facing. Everything visual about how a species moves lives there.
 */
 
-import * as THREE from '../../lib/three.module.js?v=1790014861';
-import { buildAnimal } from '../art/AnimalArt.js?v=1790014861';
-import { poseAnimal, SPECIES } from './Anim.js?v=1790014861';
-import { carryFor, swingOf, chargeStage, chargeProgress, CHARGE, CHARGE_STAGE_SECONDS, COMBO, COMBO_WINDOW } from './Combat.js?v=1790014861';
-import { MATS } from '../art/Materials.js?v=1790014861';
-import { PLAYER, WORLD } from '../core/Config.js?v=1790014861';
-import { clamp, clamp01, lerp, damp, dampAngle, angleDelta, TAU, smoothstep } from '../core/Util.js?v=1790014861';
+import * as THREE from '../../lib/three.module.js?v=1790019740';
+import { buildAnimal } from '../art/AnimalArt.js?v=1790019740';
+import { poseAnimal, SPECIES } from './Anim.js?v=1790019740';
+import { carryFor, swingOf, chargeStage, chargeProgress, CHARGE, CHARGE_STAGE_SECONDS, COMBO, COMBO_WINDOW } from './Combat.js?v=1790019740';
+import { MATS } from '../art/Materials.js?v=1790019740';
+import { PLAYER, WORLD } from '../core/Config.js?v=1790019740';
+import { clamp, clamp01, lerp, damp, dampAngle, angleDelta, TAU, smoothstep } from '../core/Util.js?v=1790019740';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -58,6 +58,8 @@ export class Player {
 
     this.weapon = null;           // {meshes, weapon, cls, info}
     this.lookAt = null;
+    /** {t, state, pull} while a line is out; null otherwise. See applyCast. */
+    this.castPose = null;
     this._blockers = [];
 
     /* combat */
@@ -141,12 +143,42 @@ export class Player {
        rotation for every class is why everything used to look like it was
        being carried to a bin. */
     const C = carryFor(cls);
+
+    /* A FISH IS CARRIED AT ITS TRUE SIZE.
+       Everything above exists to stop a three-metre branch turning the
+       fox into a pole-vaulter, and applied to a fish it destroys the one
+       thing that makes carrying one worth doing: a minnow and a river
+       father would arrive in the paw the same size. So the fit is
+       skipped — a big fish IS unwieldy, and looking unwieldy is correct. */
+    const raw = cls === 'fish';
+    const sx = raw ? 1 : s * fat, sy = raw ? 1 : s, sp = raw ? 1 : s;
+
     for (const m of this.weapon.meshes) {
-      m.scale.set(s * fat, s, s * fat);
+      m.scale.set(sx, sy, sx);
       m.rotation.set(C.rot[0], C.rot[1], C.rot[2]);
-      m.position.set(C.pos[0] * s, C.pos[1] * s, C.pos[2] * s);
+      m.position.set(C.pos[0] * sp, C.pos[1] * sp, C.pos[2] * sp);
       grip.add(m);
     }
+  }
+
+  /**
+   * WHERE THE END OF THE ROD IS, in world space.
+   *
+   * The line has to start from the tip and the tip is on the end of a
+   * moving arm, so this is recomputed every frame rather than captured
+   * once. The rod's own geometry is built along +Y from the grip, so the
+   * tip is its length up the held mesh's local axis — which means this
+   * works for every rod in the shop without a per-rod offset table.
+   *
+   * @returns {THREE.Vector3|null} null when there is no rod in the paw.
+   */
+  rodTip(out = new THREE.Vector3()) {
+    if (!this.weapon || this.weapon.cls !== 'rod') return null;
+    const m = this.weapon.meshes?.[0];
+    if (!m) return null;
+    const len = this.weapon.info?.length || this.weapon.rod?.art?.len || 1.6;
+    m.updateMatrixWorld(true);
+    return out.set(0, len, 0).applyMatrix4(m.matrixWorld);
   }
 
   /** The class of whatever is being carried, for the animator. */
@@ -378,6 +410,10 @@ export class Player {
       swing: this._swing,
       charge: this.charging ? { held: this._chargeT, stage: this._chargeStage } : null,
       quad: this.quad,
+      /* set by main.js from the fishing state, and null the rest of the
+         time — the animator only reaches for the arms when there is
+         actually a line in the water */
+      cast: this.castPose,
       lookAt: this.lookAt,
     });
 

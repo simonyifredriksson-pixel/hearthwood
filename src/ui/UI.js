@@ -12,16 +12,17 @@
    Everything else is a screen you open on purpose.
 
    ONE RULE ABOUT INPUT: whenever a screen or a conversation is open,
-   `input.blocked` is true, which is the single switch that stops the camera
+   `input.blocked` is true — a derived value: it is true while ANY overlay
+   holds a named claim on the input (see Input.hold). That is what stops the camera
    turning and the character walking. Nothing else needs to know menus exist.
 */
 
-import { ic } from './Icons.js?v=1790014861';
-import { bus, EV } from '../core/Bus.js?v=1790014861';
-import { input } from '../core/Input.js?v=1790014861';
-import { esc, clamp, clamp01, lerp } from '../core/Util.js?v=1790014861';
-import { RARITY, cssHex, onPaper } from '../art/Palette.js?v=1790014861';
-import { stickBlurb, stickValue } from '../data/StickData.js?v=1790014861';
+import { ic } from './Icons.js?v=1790019740';
+import { bus, EV } from '../core/Bus.js?v=1790019740';
+import { input } from '../core/Input.js?v=1790019740';
+import { esc, clamp, clamp01, lerp } from '../core/Util.js?v=1790019740';
+import { RARITY, cssHex, onPaper } from '../art/Palette.js?v=1790019740';
+import { stickBlurb, stickValue } from '../data/StickData.js?v=1790019740';
 
 export class UI {
   constructor({ audio = null } = {}) {
@@ -160,6 +161,41 @@ export class UI {
     return el;
   }
 
+  /**
+   * A LOCATION TITLE, the way a game announces a place.
+   *
+   * Deliberately not `banner()`. A banner is a caption for an event —
+   * you picked up your first stick, you cleared a camp — and it is
+   * sized and placed to be read quickly. A region name is a different
+   * thing: it is the game telling you where you are, it wants air
+   * around it, and it must never look like a notification.
+   *
+   * So: wide letterspacing, a hairline rule, a small subtitle, and a
+   * long slow fade at both ends. It sits high enough to clear the
+   * middle of the screen and it takes no input, so it cannot interrupt
+   * anything — you can be mid-cast when it arrives.
+   */
+  region(title, sub = '') {
+    /* one at a time: walking along a boundary should not stack them */
+    this._region?.remove();
+    const el = document.createElement('div');
+    el.className = 'region';
+    el.innerHTML = `
+      <span class="rg-rule"></span>
+      <b>${esc(title)}</b>
+      ${sub ? `<i>${esc(sub)}</i>` : ''}
+      <span class="rg-rule"></span>`;
+    this.root.appendChild(el);
+    this._region = el;
+    requestAnimationFrame(() => el.classList.add('in'));
+    clearTimeout(this._regionT);
+    this._regionT = setTimeout(() => {
+      el.classList.remove('in');
+      setTimeout(() => { el.remove(); if (this._region === el) this._region = null; }, 1200);
+    }, 3400);
+    return el;
+  }
+
   setSatchel(n, cap) {
     if (this.elCount.textContent !== String(n)) {
       this.elCount.textContent = n;
@@ -267,7 +303,7 @@ export class UI {
         </div>`;
       this.root.appendChild(el);
       this.dialogue = { el, resolve, done: false };
-      input.blocked = true;
+      input.hold('dialogue');
 
       /* type the line out. It is the cheapest way to make a village feel
          like it is talking to you rather than displaying at you. */
@@ -290,7 +326,7 @@ export class UI {
         el.classList.add('out');
         setTimeout(() => el.remove(), 260);
         this.dialogue = null;
-        input.blocked = this.screens.length > 0;
+        input.release('dialogue');
         resolve(id);
       };
       this._finishDialogue = finish;
@@ -355,8 +391,7 @@ export class UI {
     this.screens.push(screen);
     this.root.appendChild(screen.el);
     requestAnimationFrame(() => screen.el.classList.add('in'));
-    input.blocked = true;
-    input.releaseLock();
+    input.hold('screen');
     this.audio?.ui('open');
     bus.emit(EV.SCREEN_OPEN, screen);
     screen.onOpen?.();
@@ -368,7 +403,9 @@ export class UI {
     s.el.classList.remove('in');
     setTimeout(() => s.el.remove(), 260);
     s.onClose?.();
-    input.blocked = this.screens.length > 0 || !!this.dialogue;
+    /* the stack is one claim, not one per screen -- only let go when the
+       last screen is gone */
+    if (!this.screens.length) input.release('screen');
     this.audio?.ui('close');
     bus.emit(EV.SCREEN_CLOSE, s);
   }

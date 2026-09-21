@@ -25,9 +25,9 @@
    UI layer reads this state and draws it.
 */
 
-import { rollFish, fishTier } from '../data/FishData.js?v=1790014861';
-import { bus, EV } from '../core/Bus.js?v=1790014861';
-import { clamp, clamp01, lerp, makeRng } from '../core/Util.js?v=1790014861';
+import { rollFish, fishTier, rarityOf } from '../data/FishData.js?v=1790019740';
+import { bus, EV } from '../core/Bus.js?v=1790019740';
+import { clamp, clamp01, lerp, makeRng } from '../core/Util.js?v=1790019740';
 
 /*
  * THE ZONE MUST BE ABLE TO OUTRUN THE FISH.
@@ -52,14 +52,48 @@ const ZONE = 0.22;        // how much of the bar the player's zone covers (the r
 const FILL_RATE = 0.52;   // catch meter per second while on the fish
 const DRAIN_RATE = 0.30;  // and off it — deliberately slower than the fill
 
+/*
+ * THE SHAPE OF A CAST, and why there are two states in front of the old
+ * ones.
+ *
+ * It used to go straight from "press E" to "a bar is on your screen". The
+ * line was never thrown, nothing ever landed in the water, and the first
+ * the player knew of a bite was the minigame appearing. Both halves of
+ * that are now events in the world:
+ *
+ *   CASTING  the rod comes back, swings, and the bobber flies. ~1.1 s,
+ *            which is roughly how long a real cast takes and long enough
+ *            to read as a throw rather than a teleport.
+ *   CAST     the float sits there. This is the wait, and it is the part
+ *            that makes a bite worth anything.
+ *   BITE     SOMETHING IS DOWN THERE. The water bubbles, rings spread, the
+ *            float ducks and bobs. The minigame does NOT start here — the
+ *            player has to see the water move and decide to strike, which
+ *            is the moment the whole activity is built around.
+ *   FIGHT    and only now the reeling interface.
+ */
 export const FISH_STATE = {
   IDLE: 'idle',           // rod not out
+  CASTING: 'casting',     // the throw itself: rod swinging, bobber in the air
   CAST: 'cast',           // line in the water, waiting for a bite
-  BITE: 'bite',           // something has taken it; strike now
+  BITE: 'bite',           // something has taken it; the water is boiling
   FIGHT: 'fight',         // the minigame proper
   CAUGHT: 'caught',
   LOST: 'lost',
 };
+
+/** How long the bobber is in the air. */
+const CAST_FLIGHT = 1.10;
+
+/**
+ * How long the water boils before the fish is gone again.
+ *
+ * Longer than the old strike window, because there is now something to
+ * look at during it and because the player is being asked to react to the
+ * WATER rather than to a caption. Missing a strike should feel like your
+ * own fault and never like a reflex test.
+ */
+const BITE_WINDOW = 2.4;
 
 export class Fishing {
   constructor({ audio = null } = {}) {
@@ -92,8 +126,9 @@ export class Fishing {
   cast(spot = {}) {
     this.reset();
     this.spot = spot;
-    this.state = FISH_STATE.CAST;
+    this.state = FISH_STATE.CASTING;
     this.stateT = 0;
+    this.flight = CAST_FLIGHT;
     const r = makeRng((spot.seed ?? 12345) ^ (Date.now() & 0xffff));
     /* THE ROD IS IN EVERY LINE OF THIS.
        It sets how the band handles (lift, fall, control, width), how heavy a
@@ -126,6 +161,26 @@ export class Fishing {
     if (this.state === FISH_STATE.BITE) this._strike();
   }
 
+  /** 0..1 through the throw, for the rig and the arm animation. */
+  get castT() {
+    return this.state === FISH_STATE.CASTING
+      ? clamp01(this.stateT / Math.max(0.01, this.flight || CAST_FLIGHT)) : 1;
+  }
+
+  /**
+   * HOW HARD THE WATER IS BOILING, 0..1.
+   *
+   * Ramps up over the first third of the bite so the disturbance arrives
+   * rather than switching on, holds, then falls away as the fish loses
+   * interest — which gives the player a readable sense of the window
+   * closing without a countdown bar anywhere on screen.
+   */
+  get boil() {
+    if (this.state !== FISH_STATE.BITE) return 0;
+    const u = clamp01(this.stateT / BITE_WINDOW);
+    return u < 0.22 ? u / 0.22 : clamp01(1 - (u - 0.22) / 0.78 * 0.65);
+  }
+
   release() { this.holding = false; }
 
   /** Reel in early, or walk away. */
@@ -137,6 +192,8 @@ export class Fishing {
   _strike() {
     this.fish = this._pending;
     this._rnd = null;                  // a new fish gets its own stream
+    this._tier = null;                 // ...and its own rarity behaviour
+    this._feint = 0; this._beat = false;
     this.state = FISH_STATE.FIGHT;
     this.stateT = 0;
     this.fishPos = 0.5;
@@ -168,18 +225,43 @@ export class Fishing {
     this.t += dt;
     this.stateT += dt;
 
+    /* THE THROW. Nothing is fishable until the bobber is down — a bite
+       while the line is still in the air would be nonsense, and the wait
+       does not start counting until the float is sitting still. */
+    if (this.state === FISH_STATE.CASTING) {
+      if (this.stateT >= (this.flight || CAST_FLIGHT)) {
+        this.state = FISH_STATE.CAST;
+        this.stateT = 0;
+        bus.emit(EV.FISH_SPLASH, { spot: this.spot });
+        this.audio?.splash?.();
+      }
+      return;
+    }
+
     if (this.state === FISH_STATE.CAST) {
       if (this.stateT >= this.biteAt) {
         this.state = FISH_STATE.BITE;
         this.stateT = 0;
+        /* THE WATER IS THE ANNOUNCEMENT, not the interface. Everything
+           that reacts to this — bubbles, rings, the float ducking — lives
+           in the world; the reeling panel does not appear until the
+           player strikes and the state becomes FIGHT. */
+        bus.emit(EV.FISH_BITING, { fish: this._pending, spot: this.spot });
         this.audio?.bite?.();
       }
       return;
     }
 
     if (this.state === FISH_STATE.BITE) {
-      // a generous window — missing the strike should be rare and obvious
-      if (this.stateT > 1.5) { this.state = FISH_STATE.CAST; this.stateT = 0; this.biteAt = 2.2; }
+      if (this.stateT > BITE_WINDOW) {
+        /* it got away with the bait. Back to waiting, and not for long —
+           being punished with a thirty-second wait for one slow reaction
+           is how a fishing game stops being relaxing. */
+        this.state = FISH_STATE.CAST;
+        this.stateT = 0;
+        this.biteAt = 2.2;
+        bus.emit(EV.FISH_OFF, { spot: this.spot });
+      }
       return;
     }
 
@@ -224,6 +306,37 @@ export class Fishing {
    */
   _moveFish(dt) {
     const M = this.fish.move;
+    const tier = this._tier ?? (this._tier = rarityOf(this.fish.rarity).index);
+
+    /*
+     * WHAT THE RARE ONES DO DIFFERENTLY.
+     *
+     * The species table already gives every fish its own speed, restless-
+     * ness and taste for darting — but that is a per-SPECIES difference,
+     * and a Divine perch fought exactly like a common one. The brief is
+     * specific that rarity must change the fight and equally specific
+     * about how NOT to do it: "do NOT make difficulty unfair by simply
+     * making the fish move ridiculously fast."
+     *
+     * So none of this touches top speed. What it changes is TIMING, which
+     * is the thing the control scheme is actually about — you are always
+     * either arriving or overshooting, so a fish that changes its mind on
+     * an unexpected beat is hard in a way you can learn, and a fish that
+     * is simply quicker than the zone is just arithmetic you lose.
+     *
+     *   FEINT   (rare and up) it commits to a direction and reverses
+     *           before it gets there. Punishes leading it.
+     *   RUN     (legendary and up) a long committed move to one end,
+     *           where it sits. Punishes staying in the middle.
+     *   BEAT    (mythic and up) it alternates long stillness with sudden
+     *           moves, so any rhythm you settle into is the wrong one.
+     */
+    this._feint = Math.max(0, (this._feint || 0) - dt);
+    if (this._feint > 0) {
+      /* mid-feint: it is heading the WRONG way on purpose */
+      this.fishTarget = clamp01(this._feintTo);
+    }
+
     this.nextThink -= dt;
     if (this.nextThink <= 0) {
       /* SEEDED, not Math.random.
@@ -235,6 +348,66 @@ export class Fishing {
       const rnd = this._rnd || (this._rnd = makeRng((this.fish.seed ?? 1) ^ 0xf15b));
       const r = rnd();
       this.nextThink = lerp(0.9, 0.16, clamp01(M.restless / 2.6)) * (0.6 + rnd() * 0.9);
+
+      /* BEAT: from Mythic up, every third or so decision is a long hold
+         followed by a sharp move. The hold is the trap — it is long
+         enough that you relax the button. */
+      /* THE TOP TIERS ARE ARRHYTHMIC, which is not the same as busy.
+         The first version of this alternated a long hold with a short
+         strike — and a long hold followed by a short strike, forever,
+         is a metronome. Measured against a common fish, whose thinking
+         interval is randomised every time, the "hard" fish came out
+         MORE regular and therefore easier to settle into, which is the
+         exact opposite of the intent.
+         So it is a weighted choice with no memory: sometimes it sits
+         for two seconds, sometimes it snaps twice in a row, sometimes
+         it does the ordinary thing. Nothing predicts the next one. */
+      if (tier >= 6 && rnd() < 0.55) {
+        const roll = rnd();
+        if (roll < 0.34) {
+          /* a long, unnerving hold */
+          this.fishTarget = this.fishPos;
+          this.nextThink = 1.3 + rnd() * 1.1;
+        } else if (roll < 0.72) {
+          /* a snap to somewhere else, over before you react */
+          this.fishTarget = clamp01(this.fishPos + (rnd() < 0.5 ? -1 : 1) * (0.34 + rnd() * 0.46));
+          this.nextThink = 0.11 + rnd() * 0.12;
+        } else {
+          /* and sometimes it just keeps going, so the snap above is not
+             reliably followed by anything at all */
+          this.fishTarget = clamp01(0.08 + rnd() * 0.84);
+          this.nextThink = 0.45 + rnd() * 0.9;
+        }
+        return;
+      }
+
+      /* RUN: from Legendary up, it occasionally bolts for one end and
+         holds there, so a player parked in the middle has to commit. */
+      if (tier >= 5 && rnd() < 0.22) {
+        this.fishTarget = rnd() < 0.5 ? 0.06 : 0.94;
+        this.nextThink = 1.1 + rnd() * 0.7;
+        return;
+      }
+
+      /* FEINT: from Rare up, it sets off one way and turns back. The
+         target it shows you first is real for a moment, which is what
+         makes it a feint rather than a jitter. */
+      /* THE ODDS AND THE SIZE BOTH CLIMB WITH RARITY. A flat 20% chance
+         of a full-width feint from Rare upwards knocked the Glimmerfin —
+         which is supposed to be a fish you lose sometimes, not usually —
+         down to three catches in sixteen. A Rare now gets an occasional
+         small one and only the top tiers get the full dummy. */
+      const feintOdds = tier >= 5 ? 0.20 : tier >= 4 ? 0.15 : 0.10;
+      const feintSize = tier >= 5 ? 1.0 : 0.62;
+      if (tier >= 2 && rnd() < feintOdds) {
+        const away = rnd() < 0.5 ? -1 : 1;
+        this._feintTo = clamp01(this.fishPos + away * (0.14 + rnd() * 0.22) * feintSize);
+        this._feint = (0.22 + rnd() * 0.14) * feintSize;
+        this.fishTarget = clamp01(this.fishPos - away * (0.18 + rnd() * 0.26) * feintSize);
+        this.nextThink = this._feint + 0.35;
+        return;
+      }
+
       if (r < M.pause) {
         this.fishTarget = this.fishPos;             // hold station
       } else if (r < M.pause + M.dart * 0.5) {

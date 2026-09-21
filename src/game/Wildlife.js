@@ -29,15 +29,41 @@
    map does not leak wolves.
 */
 
-import * as THREE from '../../lib/three.module.js?v=1790014861';
-import { buildBeast } from '../art/BeastArt.js?v=1790014861';
-import { BEASTS, BEAST_LIST, beastsForBand, beastBudget } from '../data/BeastData.js?v=1790014861';
-import { dangerBand, zoneAt, VILLAGES } from '../data/VillageData.js?v=1790014861';
-import { targetsInArc } from './Combat.js?v=1790014861';
-import { bus, EV } from '../core/Bus.js?v=1790014861';
-import { makeRng, clamp, clamp01, lerp, damp, dampAngle, TAU, smoothstep } from '../core/Util.js?v=1790014861';
+import * as THREE from '../../lib/three.module.js?v=1790019740';
+import { buildBeast } from '../art/BeastArt.js?v=1790019740';
+import { BEASTS, BEAST_LIST, beastsForBand, beastBudget } from '../data/BeastData.js?v=1790019740';
+import { dangerBand, zoneAt, VILLAGES } from '../data/VillageData.js?v=1790019740';
+import { targetsInArc } from './Combat.js?v=1790019740';
+import { bus, EV } from '../core/Bus.js?v=1790019740';
+import { makeRng, clamp, clamp01, lerp, damp, dampAngle, TAU, smoothstep } from '../core/Util.js?v=1790019740';
 
 const SPAWN_MIN = 34;      // never appear closer than this
+
+/**
+ * HOW CLOSE YOU HAVE TO GET BEFORE ANYTHING COMES AFTER YOU.
+ *
+ * One number for every species, on purpose. The table still gives each
+ * creature its own `notice` — a direwolf sees you from forty metres and
+ * shows it — but seeing and chasing are different things, and being
+ * followed across the map by something that spotted you from a ridge is
+ * what made the wood tiring to cross rather than dangerous to enter.
+ */
+const AGGRO = 15;
+
+/** Past this it gives up and goes home. */
+const LEASH = 34;
+
+/** How far a creature will roam from where it was released. */
+const HOME_RANGE = 55;
+
+/**
+ * NO PREDATOR EVER ENTERS A VILLAGE.
+ *
+ * Villages are safe, and this is the margin outside the built area that
+ * they are turned back at, so nothing ever ends up stood between two
+ * houses being shot at through a window.
+ */
+const VILLAGE_MARGIN = 26;
 const SPAWN_MAX = 78;      // or further than this
 const DESPAWN = 135;       // forget about them past here
 
@@ -93,6 +119,9 @@ export class Wildlife {
       const d = r.range(SPAWN_MIN, SPAWN_MAX);
       const x = px + Math.cos(a) * d, z = pz + Math.sin(a) * d;
       if (W.terrain.isVillage(x, z)) continue;
+      /* and not in the exclusion ring round ANY village, which is wider
+         than the built area — `isVillage` only knows about the home one */
+      if (this._inVillage(x, z)) continue;
       if (W.terrain.waterAt(x, z) !== null) continue;
       if (W.terrain.slope(x, z, 2) > 0.55) continue;
 
@@ -104,12 +133,20 @@ export class Wildlife {
       const b = {
         spec: pick, rig, x, z, y,
         yaw: r.range(0, TAU), targetYaw: r.range(0, TAU),
-        hp: pick.hp, state: 'wander', stateT: 0,
+        hp: pick.hp, maxHp: pick.hp, state: 'wander', stateT: 0,
         tx: x, tz: z, speed: 0, phase: r.range(0, TAU),
         wind: 0, chain: 0, cool: 0, notice: 0,
         radius: pick.size * 0.45,
         down: false, fleeing: false,
         flash: 0,
+        /* WHERE IT LIVES. A creature that gives up a chase walks back
+           here rather than standing wherever it happened to stop, and it
+           never wanders further than HOME_RANGE from it — which is what
+           keeps the wood's population spread out instead of slowly
+           migrating towards wherever the player spends their time. */
+        homeX: x, homeZ: z,
+        /* how long its health bar stays up after being hit */
+        barT: 0, turnSide: 1, stuckT: 0,
       };
       this.list.push(b);
 
@@ -123,6 +160,7 @@ export class Wildlife {
           this.list.push({
             ...b, rig: rig2, x: ox, z: oz, y: W.groundAt(ox, oz),
             tx: ox, tz: oz, phase: r.range(0, TAU), hp: pick.hp,
+            homeX: ox, homeZ: oz, barT: 0,
           });
         }
       }
@@ -168,6 +206,7 @@ export class Wildlife {
     b.stateT += dt;
     b.cool = Math.max(0, b.cool - dt);
     b.flash = Math.max(0, b.flash - dt * 3);
+    b.barT = Math.max(0, (b.barT || 0) - dt);
 
     /* ------------------------------------------------ FLEEING ---------- */
     if (b.fleeing) {
@@ -195,14 +234,43 @@ export class Wildlife {
       return;
     }
 
-    /* ------------------------------------------------ AWARENESS -------- */
-    const aware = b.state !== 'wander';
-    if (!aware && dist < S.notice) {
+    /* ------------------------------------------------ AWARENESS --------
+       TWO RADII, and separating them is the whole of "make the detection
+       feel natural rather than like an obvious invisible circle".
+
+       NOTICING is what the species table describes — a direwolf clocks
+       you from forty metres. But noticing is not chasing: it stops,
+       turns, watches, and goes back to what it was doing. Being tailed
+       across the map by something that spotted you from the far side of
+       a valley is what made the wood exhausting.
+
+       CHASING only begins inside AGGRO, which is fifteen metres for
+       everything. That is close enough that walking into it is a
+       decision, and it means the same rule holds in every band rather
+       than the far wood quietly becoming un-travellable.
+
+       And a predator in a village is not a predator, it is a bug. */
+    const safe = this._inVillage(b.x, b.z) || this._inVillage(player.x, player.z);
+    const aware = b.state !== 'wander' && b.state !== 'watch' && b.state !== 'return';
+
+    if (safe) {
+      /* drop everything and go home. Villages are safe, full stop. */
+      if (b.state !== 'return') { b.state = 'return'; b.stateT = 0; }
+    } else if (!aware && dist < AGGRO) {
       b.state = 'stalk'; b.stateT = 0;
       b.notice = 1;
       bus.emit(EV.BEAST_NOTICED, { beast: b });
-    } else if (aware && dist > S.lose) {
+    } else if (!aware && dist < S.notice) {
+      /* seen you, not committed to you */
+      if (b.state !== 'watch') { b.state = 'watch'; b.stateT = 0; }
+    } else if (b.state === 'watch' && dist > S.notice * 1.15) {
       b.state = 'wander'; b.stateT = 0;
+    } else if (aware && (dist > LEASH || this._farFromHome(b))) {
+      /* GIVE UP, and go back where it came from rather than standing
+         where it lost you — a predator that stops dead the instant you
+         cross an invisible line reads as a switch being flipped. */
+      b.state = 'return'; b.stateT = 0;
+      bus.emit(EV.BEAST_LOST, { beast: b });
     }
 
     switch (b.state) {
@@ -211,6 +279,35 @@ export class Wildlife {
         if (b.stateT > 4.5) { this._wander(b); b.stateT = 0; }
         b.speed = damp(b.speed, 0.85, 3, dt);
         this._steerToTarget(b, dt);
+        break;
+      }
+
+      /* --- SEEN YOU. Stopped, facing you, deciding. -------------------
+         The whole point of this state is that it does not move towards
+         you: it is the visible half of "it has noticed but has not
+         committed", which is what stops the fifteen-metre aggro line
+         feeling like a trigger volume. */
+      case 'watch': {
+        b.targetYaw = toPlayer;
+        b.speed = damp(b.speed, 0, 6, dt);
+        b.tx = b.x; b.tz = b.z;
+        /* after a while it loses interest even if you stay put, and
+           wanders off — standing still and being stared at indefinitely
+           is its own kind of broken */
+        if (b.stateT > 6) { b.state = 'wander'; b.stateT = 0; this._wander(b); }
+        break;
+      }
+
+      /* --- GOING HOME -------------------------------------------------- */
+      case 'return': {
+        const hx = b.homeX ?? b.x, hz = b.homeZ ?? b.z;
+        b.tx = hx; b.tz = hz;
+        b.speed = damp(b.speed, 1.5, 4, dt);
+        this._steerToTarget(b, dt);
+        if (Math.hypot(hx - b.x, hz - b.z) < 4 || b.stateT > 14) {
+          b.state = 'wander'; b.stateT = 0;
+          b.hp = S.hp;                 // it calms down and licks its wounds
+        }
         break;
       }
 
@@ -286,11 +383,73 @@ export class Wildlife {
     this._pose(b, dt, gait);
   }
 
+  /**
+   * IS THIS POINT INSIDE A VILLAGE, or close enough to one to count?
+   *
+   * Every village, not just the home one — the brief is explicit about
+   * that, and it is the sort of rule that gets written for the starting
+   * village and quietly forgotten for the other eight. Driven off the
+   * same VILLAGES table the world is built from, so a tenth village is
+   * protected the day it is added and nobody has to remember.
+   */
+  _inVillage(x, z) {
+    for (const v of VILLAGES) {
+      const r = (v.core || 60) + VILLAGE_MARGIN;
+      if ((x - v.x) * (x - v.x) + (z - v.z) * (z - v.z) < r * r) return true;
+    }
+    return false;
+  }
+
+  /** How far out of a village a point is, and which way is out. */
+  _villagePush(x, z) {
+    for (const v of VILLAGES) {
+      const r = (v.core || 60) + VILLAGE_MARGIN;
+      const dx = x - v.x, dz = z - v.z;
+      const d = Math.hypot(dx, dz);
+      if (d < r) {
+        const l = d || 1e-3;
+        return { x: dx / l, z: dz / l, depth: r - d };
+      }
+    }
+    return null;
+  }
+
+  /** Trees, rocks and walls. The brief: "do not get stuck on trees". */
+  _hitsBlocker(x, z, b) {
+    const near = this.world.blockersNear?.(x, z, 3) || null;
+    if (!near || !near.length) return false;
+    const rad = (b.spec.size || 0.7) * 0.55;
+    for (const o of near) {
+      const rr = (o.r || 0.4) + rad;
+      if ((x - o.x) * (x - o.x) + (z - o.z) * (z - o.z) < rr * rr) return true;
+    }
+    return false;
+  }
+
+  _farFromHome(b) {
+    if (b.homeX === undefined) return false;
+    return Math.hypot(b.x - b.homeX, b.z - b.homeZ) > HOME_RANGE;
+  }
+
   _wander(b) {
     const r = this.rnd;
     const a = r.range(0, TAU), d = r.range(4, 16);
-    b.tx = b.x + Math.cos(a) * d;
-    b.tz = b.z + Math.sin(a) * d;
+    let tx = b.x + Math.cos(a) * d;
+    let tz = b.z + Math.sin(a) * d;
+    /* never wander towards a village, and never wander off its patch */
+    const push = this._villagePush(tx, tz);
+    if (push) { tx += push.x * (push.depth + 8); tz += push.z * (push.depth + 8); }
+    if (b.homeX !== undefined) {
+      const hd = Math.hypot(tx - b.homeX, tz - b.homeZ);
+      if (hd > HOME_RANGE) {
+        /* pull the wander target back inside the patch instead of
+           rejecting it, or a creature at the edge stops moving */
+        const k = HOME_RANGE / hd;
+        tx = b.homeX + (tx - b.homeX) * k;
+        tz = b.homeZ + (tz - b.homeZ) * k;
+      }
+    }
+    b.tx = tx; b.tz = tz;
   }
 
   _steerToTarget(b, dt) {
@@ -300,16 +459,40 @@ export class Wildlife {
 
   _move(b, dt) {
     b.yaw = dampAngle(b.yaw, b.targetYaw, 7, dt);
-    const nx = b.x + Math.sin(b.yaw) * b.speed * dt;
-    const nz = b.z + Math.cos(b.yaw) * b.speed * dt;
+    let nx = b.x + Math.sin(b.yaw) * b.speed * dt;
+    let nz = b.z + Math.cos(b.yaw) * b.speed * dt;
+
+    /* THE VILLAGE WALL. Steering away is a preference and a preference
+       is not a guarantee — a lunging direwolf at full speed would cross
+       any amount of gentle persuasion. So the position itself is clamped
+       out of the exclusion zone every frame: it is not possible for a
+       creature to be inside one, whatever it was trying to do. */
+    const push = this._villagePush(nx, nz);
+    if (push) {
+      nx += push.x * (push.depth + 0.05);
+      nz += push.z * (push.depth + 0.05);
+      /* and turn it round, so it does not grind along the boundary */
+      b.targetYaw = Math.atan2(push.x, push.z);
+      b.speed = Math.min(b.speed, 2.2);
+    }
+
     /* creatures keep out of water and off cliffs, and otherwise walk
        through the world the way the villagers do — they are not worth a
-       pathfinder */
-    if (this.world.terrain.waterAt(nx, nz) === null
+       pathfinder. `blockersNear` keeps them out of trunks and walls,
+       which is what stopped them grinding into the side of a barn. */
+    const blocked = this._hitsBlocker(nx, nz, b);
+    if (!blocked
+      && this.world.terrain.waterAt(nx, nz) === null
       && this.world.terrain.slope(nx, nz, 1.5) < 0.72) {
       b.x = nx; b.z = nz;
+      b.stuckT = 0;
     } else {
-      b.targetYaw += 1.6;
+      /* TURN, do not vibrate. Always turning the same way meant two
+         creatures meeting a wall together turned into each other; the
+         side is picked once per obstruction and held until it clears. */
+      b.stuckT = (b.stuckT || 0) + dt;
+      if (b.stuckT > 0.9) { b.turnSide = -(b.turnSide || 1); b.stuckT = 0; }
+      b.targetYaw += (b.turnSide || 1) * 1.6 * dt * 6;
     }
     b.y = damp(b.y, this.world.groundAt(b.x, b.z), 12, dt);
     b.rig.root.position.set(b.x, b.y, b.z);
@@ -414,12 +597,28 @@ export class Wildlife {
       }
       n++;
       b.flash = 1;
-      b.hp -= Math.max(1, Math.round((swing.damage ?? 6) / 6));
+      const dmg = Math.max(1, Math.round((swing.damage ?? 6) / 6));
+      b.hp -= dmg;
+      /* THE BAR COMES UP FOR A SECOND, then goes away again. A health bar
+         floating permanently over every animal in the wood turns a forest
+         into a spreadsheet; one that appears when you connect and fades
+         when you stop is feedback. */
+      b.barT = 1.0;
       /* knocked back, and out of whatever it was doing */
       const push = (swing.push ?? 1) * 1.4;
       b.x -= Math.sin(from.yaw) * -push * 0.35;
       b.z -= Math.cos(from.yaw) * -push * 0.35;
       b.state = 'recover'; b.stateT = 0; b.cool = 0.5;
+      /* whatever it was doing, it has noticed you now */
+      b.homeX = b.homeX ?? b.x; b.homeZ = b.homeZ ?? b.z;
+
+      /* the number, and where to draw it: just above the shoulder, so it
+         does not sit inside the animal */
+      bus.emit(EV.BEAST_HURT, {
+        beast: b, damage: dmg, crit: (swing.charge || 0) > 0 || swing.combo === 2,
+        at: [b.x, b.y + (S.size || 0.7) * 1.35, b.z],
+        hp: Math.max(0, b.hp), maxHp: b.maxHp ?? S.hp,
+      });
 
       if (b.hp <= 0) {
         b.fleeing = true;
