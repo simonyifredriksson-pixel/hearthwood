@@ -19,10 +19,10 @@
    that allocate are particles that stutter.
 */
 
-import * as THREE from '../../lib/three.module.js?v=20260921164117';
-import { MeshBuilder, quad } from '../art/Geo.js?v=20260921164117';
-import { MATS } from '../art/Materials.js?v=20260921164117';
-import { makeRng, clamp01, lerp, TAU } from '../core/Util.js?v=20260921164117';
+import * as THREE from '../../lib/three.module.js?v=1790014288';
+import { MeshBuilder, quad, blob } from '../art/Geo.js?v=1790014288';
+import { MATS } from '../art/Materials.js?v=1790014288';
+import { makeRng, clamp01, lerp, TAU } from '../core/Util.js?v=1790014288';
 
 /* A streak is a long thin quad, built once, drawn many times. */
 function streakGeo(hex, len = 1, wide = 0.055) {
@@ -185,6 +185,7 @@ export class Effects {
   /* ====================================================================== */
 
   update(dt) {
+    this._tickBeacon(dt);
     for (const it of this.items) {
       if (!it.m.visible) continue;
       it.life += dt;
@@ -208,8 +209,103 @@ export class Effects {
     }
   }
 
+  /* ====================================================================== */
+  /* THE OBJECTIVE LIGHT                                                    */
+  /* ====================================================================== */
+
+  /**
+   * A warm column of light standing where the player should go.
+   *
+   * REPLACES THE ARROW, and the difference is the whole point of the
+   * brief's note: a chevron pinned to the edge of the screen follows you
+   * around and turns the tutorial into a thing being done TO the player.
+   * A light that stands still in the world is a place. You walk towards
+   * it because you can see it, you lose sight of it behind a hill, you
+   * find it again — which is navigating, rather than obeying.
+   *
+   * Built once and moved, because it is one object and it is up for
+   * minutes at a time.
+   */
+  beacon(x, y, z, on = true) {
+    if (!this._beacon) {
+      const g = new THREE.Group();
+      g.frustumCulled = false;
+
+      /* the shaft: a tall soft column, widest at the bottom */
+      const b = new MeshBuilder();
+      const seg = 16, H = 9;
+      const rings = [];
+      for (let i = 0; i <= 7; i++) {
+        const t = i / 7;
+        const rad = lerp(0.55, 0.14, t);
+        /* fades out with height, so it reads as light and not as a pillar */
+        const k = (1 - t) * (1 - t);
+        const ring = [];
+        for (let s = 0; s < seg; s++) {
+          const a = (s / seg) * TAU;
+          b.colorRGB(1.0 * k, 0.86 * k, 0.52 * k);
+          ring.push(b.vert(Math.cos(a) * rad, t * H, Math.sin(a) * rad));
+        }
+        rings.push(ring);
+      }
+      for (let i = 0; i < 7; i++) {
+        for (let s = 0; s < seg; s++) {
+          const s2 = (s + 1) % seg;
+          /* both windings: it is a translucent shell and is meant to be
+             seen from inside as well as out */
+          b.quad(rings[i][s], rings[i][s2], rings[i + 1][s2], rings[i + 1][s]);
+          b.quad(rings[i][s2], rings[i][s], rings[i + 1][s], rings[i + 1][s2]);
+        }
+      }
+      const shaft = new THREE.Mesh(b.build({ flat: false }), MATS.glowSoft);
+      shaft.frustumCulled = false;
+      g.add(shaft);
+
+      /* a bright mote at the base, so the exact spot is unambiguous */
+      const c = new MeshBuilder();
+      c.color(0xfff0b8, 0);
+      blob(c, 0, 0.55, 0, 0.26, 3, 8);
+      const core = new THREE.Mesh(c.build({ flat: false }), MATS.glow);
+      core.frustumCulled = false;
+      g.add(core);
+
+      /* a ring on the ground */
+      const rg = ringGeo(0xffe6a8);
+      const ring = new THREE.Mesh(rg, MATS.glowSoft);
+      ring.rotation.x = 0;
+      ring.scale.setScalar(1.1);
+      ring.position.y = 0.06;
+      ring.frustumCulled = false;
+      g.add(ring);
+
+      this.scene.add(g);
+      this._beacon = { g, shaft, core, ring, t: 0 };
+    }
+    const B = this._beacon;
+    B.g.visible = on;
+    if (on) B.g.position.set(x, y, z);
+    return B;
+  }
+
+  hideBeacon() { if (this._beacon) this._beacon.g.visible = false; }
+
+  _tickBeacon(dt) {
+    const B = this._beacon;
+    if (!B || !B.g.visible) return;
+    B.t += dt;
+    /* it BREATHES rather than pulses: slow, warm and calm, because this
+       is a cozy game and a flashing quest marker is not */
+    const k = 0.86 + Math.sin(B.t * 1.35) * 0.14;
+    B.shaft.scale.set(k, 1 + Math.sin(B.t * 0.9) * 0.05, k);
+    B.core.scale.setScalar(0.85 + Math.sin(B.t * 2.1) * 0.18);
+    B.core.position.y = 0.55 + Math.sin(B.t * 0.8) * 0.12;
+    B.ring.rotation.y = B.t * 0.4;
+    B.ring.scale.setScalar(1.05 + Math.sin(B.t * 1.35) * 0.18);
+  }
+
   dispose() {
     this.group.parent?.remove(this.group);
+    this._beacon?.g.parent?.remove(this._beacon.g);
     this.gWind.dispose();
     this.gRing.dispose();
   }

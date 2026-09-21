@@ -19,16 +19,16 @@
    half a metre above their own foundations.
 */
 
-import * as THREE from '../../lib/three.module.js?v=20260921164117';
-import { MeshBuilder, box, beam, cylinder, blob, quad, tube } from '../art/Geo.js?v=20260921164117';
-import { buildHouse, buildWorkshop, buildBarn, buildMill } from '../art/BuildingGen.js?v=20260921164117';
-import * as P from '../art/PropArt.js?v=20260921164117';
-import { buildTree } from '../art/TreeGen.js?v=20260921164117';
-import { buildBush, buildFlower, buildGrassTuft, buildGroundCover } from '../art/PlantGen.js?v=20260921164117';
-import { BUILD, GROUND, PLANT, MOSS, BARK, METAL, mixHex, tweak, shade } from '../art/Palette.js?v=20260921164117';
-import { WORLD } from '../core/Config.js?v=20260921164117';
-import { makeRng, clamp, lerp, TAU, segDist, smoothstep } from '../core/Util.js?v=20260921164117';
-import { riverX, riverLevel } from './Terrain.js?v=20260921164117';
+import * as THREE from '../../lib/three.module.js?v=1790014288';
+import { MeshBuilder, box, beam, cylinder, blob, quad, tube } from '../art/Geo.js?v=1790014288';
+import { buildHouse, buildWorkshop, buildBarn, buildMill } from '../art/BuildingGen.js?v=1790014288';
+import * as P from '../art/PropArt.js?v=1790014288';
+import { buildTree } from '../art/TreeGen.js?v=1790014288';
+import { buildBush, buildFlower, buildGrassTuft, buildGroundCover } from '../art/PlantGen.js?v=1790014288';
+import { BUILD, GROUND, PLANT, MOSS, BARK, METAL, mixHex, tweak, shade } from '../art/Palette.js?v=1790014288';
+import { WORLD } from '../core/Config.js?v=1790014288';
+import { makeRng, clamp, lerp, TAU, segDist, smoothstep } from '../core/Util.js?v=1790014288';
+import { riverX, riverLevel } from './Terrain.js?v=1790014288';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -813,7 +813,14 @@ function dressWorkshop(T, a, put, r, blockers, lights, npcSpots) {
        because the workshop can be dropped anywhere in the plan and the
        camera marks are computed from the anchor, not from the lot. */
     a.benchAt = [bx, bz];
-    a.benchTop = T.height(bx, bz) + (bi?.topY ?? 0.94) * TOOL;  // 0.88 frame + half the 0.11 top
+    /* MEASURED FROM THE BOARDS, not the meadow. Every prop in here is put
+       down with an `onFloor` lift, so its top is above `a.floorY`; these
+       three anchors were computed from `T.height` instead, which is a few
+       centimetres lower. The cutscene lays things on them, and a few
+       centimetres is the whole height of a coil of cord — the materials
+       beat came back as an empty bench with the lid of a wax pot poking
+       through it. */
+    a.benchTop = a.floorY + (bi?.topY ?? 0.94) * TOOL;  // 0.88 frame + half the 0.11 top
     // where the Stickwright actually stands
     const [sx, sz] = L2W(0.3, info.d * 0.06);
     npcSpots.push({ x: sx, z: sz, kind: 'stickwright', yaw });
@@ -854,7 +861,7 @@ function dressWorkshop(T, a, put, r, blockers, lights, npcSpots) {
     put('solid', sub, ax, az, yaw + r.range(-0.4, 0.4), onFloor(ax, az), 0, TOOL);
     blockers.push({ x: ax, z: az, r: 0.42 * TOOL });
     a.anvilAt = [ax, az];
-    a.anvilTop = T.height(ax, az) + 0.76 * TOOL;
+    a.anvilTop = a.floorY + 0.76 * TOOL;          // on the boards, not the meadow
   }
 
   /* the grindstone, by the opening where the light is */
@@ -865,7 +872,7 @@ function dressWorkshop(T, a, put, r, blockers, lights, npcSpots) {
     put('solid', sub, gx, gz, yaw + Math.PI / 2 + r.range(-0.3, 0.3), onFloor(gx, gz), 0, TOOL);
     blockers.push({ x: gx, z: gz, r: 0.40 * TOOL });
     a.grindAt = [gx, gz];
-    a.grindTop = T.height(gx, gz) + 1.02 * TOOL;   // the top of the wheel, not the frame
+    a.grindTop = a.floorY + 1.02 * TOOL;   // the top of the wheel, not the frame
   }
 
   /* SHAVINGS. A drift of curled offcuts under the bench and round the
@@ -979,12 +986,24 @@ function dressWorkshop(T, a, put, r, blockers, lights, npcSpots) {
     lights.push({ x: lx, y: T.height(lx, lz) + 2.0, z: lz, color: BUILD.lanternGlow, intensity: 1.5 });
   }
   {
+    /* THE HEARTH. Dressing until the cutscene needed somewhere to put the
+       heat: it is recorded as an anchor now, because the forging scene
+       stages a whole beat against it — she works the bellows here and the
+       coals throw the only warm light in the shop. Anything the cutscene
+       stands at has to be findable, or the beat gets staged against a
+       guess and drifts the next time the shop is laid out. */
     const [fx, fz] = L2W(-info.w * 0.3, -info.d * 0.3);
     const sub = new MeshBuilder(), g = new MeshBuilder();
     P.buildFirePit(sub, { seed: r.seed(), r: 0.42, glow: g });
     put('solid', sub, fx, fz, 0, onFloor(fx, fz));
     put('glow', g, fx, fz, 0, onFloor(fx, fz));
     lights.push({ x: fx, y: T.height(fx, fz) + 0.5, z: fz, color: BUILD.fire, intensity: 1.7, flicker: true });
+    a.forgeAt = [fx, fz];
+    /* `a.floorY`, NOT `onFloor(...)`: onFloor returns the LIFT needed to
+       stand a prop on the boards, not a height above the world, and using
+       it here put the cutscene's hearth five and a half metres underground
+       — where the camera dutifully went and filmed nothing at all. */
+    a.forgeTop = a.floorY + 0.24;                // the top of the coals
   }
 
   /* the sign over the door */

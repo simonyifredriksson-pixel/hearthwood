@@ -379,3 +379,44 @@ export const RARITY = [
 export const MAX_TIER = RARITY.length - 1;
 
 export const cssHex = h => '#' + (h >>> 0).toString(16).padStart(6, '0');
+
+/**
+ * THE SAME COLOUR, FOR TEXT ON PARCHMENT.
+ *
+ * Every rarity colour in the game — weapon tiers, fish tiers, mutations —
+ * was picked to glow on a dark HUD or against the wood. Printed as text on
+ * the satchel's parchment it ranges from faint to invisible: Common is a
+ * pale warm grey on pale warm paper, and ??? is very nearly white.
+ *
+ * The panels used to dodge this by only colouring tier 2 and above, which
+ * left Legendary and ??? — the two the player most wants to see — as the
+ * worst offenders. So: one function, used by every parchment panel, that
+ * takes the world colour and returns the same HUE at an ink weight paper
+ * can carry. Saturation is pushed up FIRST, because merely darkening a
+ * pale tint gives mud and the entire job of the colour is to say which
+ * tier this is at a glance.
+ *
+ * @param {string} css   '#rrggbb'
+ * @param {number} target relative luminance to land at; 0.20 is about the
+ *                        weight of the body ink beside it.
+ */
+export function onPaper(css, target = 0.20) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(css || '').trim());
+  if (!m) return css;
+  const n = parseInt(m[1], 16);
+  let r = ((n >> 16) & 255) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+
+  const mid = (Math.max(r, g, b) + Math.min(r, g, b)) * 0.5;
+  const SAT = 1.5;
+  r = Math.min(1, Math.max(0, mid + (r - mid) * SAT));
+  g = Math.min(1, Math.max(0, mid + (g - mid) * SAT));
+  b = Math.min(1, Math.max(0, mid + (b - mid) * SAT));
+
+  const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  if (lum > target) {
+    const k = target / Math.max(1e-4, lum);
+    r *= k; g *= k; b *= k;
+  }
+  const h = x => Math.round(Math.min(1, Math.max(0, x)) * 255).toString(16).padStart(2, '0');
+  return `#${h(r)}${h(g)}${h(b)}`;
+}

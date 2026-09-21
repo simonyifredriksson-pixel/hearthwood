@@ -80,6 +80,13 @@ export const EV = {
   FISH_FAV: 'fish:favourited',
   COIN: 'coin',
 
+  /* --- the wood, and what lives in it ---------------------------------- */
+  BEAST_NOTICED: 'beast:noticed',
+  BEAST_DODGED: 'beast:dodged',
+  BEAST_ROUTED: 'beast:routed',
+  PLAYER_HURT: 'player:hurt',
+  PLAYER_SHOVED: 'player:shoved',
+
   /* --- the world ------------------------------------------------------- */
   VILLAGE_FOUND: 'village:found',
   MAP_REVEALED: 'map:revealed',

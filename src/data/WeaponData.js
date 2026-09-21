@@ -19,12 +19,12 @@
    that every single one comes out holding something.
 */
 
-import { makeRng, clamp, clamp01, lerp, TAU } from '../core/Util.js?v=20260921164117';
+import { makeRng, clamp, clamp01, lerp, TAU } from '../core/Util.js?v=1790014288';
 import {
   SPECIES, RARE, MATERIALS, EFFECTS,
   stickComponents, componentScore,
-} from './StickData.js?v=20260921164117';
-import { RARITY } from '../art/Palette.js?v=20260921164117';
+} from './StickData.js';
+import { RARITY } from '../art/Palette.js?v=1790014288';
 
 /* ========================================================================= */
 /* CLASSES                                                                   */
@@ -264,9 +264,26 @@ const METALS = {
   sunmetal: { label: 'Sunmetal', hex: 0xe8c07a, spec: 1.0 },
 };
 
-const GUARDS = ['none', 'crossbar', 'swept', 'ring', 'antler', 'leaf', 'disc', 'thorn'];
-const POMMELS = ['none', 'knob', 'disc', 'cap', 'beak', 'stone', 'hook', 'sphere'];
-const WRAPS = ['cord', 'leather', 'braid', 'wire', 'bark', 'none'];
+/*
+ * NO 'none' IN ANY OF THESE, and that is the point.
+ *
+ * The brief asks that everything off this bench look professionally
+ * constructed: a proper handle, a head, a guard, a grip and a pommel.
+ * Every one of those used to be an independent coin-flip that could come
+ * up "nothing" — a 6% chance of no wrap, roughly a sixth with no pommel,
+ * more than half with no ferrule and a seventh of the blades with no
+ * guard. Multiply those out and a real slice of the rack was a branch
+ * with nothing on it at all, which is precisely what the contact sheet
+ * came back as: a Walking Stick that was a bare curved stick and a
+ * Rapier with no bell.
+ *
+ * So the variety moves from WHETHER a weapon has a fitting to WHICH
+ * fitting it has. A plain turned collar is the humble option now, and it
+ * is still a thing somebody made.
+ */
+const GUARDS = ['crossbar', 'swept', 'ring', 'antler', 'leaf', 'disc', 'thorn'];
+const POMMELS = ['knob', 'disc', 'cap', 'beak', 'stone', 'hook', 'sphere'];
+const WRAPS = ['cord', 'leather', 'braid', 'wire', 'bark'];
 const EDGES = ['plain', 'fuller', 'serrated', 'ridged', 'scalloped', 'double'];
 
 /**
@@ -378,9 +395,17 @@ function buildDesign(s, m, C, id, r) {
     };
     d.guard = {
       kind: id === 'rapier' ? r.pick(['swept', 'ring', 'disc'])
-        : r.weighted(GUARDS, g => g === 'crossbar' ? 4 : g === 'none' ? 1.5 : 1),
-      // a guard is measured against the BLADE, never against the branch
-      span: width * r.range(2.4, 5.0),
+        : r.weighted(GUARDS, g => g === 'crossbar' ? 4 : g === 'disc' ? 2 : 1),
+      /* A guard is measured against the BLADE, never against the branch —
+         but it also has a floor, because a guard's job is to cover a hand
+         and a hand is the same size whatever is bolted in front of it.
+         Blade-only sizing is right for a broadsword and exactly backwards
+         for a rapier, whose hilt is huge precisely BECAUSE the blade is a
+         needle: at 1.4 cm of half-width it was given a four-centimetre
+         guard, and on the rack it read as a stick with nothing on it. */
+      span: Math.max(
+        width * r.range(2.4, 5.0),
+        (id === 'rapier' ? 0.115 : id === 'dagger' ? 0.045 : 0.060) * r.range(0.9, 1.25)),
       droop: r.range(-0.5, 0.7),
       thick: width * r.range(0.30, 0.55),
     };
@@ -440,17 +465,21 @@ function buildDesign(s, m, C, id, r) {
        the shaft rather than as somewhere to put your hands. */
     len: clamp(s.length * r.range(0.14, 0.27) * (C.hands === 2 ? r.range(1.15, 1.5) : 1),
       0.10, 0.52),
-    wrap: r.weighted(WRAPS, w => w === 'cord' ? 3 : w === 'leather' ? 3 : w === 'none' ? 0.8 : 1.4),
+    wrap: r.weighted(WRAPS, w => w === 'cord' ? 3 : w === 'leather' ? 3 : 1.4),
     turns: r.int(5, 22),
     gap: r.chance(0.35),                       // wrapped in two bands, not one
     swell: r.range(0.96, 1.16),
     colour: r.range(0, 1),
   };
   d.pommel = {
-    kind: r.weighted(POMMELS, p => p === 'none' ? 2 : p === 'knob' ? 3 : 1),
+    kind: r.weighted(POMMELS, p => p === 'knob' ? 3 : p === 'cap' ? 2 : 1),
     size: r.range(0.75, 1.5),
   };
-  d.ferrule = r.chance(0.45);
+  /* A FERRULE, ALWAYS. The collar where the grip stops and the working
+     end begins is the single cheapest thing that makes a stick read as a
+     made object rather than as a found one, and it used to be there
+     barely half the time. */
+  d.ferrule = true;
   d.bands = r.int(0, 4);
 
   /* DECORATION — sparse. A weapon covered in decoration reads as a toy. */

@@ -29,7 +29,7 @@
    feel like it is swimming.
 */
 
-import { clamp, damp, angleDelta, TAU } from './Util.js?v=20260921164117';
+import { clamp, damp, angleDelta, TAU } from './Util.js?v=1790014288';
 
 /* Presets are starting points, not modes — the player can always override any
    of them with the mouse. Hearthwood is a walking game, so all three sit
@@ -155,8 +155,23 @@ export class CameraRig {
    * the rig, because a beat that eases into place and then dollies through
    * the beat cannot be expressed as "damp towards a pose".
    */
-  setShot(eye, target) {
+  /**
+   * @param fov  optional focal length for this shot, in degrees. A cutscene
+   *             that films every beat on the same lens is a slideshow of one
+   *             camera moved around; choosing between a wide that takes in
+   *             the whole shed and a long lens that puts the player's nose
+   *             in her hands is most of what makes a set of shots read as
+   *             having been DIRECTED. Omit it to keep the gameplay lens.
+   */
+  setShot(eye, target, fov = 0) {
     this.shot = { eye, target };
+    if (fov > 0) {
+      if (this._fov0 == null) this._fov0 = this.camera.fov;
+      if (Math.abs(this.camera.fov - fov) > 1e-3) {
+        this.camera.fov = fov;
+        this.camera.updateProjectionMatrix();
+      }
+    }
     /* written NOW, not on the next update(): the director runs after the rig
        has already updated this frame, and a shot that waited would put every
        cut one frame late — which is exactly one frame of the previous camera
@@ -173,6 +188,13 @@ export class CameraRig {
    */
   clearShot() {
     if (!this.shot) return;
+    /* put the gameplay lens back, or the player spends the rest of the
+       session looking through whatever the last beat was framed on */
+    if (this._fov0 != null) {
+      this.camera.fov = this._fov0;
+      this.camera.updateProjectionMatrix();
+      this._fov0 = null;
+    }
     const [ex, ey, ez] = this.shot.eye;
     const [tx, ty, tz] = this.shot.target;
     const dx = tx - ex, dy = ty - ey, dz = tz - ez;

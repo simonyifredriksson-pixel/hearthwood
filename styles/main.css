@@ -333,8 +333,6 @@ kbd {
   .boot-fox, .boot-sun, .boot-motes i, .bf-lid { animation: none !important; }
 }
 
-}
-
 /* ========================================================================= */
 /* HUD                                                                       */
 /* ========================================================================= */
@@ -604,6 +602,118 @@ kbd {
   overflow: hidden; position: relative;
 }
 .tt-canvas { width: 100% !important; height: 100% !important; display: block; }
+
+/* ------------------------------------------------- the upgraded satchel --- */
+/* Four categories, a sort control, and a worth line. The rule throughout:
+   every number on this screen is either money or a measurement, and money
+   is always the same colour so the eye can find it without reading. */
+
+.tabs .tab-gap { flex: 1; }
+.purse {
+  display: inline-flex; align-items: center; gap: .4em; align-self: center;
+  font-family: var(--sans); font-size: .95rem; color: var(--gold);
+  padding: .3em .7em; border-radius: .4em; background: rgba(176, 136, 60, .12);
+}
+.purse b { font-weight: 700; color: var(--ink); }
+.purse svg { width: 1.05em; height: 1.05em; }
+
+.sat-bar {
+  display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+  margin: 0 0 .7rem; padding-bottom: .55rem;
+  border-bottom: 1px solid rgba(110, 90, 50, .16);
+}
+.sat-sum { flex: 1; min-width: 12rem; font-size: .9rem; color: var(--ink-soft); }
+.sat-sum b { color: var(--ink); font-weight: 600; }
+.sat-sum b.coin, .worth-big b, .detail .made b.coin { color: var(--gold); }
+.sat-sum em.fav { font-style: normal; color: #c8863c; }
+
+.sat-sort { display: inline-flex; align-items: center; gap: .2rem; }
+.sat-sort > svg { width: .95em; height: .95em; color: var(--ink-soft); margin-right: .25em; }
+.sk {
+  font-family: var(--sans); font-size: .78rem; cursor: pointer;
+  padding: .3em .6em; border-radius: .34em; border: 1px solid transparent;
+  background: none; color: var(--ink-soft);
+}
+.sk:hover { background: rgba(110, 90, 50, .1); }
+.sk.on { background: rgba(176, 136, 60, .2); border-color: rgba(176, 136, 60, .45); color: var(--ink); }
+
+/* ROWS ARRIVING. A stagger, and only when the list actually changed — the
+   `cascade` class is added by the renderer and left off on a re-render that
+   was only a selection, so clicking a fish does not replay the whole thing. */
+@keyframes sat-in { from { opacity: 0; transform: translateY(.5rem); } to { opacity: 1; transform: none; } }
+/* `backwards`, and NO opacity:0 on the rule itself. The hidden state lives
+   only in the keyframe, so if animations never run — reduced motion, a
+   throttled tab, a headless screenshot — the rows are simply there rather
+   than permanently invisible. An entrance effect must never be the thing
+   standing between the player and their inventory. */
+.sat-list.cascade .row {
+  animation: sat-in .26s cubic-bezier(.2, .8, .3, 1) backwards;
+  animation-delay: calc(var(--i, 0) * 22ms);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sat-list.cascade .row { animation: none; opacity: 1; }
+}
+
+.row.fav { box-shadow: inset 0 0 0 1px rgba(200, 134, 60, .45); }
+.row.fav.sel { box-shadow: inset 0 0 0 1px rgba(200, 134, 60, .8); }
+.row.locked { opacity: .55; }
+.row.locked .swatch { filter: grayscale(.65); }
+.row-main i u { text-decoration: none; font-weight: 600; }
+/* The price is the second thing the eye wants after the name, so it gets
+   real weight rather than a pale gold whisper. */
+.row-tags em.coin {
+  background: rgba(176, 136, 60, .22); color: #7a5410; font-weight: 700;
+  font-size: .74rem; font-variant-numeric: tabular-nums; min-width: 2.6em; text-align: right;
+}
+.row-tags em.star { background: none; padding: 0; color: #d8a63a; display: inline-flex; }
+.row-tags em.star svg { width: 1em; height: 1em; }
+.row-tags em.lit svg { width: 1em; height: 1em; }
+
+/* WHERE THE MONEY CAME FROM. The big number, then the multipliers that
+   produced it, so a 4,800 fish is legible as 200 x Epic x Albino rather
+   than a slot machine. */
+.worth {
+  display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+  margin: 0 0 .8rem; padding: .6rem .8rem; border-radius: .45rem;
+  background: rgba(176, 136, 60, .1);
+  box-shadow: inset 0 0 0 1px rgba(176, 136, 60, .22);
+}
+.worth-big { display: inline-flex; align-items: center; gap: .4em; }
+.worth-big svg { width: 1.3em; height: 1.3em; color: var(--gold); }
+.worth-big b { font-family: var(--display); font-size: 1.5rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.worth-parts { display: flex; gap: .9rem; list-style: none; margin: 0; padding: 0; flex-wrap: wrap; }
+.worth-parts li { display: flex; flex-direction: column; line-height: 1.15; }
+.worth-parts i {
+  font-style: normal; font-family: var(--sans); font-size: .66rem;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft);
+}
+.worth-parts b { font-weight: 600; font-size: .95rem; font-variant-numeric: tabular-nums; }
+
+.detail .kind .fav { color: #c8863c; }
+.fav-note { display: flex; align-items: center; gap: .45em; color: #a8702c !important; }
+.fav-note svg { width: 1em; height: 1em; flex: none; }
+.act-note {
+  display: inline-flex; align-items: center; gap: .4em; margin: 0;
+  font-family: var(--sans); font-size: .9rem; color: var(--ink-soft);
+}
+.act-note svg { width: 1em; height: 1em; color: var(--gold); }
+.act-note.can { color: #4e7a2e; font-weight: 600; }
+
+/* Rod deltas: the only question a rod raises is whether it beats the one
+   in your hand, so the right-hand column is the difference, never the raw
+   number. Green up, rust down, and a dash for the rod you already carry. */
+.rod-stat b.up { color: #4e8a2e; }
+.rod-stat b.down { color: #a85c3c; }
+/* A NOTCH WHERE THE ROD IN YOUR HAND SITS. Without it the bar shows only
+   how long this rod's own number is, so a strictly worse rod still draws
+   a reassuring near-full bar and the picture argues against the figure
+   beside it. The notch turns the same bar into the comparison. */
+.rod-stat em::before {
+  content: ''; position: absolute; top: -.14rem; bottom: -.14rem;
+  left: var(--now, 0%); width: 2px; margin-left: -1px; border-radius: 1px;
+  background: rgba(46, 38, 24, .55); z-index: 1;
+}
+.rod-stat.same em::before { display: none; }
 
 .sat-actions, .shop-go { margin-top: .8rem; display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
 .btn {
@@ -1444,3 +1554,59 @@ body:has(.cine.in) #prompt { opacity: 0; transition: opacity .4s ease; }
 .hud-weapon { display: none; }
 
 @media (prefers-reduced-motion: reduce) { .hb-slot { transition: none !important; } }
+/* ========================================================================= */
+/* THE MAP                                                                   */
+/* ========================================================================= */
+
+.mapwrap { display: flex; flex-direction: column; align-items: center; gap: .6rem; }
+.map-canvas {
+  width: min(70vh, 100%); height: auto; aspect-ratio: 1;
+  border-radius: .5rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .5), inset 0 0 0 1px rgba(214, 178, 110, .2);
+  image-rendering: auto;
+}
+.map-legend {
+  display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+  width: min(70vh, 100%);
+  font-family: var(--sans); font-size: .68rem; letter-spacing: .08em;
+  text-transform: uppercase; color: #a89a74;
+}
+.ml-item { display: flex; align-items: center; gap: .4em; }
+.ml-item i { width: .8em; height: .8em; border-radius: 2px; display: block; }
+.ml-village { background: #8a5a28; box-shadow: 0 0 0 1px #f0dcae; }
+.ml-fish { background: #2f6f8c; box-shadow: 0 0 0 1px #bfe4f4; border-radius: 50% !important; }
+.ml-forge { background: #7a3a22; box-shadow: 0 0 0 1px #f0c090; }
+.ml-camp { background: #8a6a1a; box-shadow: 0 0 0 1px #ffd86a; }
+.ml-pin { background: #e2a049; box-shadow: 0 0 0 1px #fff4d8, 0 0 8px #ffcf7a; border-radius: 50% !important; }
+.ml-you { color: #e8c887; }
+.ml-spacer { flex: 1; }
+.ml-stat { color: #8a7d5e; }
+.ml-stat b { color: #e8dcb8; font-size: 1.15em; }
+.map-tip {
+  width: min(70vh, 100%); font-family: var(--serif); font-style: italic;
+  font-size: .9rem; color: #9a8f70; min-height: 1.2em;
+}
+/* The cutscene's only text: whose shop this is, stated once at the top,
+   and a skip hint in the corner. The middle and the bottom third of the
+   frame stay completely clear — see the note in Forge.js. */
+.cine-title {
+  position: absolute; left: 50%; top: 11vh; transform: translateX(-50%);
+  text-align: center; opacity: 0;
+  animation: cineTitle 5s ease forwards;
+}
+.cine-title b {
+  display: block; font-family: var(--display); font-weight: 700;
+  font-size: clamp(1.5rem, 3.4vw, 2.2rem); color: #f4e8ca;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, .85);
+}
+.cine-title i {
+  display: block; font-style: normal; font-size: .62rem; letter-spacing: .3em;
+  text-transform: uppercase; color: #bfa877; margin-top: .2em;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, .8);
+}
+@keyframes cineTitle {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  14%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+  72%  { opacity: 1; }
+  100% { opacity: 0; }
+}

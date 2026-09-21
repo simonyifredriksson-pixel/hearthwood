@@ -14,8 +14,8 @@
    then every call here is a no-op that costs nothing.
 */
 
-import { AUDIO } from './Config.js?v=20260921164117';
-import { clamp, lerp, makeRng } from './Util.js?v=20260921164117';
+import { AUDIO } from './Config.js?v=1790014288';
+import { clamp, lerp, makeRng } from './Util.js?v=1790014288';
 
 const rnd = makeRng(0x50554e4b);
 
@@ -410,6 +410,75 @@ export class AudioEngine {
     [0, 4, 7, 12].forEach((s, i) => this._tone({
       freq: 392 * Math.pow(2, s / 12), dur: 1.5, gain: 0.07, type: 'triangle', when: t + 0.8 + i * 0.085,
     }));
+  }
+
+  /* ====================================================================== */
+  /* THE FORGE                                                              */
+  /* ====================================================================== */
+  /* The forging cutscene used to call `audio.thump()`, which does not exist
+     and never has — optional chaining meant every hammer blow in the scene
+     was silent and nothing ever complained. These are the sounds the scene
+     was always asking for, written in the same idiom as the rest: a short
+     filtered noise transient for the impact, tuned partials for whatever
+     rings afterwards. */
+
+  /**
+   * Hammer on anvil. The transient is the blow; the two partials above it
+   * are the anvil ringing, and they are deliberately NOT harmonically
+   * related — an anvil is a lump of iron, not a bell, and tuning the
+   * overtones to a chord turns a workshop into a wind chime.
+   */
+  forgeHit(power = 1) {
+    if (!this.ready || !this.enabled) return;
+    const t = this.ctx.currentTime;
+    const p = clamp(power, 0.2, 1.6);
+    this._burst({ freq: 2600, q: 0.9, dur: 0.05, gain: 0.13 * p, rate: 1.7, when: t });
+    this._burst({ freq: 300, q: 2.2, dur: 0.13, gain: 0.16 * p, rate: 0.8, when: t });
+    this._tone({ freq: 1880, dur: 0.42 * p, gain: 0.055 * p, type: 'sine', when: t + 0.004 });
+    this._tone({ freq: 2790, dur: 0.30 * p, gain: 0.032 * p, type: 'sine', when: t + 0.004 });
+    this._tone({ freq: 118, dur: 0.20, gain: 0.07 * p, type: 'triangle', when: t, slide: 0.7 });
+  }
+
+  /** The bellows: a long breath into the coals, and the fire answering. */
+  bellows() {
+    if (!this.ready || !this.enabled) return;
+    const t = this.ctx.currentTime;
+    this._burst({ freq: 420, q: 0.5, dur: 0.85, gain: 0.10, rate: 0.55, when: t });
+    this._burst({ freq: 1500, q: 0.7, dur: 0.70, gain: 0.05, rate: 1.1, when: t + 0.16 });
+  }
+
+  /** Coals settling and spitting — a handful of tiny irregular ticks. */
+  coals(n = 5) {
+    if (!this.ready || !this.enabled) return;
+    const t = this.ctx.currentTime;
+    for (let i = 0; i < n; i++) {
+      this._burst({
+        freq: 1900 + rnd.range(-600, 900), q: 3.0, dur: 0.05,
+        gain: rnd.range(0.02, 0.055), rate: 1.4, when: t + rnd.range(0, 0.9),
+      });
+    }
+  }
+
+  /** The grindstone, or a saw: a rasp with a bite at the end of each pass. */
+  rasp(hard = 0.6) {
+    if (!this.ready || !this.enabled) return;
+    const t = this.ctx.currentTime;
+    this._burst({ freq: 2200, q: 0.6, dur: 0.26, gain: 0.075 * hard, rate: 1.25, when: t });
+    this._burst({ freq: 900, q: 1.4, dur: 0.18, gain: 0.05 * hard, rate: 0.95, when: t + 0.05 });
+  }
+
+  /** Cord being drawn tight round a grip. */
+  bind() {
+    if (!this.ready || !this.enabled) return;
+    this._burst({ freq: 3100, q: 1.0, dur: 0.09, gain: 0.045, rate: 1.5 });
+  }
+
+  /** Steel quenched: the hiss, and the water complaining about it. */
+  quench() {
+    if (!this.ready || !this.enabled) return;
+    const t = this.ctx.currentTime;
+    this._burst({ freq: 3400, q: 0.35, dur: 0.95, gain: 0.12, rate: 1.6, when: t });
+    this._burst({ freq: 700, q: 0.8, dur: 0.55, gain: 0.06, rate: 0.9, when: t + 0.02 });
   }
 
   /** A weapon swing — air, then wood. */

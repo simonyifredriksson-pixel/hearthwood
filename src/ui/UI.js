@@ -16,12 +16,12 @@
    turning and the character walking. Nothing else needs to know menus exist.
 */
 
-import { ic } from './Icons.js?v=20260921164117';
-import { bus, EV } from '../core/Bus.js?v=20260921164117';
-import { input } from '../core/Input.js?v=20260921164117';
-import { esc, clamp, clamp01, lerp } from '../core/Util.js?v=20260921164117';
-import { RARITY, cssHex } from '../art/Palette.js?v=20260921164117';
-import { stickBlurb, stickValue } from '../data/StickData.js?v=20260921164117';
+import { ic } from './Icons.js?v=1790014288';
+import { bus, EV } from '../core/Bus.js?v=1790014288';
+import { input } from '../core/Input.js?v=1790014288';
+import { esc, clamp, clamp01, lerp } from '../core/Util.js?v=1790014288';
+import { RARITY, cssHex, onPaper } from '../art/Palette.js?v=1790014288';
+import { stickBlurb, stickValue } from '../data/StickData.js?v=1790014288';
 
 export class UI {
   constructor({ audio = null } = {}) {
@@ -387,9 +387,9 @@ export function stickRow(s, { selected = false, dim = false } = {}) {
   const tier = clamp(s.tier ?? 0, 0, RARITY.length - 1);
   const R = RARITY[tier];
   return `<button class="row stick-row${selected ? ' sel' : ''}${dim ? ' dim' : ''}" data-uid="${s.uid}">
-    <span class="swatch" style="--c:${R.css}">${ic('stick')}</span>
+    <span class="swatch" style="--c:${onPaper(R.css, 0.34)}">${ic('stick')}</span>
     <span class="row-main">
-      <b style="color:${tier >= 2 ? R.css : 'inherit'}">${esc(s.name)}</b>
+      <b style="color:${onPaper(R.css)}">${esc(s.name)}</b>
       <i>${s.length.toFixed(2)} m · ${(s.thick * 200).toFixed(1)} cm · ${esc(R.name)}</i>
     </span>
     <span class="row-tags">${(s.tags || []).filter(t => !t.startsWith('wood:') && !t.startsWith('rare:')).slice(0, 3).map(t => `<em>${esc(t)}</em>`).join('')}</span>
@@ -413,8 +413,8 @@ export function stickDetail(s) {
   const shape = bend < 0.22 ? 'dead straight' : bend < 0.6 ? 'a gentle lean'
     : bend < 1.1 ? 'a real curve' : bend < 1.6 ? 'a strong bend' : 'a hook';
   return `<div class="detail">
-    <h3 style="color:${R.css}">${esc(s.name)}</h3>
-    <p class="kind"><span style="color:${R.css}">${esc(R.name)}</span>
+    <h3 style="color:${onPaper(R.css)}">${esc(s.name)}</h3>
+    <p class="kind"><span style="color:${onPaper(R.css)}">${esc(R.name)}</span>
       &middot; ${parts.length || 'no'} notable ${parts.length === 1 ? 'feature' : 'features'}</p>
     <p class="blurb">${esc(stickBlurb(s))}</p>
     <div class="measures">

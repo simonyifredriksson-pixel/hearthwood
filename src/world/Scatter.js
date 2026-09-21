@@ -21,18 +21,18 @@
    generated plants in it draws in two calls.
 */
 
-import * as THREE from '../../lib/three.module.js?v=20260921164117';
-import { MeshBuilder } from '../art/Geo.js?v=20260921164117';
-import { buildTree, TREES, orient } from '../art/TreeGen.js?v=20260921164117';
+import * as THREE from '../../lib/three.module.js?v=1790014288';
+import { MeshBuilder } from '../art/Geo.js?v=1790014288';
+import { buildTree, TREES, orient } from '../art/TreeGen.js?v=1790014288';
 import {
   buildFern, buildBush, buildGrassTuft, buildFlower, buildMushrooms, buildReeds,
   buildWeed, buildGroundCover, buildRock, buildFallenLog, buildStump, buildBrash,
   FLOWER_NAMES, SHROOM_NAMES,
-} from '../art/PlantGen.js?v=20260921164117';
-import { PLANT, GROUND, LEAF, mixHex, tweak } from '../art/Palette.js?v=20260921164117';
-import { WORLD, GAME } from '../core/Config.js?v=20260921164117';
-import { makeRng, hash2, clamp, clamp01, lerp, TAU, smoothstep, invLerp } from '../core/Util.js?v=20260921164117';
-import { riverX, riverLevel } from './Terrain.js?v=20260921164117';
+} from '../art/PlantGen.js';
+import { PLANT, GROUND, LEAF, mixHex, tweak } from '../art/Palette.js?v=1790014288';
+import { WORLD, GAME } from '../core/Config.js?v=1790014288';
+import { makeRng, hash2, clamp, clamp01, lerp, TAU, smoothstep, invLerp } from '../core/Util.js?v=1790014288';
+import { riverX, riverLevel } from './Terrain.js?v=1790014288';
 
 /* ========================================================================= */
 /* LAYERS                                                                    */
@@ -222,7 +222,26 @@ export function scatterTile(T, tx, tz, detail, tileSize = WORLD.tile, only = nul
      an optional tilt to match the slope. Everything on the floor tilts a
      little with the ground under it — a mushroom standing bolt upright on a
      bank is one of those small wrongnesses you feel without seeing. */
+  /**
+   * NOTHING GROWS IN A LAKE.
+   *
+   * The scatterer has always known about the river — every layer checks the
+   * distance to the centreline — but lakes did not exist when it was
+   * written, so the eight new villages got oaks and pines planted across
+   * the middle of their water. One test at the point of placement covers
+   * every layer at once, including the ones added later, which is why it
+   * lives in `put` rather than in thirteen separate weight functions.
+   */
+  const inLake = (x, z) => {
+    for (const L of T.lakes) {
+      if (Math.hypot(x - L.x, z - L.z) > L.r * 1.05) continue;
+      if (F.heightAt(x, z) < L.level + 0.35) return true;
+    }
+    return false;
+  };
+
   const put = (target, sub, x, z, yaw, tiltAmount = 0, yOff = 0, scale = 1) => {
+    if (T.lakes.length && inLake(x, z)) return;
     const y = F.heightAt(x, z) + yOff;
     let m;
     if (tiltAmount > 0) {

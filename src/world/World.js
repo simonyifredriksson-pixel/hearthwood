@@ -17,22 +17,26 @@
    releases the ones behind you.
 */
 
-import * as THREE from '../../lib/three.module.js?v=20260921164117';
-import { Terrain, riverX, riverLevel } from './Terrain.js?v=20260921164117';
+import * as THREE from '../../lib/three.module.js?v=1790014288';
+import { Terrain, riverX, riverLevel } from './Terrain.js?v=1790014288';
 import {
-  buildTerrainTile, buildRiverMesh, buildRiverEdge, lodForDistance, detailForDistance,
-} from './TerrainMesh.js?v=20260921164117';
-import { scatterTile, stickSlots, stickContext, SCATTER_PASS_A, SCATTER_PASS_B } from './Scatter.js?v=20260921164117';
-import { planVillage, buildVillage } from './Village.js?v=20260921164117';
-import { Sky } from '../art/Sky.js?v=20260921164117';
-import { Ambient } from './Ambient.js?v=20260921164117';
-import { MATS, makeTerrainMaterial, makeWaterMaterial, updateWind } from '../art/Materials.js?v=20260921164117';
-import { WATER, SKY } from '../art/Palette.js?v=20260921164117';
-import { WORLD, RENDER } from '../core/Config.js?v=20260921164117';
-import { rollStick } from '../data/StickData.js?v=20260921164117';
-import { buildStick } from '../art/StickGen.js?v=20260921164117';
-import { MeshBuilder } from '../art/Geo.js?v=20260921164117';
-import { clamp, clamp01, lerp, now, Budget, TAU } from '../core/Util.js?v=20260921164117';
+  buildTerrainTile, buildRiverMesh, buildRiverEdge, buildLakeMesh,
+  lodForDistance, detailForDistance,
+} from './TerrainMesh.js';
+import { scatterTile, stickSlots, stickContext, SCATTER_PASS_A, SCATTER_PASS_B } from './Scatter.js?v=1790014288';
+import { planVillage, buildVillage } from './Village.js?v=1790014288';
+import { planOutpost, buildOutpost } from './Outpost.js?v=1790014288';
+import { VILLAGES, HOME, nearestVillage, zoneAt } from '../data/VillageData.js?v=1790014288';
+import { Sky } from '../art/Sky.js?v=1790014288';
+import { Ambient } from './Ambient.js?v=1790014288';
+import { MATS, makeTerrainMaterial, makeWaterMaterial, updateWind } from '../art/Materials.js?v=1790014288';
+import { WATER, SKY } from '../art/Palette.js?v=1790014288';
+import { WORLD, RENDER } from '../core/Config.js?v=1790014288';
+import { bus, EV } from '../core/Bus.js?v=1790014288';
+import { rollStick } from '../data/StickData.js?v=1790014288';
+import { buildStick } from '../art/StickGen.js?v=1790014288';
+import { MeshBuilder } from '../art/Geo.js?v=1790014288';
+import { clamp, clamp01, lerp, now, Budget, TAU } from '../core/Util.js?v=1790014288';
 
 /** A far block is exactly 2x2 near tiles — see _rebuildWishlist. */
 export const FAR_BLOCK = WORLD.tile * 2;
@@ -104,6 +108,18 @@ export class World {
     }
 
     this.blockers = [];            // static village blockers
+
+    /* --- THE OTHER EIGHT VILLAGES ---------------------------------------
+       Planned at boot (the terrain has to know about their bowls and lakes
+       before a single vertex is built) but BUILT LAZILY, when the player
+       gets within sight of one. Nine villages of geometry raised up front
+       would be a four-second load for eight places nobody is standing in.
+       Once built they stay: a village is a few hundred kilobytes and the
+       player walks back through them constantly. */
+    this.outposts = new Map();     // id -> built outpost
+    this.outpostPlans = [];
+    this.gOutposts = new THREE.Group(); this.gOutposts.name = 'outposts';
+    scene.add(this.gOutposts);
     this.built = false;
     this._lastBlockX = 99999;
     this._lastBlockZ = 99999;
@@ -142,7 +158,20 @@ export class World {
 
     await step(0.06, 'shaping the valley', () => { /* terrain built in ctor */ });
 
-    this.plan = await step(0.14, 'laying out Hearthwood', () => planVillage(this.terrain));
+    this.plan = await step(0.14, 'laying out Thistlebrook', () => planVillage(this.terrain));
+
+    /* EVERY village is planned now, home and the eight beyond it, because
+       planning is what registers the bowls, the lakes and the paths with
+       the terrain — and the terrain has to know all of them before it
+       builds its first vertex, or the ground under a village that has not
+       been visited yet is a hillside with a lake hovering over it. */
+    await step(0.20, 'finding the other villages', () => {
+      for (const def of VILLAGES) {
+        if (def.id === 'home') continue;
+        this.outpostPlans.push(planOutpost(this.terrain, def));
+      }
+      this.terrain.clearCache();
+    });
 
     const V = await step(0.30, 'raising the village', () => buildVillage(this.terrain, this.plan));
     this.village = V;
@@ -175,6 +204,16 @@ export class World {
       const e = new THREE.Mesh(buildRiverEdge(this.terrain), MATS.solid);
       e.receiveShadow = true;
       this.gWater.add(e);
+
+      /* every lake gets its surface up front. They are one disc each and
+         they have to exist before the player can see one from a hilltop —
+         a lake that appears when you walk up to it is worse than no lake. */
+      for (const L of this.terrain.lakes) {
+        const m = new THREE.Mesh(buildLakeMesh(L), this.matWater);
+        m.receiveShadow = false;
+        m.renderOrder = 5;
+        this.gWater.add(m);
+      }
     });
 
     await step(0.86, 'planting the wood', () => {
@@ -275,6 +314,62 @@ export class World {
   /* STREAMING                                                              */
   /* ====================================================================== */
 
+  /* ====================================================================== */
+  /* THE OTHER VILLAGES                                                     */
+  /* ====================================================================== */
+
+  /**
+   * Raise any village the player has come within sight of.
+   *
+   * Only checked when the player crosses a block boundary, so this is a
+   * handful of distance tests every couple of hundred metres rather than
+   * every frame. A village is raised in ONE go rather than trickled in
+   * over a budget: arriving at a settlement and watching it assemble
+   * itself house by house is far worse than a single hitch while you are
+   * still four hundred metres away and walking.
+   */
+  _checkOutposts(px, pz) {
+    for (const plan of this.outpostPlans) {
+      if (this.outposts.has(plan.def.id)) continue;
+      const d = Math.hypot(plan.def.x - px, plan.def.z - pz);
+      if (d > 420) continue;
+      this.raiseOutpost(plan);
+    }
+  }
+
+  /** Build one village and add everything it owns to the world. */
+  raiseOutpost(plan) {
+    if (this.outposts.has(plan.def.id)) return this.outposts.get(plan.def.id);
+    const O = buildOutpost(this.terrain, plan);
+    for (const c of O.cells) {
+      const add = (builder, mat, cast) => {
+        if (builder.isEmpty) return;
+        const m = new THREE.Mesh(builder.build({ flat: false }), mat);
+        m.castShadow = cast; m.receiveShadow = true;
+        m.geometry.computeBoundingSphere();
+        this.gOutposts.add(m);
+      };
+      add(c.solid, MATS.solid, true);
+      add(c.flora, MATS.foliage, true);
+      add(c.glow, MATS.glow, false);
+    }
+    for (const b of O.blockers) this.blockers.push(b);
+    for (const l of O.lights) this.lightSources.push(l);
+    for (const s of O.npcSpots) this.npcSpots.push(s);
+    if (O.smokes?.length) {
+      this._smokes = (this._smokes || this.village.smokes || []).concat(O.smokes);
+      this.ambient.setSmokeSources(this._smokes);
+    }
+    this.outposts.set(plan.def.id, O);
+    /* the fishery anchor is how the fisherman and the map find the place */
+    this.anchors[`fishery:${plan.def.id}`] = O.fishery;
+    bus.emit(EV.VILLAGE_FOUND, { village: plan.def, outpost: O });
+    return O;
+  }
+
+  /** Every village that has actually been raised, for the NPC spawner. */
+  get builtOutposts() { return [...this.outposts.values()]; }
+
   update(dt, player, camera) {
     const px = player.x, pz = player.z;
 
@@ -289,6 +384,7 @@ export class World {
     if (bi !== this._lastBlockX || bj !== this._lastBlockZ) {
       this._lastBlockX = bi; this._lastBlockZ = bj;
       this._rebuildWishlist(px, pz, bi, bj);
+      this._checkOutposts(px, pz);
     }
 
     /* --- spend the frame's building budget ------------------------------ */

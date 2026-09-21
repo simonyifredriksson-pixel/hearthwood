@@ -16,10 +16,10 @@
    works for both without a special case.
 */
 
-import * as THREE from '../../lib/three.module.js?v=20260921164117';
-import { MeshBuilder, tube, blob, box, lathe, cylinder } from './Geo.js?v=20260921164117';
-import { BUILD, BARK, METAL, mixHex, tweak, shade } from './Palette.js?v=20260921164117';
-import { makeRng, clamp, lerp, TAU } from '../core/Util.js?v=20260921164117';
+import * as THREE from '../../lib/three.module.js?v=1790014288';
+import { MeshBuilder, tube, blob, box, lathe, cylinder } from './Geo.js?v=1790014288';
+import { BUILD, BARK, METAL, mixHex, tweak, shade } from './Palette.js?v=1790014288';
+import { makeRng, clamp, lerp, TAU } from '../core/Util.js?v=1790014288';
 
 /** What the shaft is made of, and how it reads. */
 const SHAFT = {

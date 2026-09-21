@@ -13,42 +13,45 @@
      7. ui, then render
 */
 
-import * as THREE from '../lib/three.module.js?v=20260921164117';
-import { input } from './core/Input.js?v=20260921164117';
-import { CameraRig } from './core/CameraRig.js?v=20260921164117';
-import { audio } from './core/Audio.js?v=20260921164117';
-import { bus, EV } from './core/Bus.js?v=20260921164117';
-import { BUILD, RENDER, WORLD, GAME, PLAYER } from './core/Config.js?v=20260921164117';
-import { clamp, clamp01, lerp, now, Rolling } from './core/Util.js?v=20260921164117';
+import * as THREE from '../lib/three.module.js?v=1790014288';
+import { input } from './core/Input.js?v=1790014288';
+import { CameraRig } from './core/CameraRig.js?v=1790014288';
+import { audio } from './core/Audio.js?v=1790014288';
+import { bus, EV } from './core/Bus.js?v=1790014288';
+import { BUILD, RENDER, WORLD, GAME, PLAYER } from './core/Config.js?v=1790014288';
+import { clamp, clamp01, lerp, now, Rolling } from './core/Util.js?v=1790014288';
 
-import { MATS } from './art/Materials.js?v=20260921164117';
-import { World } from './world/World.js?v=20260921164117';
-import { Player } from './game/Player.js?v=20260921164117';
-import { NPCs } from './game/NPCs.js?v=20260921164117';
-import { GameState } from './game/State.js?v=20260921164117';
-import { SPECIES } from './game/Anim.js?v=20260921164117';
-import { weaponMeshes } from './art/WeaponArt.js?v=20260921164117';
-import { rodMeshes } from './art/RodArt.js?v=20260921164117';
-import { WEAPON_CLASSES } from './data/WeaponData.js?v=20260921164117';
-import { RARITY } from './art/Palette.js?v=20260921164117';
-import { STICKWRIGHT, FISHERMAN } from './data/VillagerData.js?v=20260921164117';
-import { RARE } from './data/StickData.js?v=20260921164117';
-import { STARTER_ROD } from './data/RodData.js?v=20260921164117';
+import { MATS } from './art/Materials.js?v=1790014288';
+import { World } from './world/World.js?v=1790014288';
+import { Player } from './game/Player.js?v=1790014288';
+import { NPCs } from './game/NPCs.js?v=1790014288';
+import { GameState } from './game/State.js?v=1790014288';
+import { SPECIES } from './game/Anim.js?v=1790014288';
+import { weaponMeshes } from './art/WeaponArt.js?v=1790014288';
+import { rodMeshes } from './art/RodArt.js?v=1790014288';
+import { WEAPON_CLASSES } from './data/WeaponData.js?v=1790014288';
+import { RARITY } from './art/Palette.js?v=1790014288';
+import { STICKWRIGHT, FISHERMAN } from './data/VillagerData.js?v=1790014288';
+import { RARE } from './data/StickData.js?v=1790014288';
+import { STARTER_ROD } from './data/RodData.js?v=1790014288';
 
-import { UI } from './ui/UI.js?v=20260921164117';
-import { Talk } from './ui/Talk.js?v=20260921164117';
-import { RodShop } from './ui/RodShop.js?v=20260921164117';
-import { Hotbar } from './ui/Hotbar.js?v=20260921164117';
-import { Effects } from './game/Effects.js?v=20260921164117';
-import { SatchelScreen, Turntable } from './ui/Satchel.js?v=20260921164117';
-import { WorkshopScreen, RevealScreen } from './ui/Workshop.js?v=20260921164117';
-import { ForgeScene } from './game/Forge.js?v=20260921164117';
-import { Workers } from './game/Workers.js?v=20260921164117';
-import { Fishing, FISH_STATE } from './game/Fishing.js?v=20260921164117';
-import { FishingUI } from './ui/FishingUI.js?v=20260921164117';
-import { Quest, FESTIVAL_SPEECH } from './game/Quest.js?v=20260921164117';
-import { CHARGE } from './game/Combat.js?v=20260921164117';
-import { ic } from './ui/Icons.js?v=20260921164117';
+import { UI } from './ui/UI.js?v=1790014288';
+import { Talk } from './ui/Talk.js?v=1790014288';
+import { RodShop } from './ui/RodShop.js?v=1790014288';
+import { Hotbar } from './ui/Hotbar.js?v=1790014288';
+import { MapScreen } from './ui/MapScreen.js?v=1790014288';
+import { Fog } from './game/MapData.js?v=1790014288';
+import { Effects } from './game/Effects.js?v=1790014288';
+import { SatchelScreen, Turntable } from './ui/Satchel.js?v=1790014288';
+import { WorkshopScreen, RevealScreen } from './ui/Workshop.js?v=1790014288';
+import { ForgeScene } from './game/Forge.js?v=1790014288';
+import { Workers } from './game/Workers.js?v=1790014288';
+import { Wildlife } from './game/Wildlife.js?v=1790014288';
+import { Fishing, FISH_STATE } from './game/Fishing.js?v=1790014288';
+import { FishingUI } from './ui/FishingUI.js?v=1790014288';
+import { Quest, FESTIVAL_SPEECH } from './game/Quest.js?v=1790014288';
+import { CHARGE } from './game/Combat.js?v=1790014288';
+import { ic } from './ui/Icons.js?v=1790014288';
 
 /* ========================================================================= */
 
@@ -82,8 +85,8 @@ input.attach(canvas);
 
 const G = {
   state: null, world: null, player: null, npcs: null, ui: null,
-  workers: null, fishing: null, fishUI: null, quest: null, forge: null,
-  talk: null, rodShop: null, hotbar: null,
+  workers: null, wildlife: null, fishing: null, fishUI: null, quest: null, forge: null,
+  talk: null, rodShop: null, hotbar: null, fog: null,
   fx: null, turntable: null,
   /* the cutscene director needs these two by name */
   scene, rig,
@@ -122,6 +125,7 @@ async function boot() {
      hands the player on its way through */
   G.workers = new Workers(G.world, scene);
   G.workers.plan(7);
+  G.wildlife = new Wildlife(G.world, scene);
   G.fishing = new Fishing({ audio });
   G.fishUI = new FishingUI(document.getElementById('ui'));
   G.audio = audio;
@@ -145,6 +149,7 @@ async function boot() {
       icon: 'spark', tone: 'rare', ms: 5200,
     }),
   });
+  G.fog = new Fog(G.state.explored);
   G.hotbar = new Hotbar(document.getElementById('ui'), G.state, {
     audio,
     onSelect: () => { if (G.player) equipFromState(); },
@@ -557,6 +562,26 @@ bus.on(EV.FISH_LOST, () => {
   setTimeout(() => { if (G.fishing) { G.fishing.reset(); G.fishing.state = 'idle'; } }, 1400);
 });
 
+/* A VILLAGE IS PEOPLED THE MOMENT IT IS RAISED.
+   The world builds the geometry when the player comes within four hundred
+   metres; this puts a fisherman behind its booth and a few residents in
+   its doorways at the same instant, so nobody ever walks into an empty
+   set of houses. */
+bus.on(EV.VILLAGE_FOUND, ({ village, outpost }) => {
+  G.npcs?.populate(outpost);
+  if (!G.state.seenVillages.has(village.id)) {
+    G.state.seenVillages.add(village.id);
+    G.state.save();
+    G.ui.banner({
+      kicker: 'a village',
+      title: village.name,
+      sub: village.blurb,
+      ms: 6200,
+    });
+    audio.craft?.();
+  }
+});
+
 bus.on(EV.CAMP_CLEARED, ({ total }) => {
   G.state.stats.scared++;
   G.ui.toast({
@@ -618,6 +643,14 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 /* ========================================================================= */
 /* SCREENS                                                                   */
 /* ========================================================================= */
+
+/* THE MAP.
+   Opened with M. The fog is revealed by walking, never by opening it, so
+   this only ever draws what has already been earned. */
+function openMap() {
+  if (G.ui.busy || G.forge?.busy) return;
+  G.ui.push(new MapScreen(G));
+}
 
 function openSatchel() {
   if (G.ui.busy) return;
@@ -771,6 +804,7 @@ function frame() {
     if (input.rawPressed('Escape', 'Space', 'KeyE')) G.forge.skip();
   } else if (!uiAte) {
     if (input.rawPressed('KeyQ', 'Tab')) openSatchel();
+    if (input.rawPressed('KeyM')) openMap();
     if (input.rawPressed('Escape')) { /* nothing open: ignore */ }
     if (input.rawPressed('KeyE')) doInteract();
     /* ATTACK.
@@ -815,7 +849,7 @@ function frame() {
     if (input.rawPressed('KeyV')) {
       rig.applyPreset(rig.presetName === 'vista' ? 'roam' : 'vista');
     }
-    if (input.rawPressed('KeyM')) audio.setEnabled(!audio.enabled);
+    if (input.rawPressed('KeyN')) audio.setEnabled(!audio.enabled);
   }
 
   /* --- 2. camera ------------------------------------------------------- */
@@ -849,12 +883,14 @@ function frame() {
 
   /* --- 5. npcs, crews and the line in the water ------------------------- */
   G.npcs.update(dt, P);
-  G.workers.update(dt, P);
+  G.workers.update(dt, P, sky.night);
+  G.wildlife.update(dt, P);
 
   /* a swing that has reached its hit frame startles whatever is in the arc */
   if (P.swingConnects) {
     const sw = P.swing;
-    const n = G.workers.strike({ x: P.x, z: P.z, yaw: P.yaw }, sw);
+    const n = G.workers.strike({ x: P.x, z: P.z, yaw: P.yaw }, sw)
+      + G.wildlife.strike({ x: P.x, z: P.z, yaw: P.yaw }, sw);
     if (n) {
       audio.thump?.(0.6 + (sw.charge || 0) * 0.12);
       const f = P.forward;
@@ -866,6 +902,16 @@ function frame() {
   /* the air moving round a sprinting fox */
   G.fx?.sprint(P, dt, P.quad);
   G.fx?.update(dt);
+
+  /* --- THE MAP FILLS IN BY WALKING ------------------------------------
+     Revealed here, in the world, rather than when the map is opened: the
+     point of the fog is that it is a record of where the player has
+     actually been. You can see further from a hilltop in the open than
+     from inside a thicket, so the radius follows the canopy. */
+  {
+    const see = lerp(78, 34, clamp01(env.forest));
+    if (G.fog.reveal(P.x, P.z, see) > 0) G.state.explored = G.fog.toJSON();
+  }
 
   G.fishing.update(dt);
   G.fishUI.update(G.fishing);
@@ -879,17 +925,27 @@ function frame() {
   if (G.quest) {
     G.quest.update(dt);
     G.ui.setObjective(cine ? null : G.quest.objective);
+    /* THE OBJECTIVE IS A LIGHT STANDING IN THE WORLD.
+       Not an arrow pinned to the edge of the screen that swings round as
+       you turn — that follows the player and makes the tutorial feel like
+       an instruction. A warm column of light at the place itself is
+       somewhere to walk to: you see it, you lose it behind a rise, you
+       find it again, and that is navigating rather than obeying.
+
+       The on-screen chevron is kept ONLY for when the objective is a long
+       way off and out of sight, where a light on the horizon genuinely
+       cannot be seen — and even then it is faint. */
     const mk = G.quest.marker;
     if (mk && !uiUp && !cine) {
       const dx = mk.x - P.x, dz = mk.z - P.z;
       const d = Math.hypot(dx, dz);
-      // relative to where the CAMERA is looking, not where the player faces:
-      // the arrow has to agree with the screen, not with the character
+      G.fx?.beacon(mk.x, G.world.groundAt(mk.x, mk.z), mk.z, d > 2.5);
       let a = Math.atan2(dx, dz) - rig.yaw;
       while (a > Math.PI) a -= Math.PI * 2;
       while (a < -Math.PI) a += Math.PI * 2;
-      G.ui.setGuide(d > 3 ? a : null, d, mk.label || '');
+      G.ui.setGuide(d > 90 ? a : null, d, mk.label || '');
     } else {
+      G.fx?.hideBeacon();
       G.ui.setGuide(null);
     }
   }

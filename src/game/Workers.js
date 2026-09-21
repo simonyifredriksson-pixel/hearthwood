@@ -21,15 +21,15 @@
    off.
 */
 
-import * as THREE from '../../lib/three.module.js?v=20260921164117';
-import { buildWorker, buildWorkerProp } from '../art/HumanArt.js?v=20260921164117';
-import { MeshBuilder } from '../art/Geo.js?v=20260921164117';
-import { MATS } from '../art/Materials.js?v=20260921164117';
-import { poseAnimal } from './Anim.js?v=20260921164117';
-import { targetsInArc } from './Combat.js?v=20260921164117';
-import { bus, EV } from '../core/Bus.js?v=20260921164117';
-import { WORLD } from '../core/Config.js?v=20260921164117';
-import { makeRng, clamp, clamp01, lerp, damp, dampAngle, TAU, hash2 } from '../core/Util.js?v=20260921164117';
+import * as THREE from '../../lib/three.module.js?v=1790014288';
+import { buildWorker, buildWorkerProp } from '../art/HumanArt.js?v=1790014288';
+import { MeshBuilder, box, beam, blob } from '../art/Geo.js?v=1790014288';
+import { MATS } from '../art/Materials.js?v=1790014288';
+import { poseAnimal } from './Anim.js?v=1790014288';
+import { targetsInArc } from './Combat.js?v=1790014288';
+import { bus, EV } from '../core/Bus.js?v=1790014288';
+import { WORLD } from '../core/Config.js?v=1790014288';
+import { makeRng, clamp, clamp01, lerp, damp, dampAngle, TAU, hash2 } from '../core/Util.js?v=1790014288';
 
 /* How far out the crews work. Never inside the village bowl — the whole
    point is that they have NOT found it — and never past the mountains. */
@@ -129,8 +129,13 @@ export class Workers {
         t: r.range(0, 10),
         phase: r.range(0, TAU),
         speed: 0, moving: false,
-        state: 'work',            // work | startled | flee | gone
+        state: 'work',            // work | alert | swing | backoff | startled | flee | gone
         stateT: 0,
+        /* HOW MUCH FIGHT HE HAS IN HIM. Two or three blows, and watching
+           a workmate run costs him one as well. At zero he drops the tool
+           and goes. Nobody is hurt; the whole encounter is a fright. */
+        nerve: r.int(2, 3),
+        dodgeCool: 0, swung: false,
         radius: 0.45,
         down: false, fleeing: false,
         prop: null,
@@ -191,7 +196,7 @@ export class Workers {
   /* UPDATE                                                                 */
   /* ====================================================================== */
 
-  update(dt, player) {
+  update(dt, player, night = 0) {
     this._t += dt;
     const px = player.x, pz = player.z;
 
@@ -199,9 +204,81 @@ export class Workers {
       const d = Math.hypot(camp.x - px, camp.z - pz);
       if (!camp.cleared && d < 120 && !camp.built) this._build(camp);
       else if (camp.built && d > 190) this._unbuild(camp);
+      if (camp.built) this._lights(camp, night);
     }
 
     for (const w of this.list) this._updateWorker(dt, w, player);
+  }
+
+  /**
+   * WORK LIGHTS, PUT OUT AT DUSK.
+   *
+   * The crews stay in the wood after dark, and at night a survey camp was
+   * six brown figures in a black forest — you walked into one before you
+   * saw it. They set portable lamps down instead, which lights the site
+   * and NOTHING else: the clearing glows, the wood around it stays as
+   * dark as it was, and finding a camp at night becomes the nicest thing
+   * in the game rather than the most annoying.
+   *
+   * Built once, then only switched on and off — a camp is visited many
+   * times and rebuilding lamps every dusk would be a hitch for nothing.
+   */
+  _lights(camp, night) {
+    const on = night > 0.35;
+    if (camp.lit === on) return;
+    camp.lit = on;
+
+    if (!camp.lamps) {
+      camp.lamps = [];
+      const r = makeRng(camp.seed ^ 0x1a3b);
+      const n = 3;
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * TAU + r.range(-0.3, 0.3);
+        const rad = camp.radius * r.range(0.35, 0.68);
+        const lx = camp.x + Math.cos(a) * rad;
+        const lz = camp.z + Math.sin(a) * rad;
+        const ly = this.world.groundAt(lx, lz);
+
+        /* a lamp on a tripod: three legs, a hooded head, a bright pane */
+        const b = new MeshBuilder(), g = new MeshBuilder();
+        b.color(0x3e3a34, 0.06, r);
+        for (let k = 0; k < 3; k++) {
+          const la = (k / 3) * TAU;
+          beam(b, Math.cos(la) * 0.28, 0, Math.sin(la) * 0.28, 0, 1.05, 0, 0.045, 0.045, [0, 1, 0]);
+        }
+        b.color(0xd8a63a, 0.05, r);
+        box(b, 0, 1.18, 0, 0.30, 0.22, 0.30);
+        b.color(0x2e2a24, 0.05, r);
+        box(b, 0, 1.32, 0, 0.38, 0.07, 0.38);
+        b.color(0xfff0c0, 0.03, r);
+        box(b, 0, 1.17, 0.155, 0.24, 0.16, 0.02);
+        g.color(0xffd98a, 0.06, r);
+        blob(g, 0, 1.17, 0.19, 0.20, 2, 6);
+
+        const solid = new THREE.Mesh(b.build({ flat: false }), MATS.solid);
+        const glow = new THREE.Mesh(g.build({ flat: false }), MATS.glow);
+        for (const m of [solid, glow]) {
+          m.position.set(lx, ly, lz);
+          m.rotation.y = r.range(0, TAU);
+          m.visible = false;
+          this.group.add(m);
+        }
+        solid.castShadow = true;
+
+        const light = new THREE.PointLight(0xffc878, 0, 16, 1.7);
+        light.position.set(lx, ly + 1.2, lz);
+        light.visible = false;
+        this.group.add(light);
+
+        camp.lamps.push({ solid, glow, light });
+      }
+    }
+    for (const L of camp.lamps) {
+      L.solid.visible = on;
+      L.glow.visible = on;
+      L.light.visible = on;
+      L.light.intensity = on ? 2.2 : 0;
+    }
   }
 
   _updateWorker(dt, w, player) {
@@ -217,10 +294,44 @@ export class Workers {
       w.state = 'work'; w.stateT = 0;
     }
 
-    if (w.state === 'startled' && w.stateT > 0.75) {
-      w.state = 'flee'; w.stateT = 0;
-      w.fleeing = true;
+    /* --- THEY FIGHT BACK NOW --------------------------------------------
+       They used to stand there and absorb it, which made the whole
+       encounter feel like vandalism rather than a confrontation. A
+       worker with a hammer in his hand will use it — he swings back,
+       and he keeps swinging while he still thinks he can win.
+
+       `nerve` is what he has left. Every blow takes some; so does
+       watching a workmate bolt. When it is gone he drops the tool and
+       runs, which is still the outcome — you are scaring them off, not
+       hurting them. Nobody is ever harmed, and nothing here can kill. */
+    if (w.state === 'startled' && w.stateT > 0.55) {
+      if (w.nerve > 0 && distP < 4.5) {
+        w.state = 'swing'; w.stateT = 0; w.swung = false;
+      } else {
+        w.state = 'flee'; w.stateT = 0;
+        w.fleeing = true;
+      }
     }
+
+    /* the swing itself: a wind-up you can see, then one committed blow */
+    if (w.state === 'swing') {
+      if (!w.swung && w.stateT > 0.42) {
+        w.swung = true;
+        if (distP < 3.0) bus.emit(EV.PLAYER_SHOVED, { worker: w, from: [w.x, w.z] });
+      }
+      if (w.stateT > 0.95) {
+        /* and sometimes he thinks better of it and gives ground */
+        w.state = (w.nerve > 1 && Math.random() < 0.55) ? 'alert' : 'backoff';
+        w.stateT = 0;
+      }
+    }
+
+    /* backing off: a couple of steps away, tool still up, watching */
+    if (w.state === 'backoff' && w.stateT > 1.3) { w.state = 'alert'; w.stateT = 0; }
+
+    /* --- DODGING. Not much, and only while he still has his nerve, but
+       enough that a crew is not nine stationary targets. */
+    if ((w.state === 'alert' || w.state === 'swing') && w.dodgeCool > 0) w.dodgeCool -= dt;
 
     /* --- what they are doing -------------------------------------------- */
     let wantX = w.homeX, wantZ = w.homeZ, run = false;
@@ -236,11 +347,25 @@ export class Workers {
         w.state = 'gone';
         w.rig.root.visible = false;
       }
-    } else if (w.state === 'alert') {
-      // back off a couple of steps and watch
+    } else if (w.state === 'swing') {
+      /* he steps INTO it — a swing you can back out of is not a threat */
+      const a = Math.atan2(dxp, dzp);
+      wantX = w.x + Math.sin(a) * 1.4;
+      wantZ = w.z + Math.cos(a) * 1.4;
+    } else if (w.state === 'backoff') {
       const a = Math.atan2(-dxp, -dzp);
-      wantX = w.homeX + Math.sin(a) * 3;
-      wantZ = w.homeZ + Math.cos(a) * 3;
+      wantX = w.x + Math.sin(a) * 4;
+      wantZ = w.z + Math.cos(a) * 4;
+    } else if (w.state === 'alert') {
+      /* he holds his ground at arm's length with the tool up, and closes
+         if you come inside it */
+      const a = Math.atan2(-dxp, -dzp);
+      const want = distP < 3.2 ? 3.4 : 2.2;
+      wantX = player.x + Math.sin(a) * want;
+      wantZ = player.z + Math.cos(a) * want;
+      if (w.nerve > 0 && distP < 3.6 && w.stateT > 1.1) {
+        w.state = 'swing'; w.stateT = 0; w.swung = false;
+      }
     } else if (w.job === 'haul' || w.job === 'mark') {
       // wander the camp on a slow loop
       const a = w.phase + w.t * 0.24;
@@ -302,17 +427,30 @@ export class Workers {
    * @returns {number} how many were sent packing
    */
   strike(from, swing) {
-    const hits = targetsInArc(from, this.list.filter(w => w.state === 'work' || w.state === 'alert'), swing);
+    const hits = targetsInArc(from, this.list.filter(w =>
+      w.state === 'work' || w.state === 'alert' || w.state === 'swing' || w.state === 'backoff'), swing);
     let n = 0;
     for (const h of hits) {
       const w = h.target;
+      /* A WORKER WITH HIS NERVE UP CAN SLIP ONE.
+         Only occasionally, only when he is squared up rather than
+         working, and never against a charged blow — enough that a crew
+         is a scuffle rather than a row of skittles. */
+      if ((w.state === 'alert' || w.state === 'backoff') && w.dodgeCool <= 0
+        && !swing.charge && Math.random() < 0.28) {
+        w.dodgeCool = 1.6;
+        w.state = 'backoff'; w.stateT = 0;
+        continue;
+      }
+      w.nerve -= (swing.charge ? 2 : 1) + (swing.combo === 2 ? 1 : 0);
       w.state = 'startled';
       w.stateT = 0;
       w.scared++;
       n++;
-      /* they drop whatever they were holding — the tool stays in the wood,
-         which is both a souvenir and proof the encounter happened */
-      if (w.prop) {
+      /* he drops the tool WHEN HIS NERVE GOES, not on the first tap — a
+         man who throws his hammer down the instant you look at him is
+         not somebody you drove off, he is a prop */
+      if (w.prop && w.nerve <= 0) {
         const m = w.prop;
         const wp = new THREE.Vector3();
         m.getWorldPosition(wp);

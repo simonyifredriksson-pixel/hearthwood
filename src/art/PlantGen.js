@@ -17,11 +17,11 @@
        at the new growth in the middle and browner at the old outer fronds.
 */
 
-import * as THREE from '../../lib/three.module.js?v=20260921164117';
-import { MeshBuilder, tube, blob, blade, lathe, smoothPath, rotAxis, norm3, perp } from './Geo.js?v=20260921164117';
-import { PLANT, LEAF, MOSS, MUSHROOM, GROUND, BARK, mixHex, tweak, shade } from './Palette.js?v=20260921164117';
-import { orient, lumpWarp } from './TreeGen.js?v=20260921164117';
-import { makeRng, clamp, lerp, TAU, smoothstep } from '../core/Util.js?v=20260921164117';
+import * as THREE from '../../lib/three.module.js?v=1790014288';
+import { MeshBuilder, tube, blob, blade, lathe, smoothPath, rotAxis, norm3, perp } from './Geo.js?v=1790014288';
+import { PLANT, LEAF, MOSS, MUSHROOM, GROUND, BARK, mixHex, tweak, shade } from './Palette.js?v=1790014288';
+import { orient, lumpWarp } from './TreeGen.js?v=1790014288';
+import { makeRng, clamp, lerp, TAU, smoothstep } from '../core/Util.js?v=1790014288';
 
 /* ========================================================================= */
 /* FERN                                                                      */

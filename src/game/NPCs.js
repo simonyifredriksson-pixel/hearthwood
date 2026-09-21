@@ -23,15 +23,15 @@
    is far worse than one who walks through the corner of a flowerbed.
 */
 
-import * as THREE from '../../lib/three.module.js?v=20260921164117';
-import { buildVillager, buildCritter } from '../art/VillagerArt.js?v=20260921164117';
-import { VILLAGERS, CRITTERS, STICKWRIGHT, FISHERMAN, SMALL_TALK } from '../data/VillagerData.js?v=20260921164117';
-import { MeshBuilder, blob, tube } from '../art/Geo.js?v=20260921164117';
-import { MATS } from '../art/Materials.js?v=20260921164117';
-import { BARK, BUILD, mixHex } from '../art/Palette.js?v=20260921164117';
-import { riverX, riverLevel } from '../world/Terrain.js?v=20260921164117';
-import { WORLD } from '../core/Config.js?v=20260921164117';
-import { makeRng, clamp, clamp01, lerp, damp, dampAngle, angleDelta, TAU, smoothstep } from '../core/Util.js?v=20260921164117';
+import * as THREE from '../../lib/three.module.js?v=1790014288';
+import { buildVillager, buildCritter } from '../art/VillagerArt.js?v=1790014288';
+import { VILLAGERS, CRITTERS, STICKWRIGHT, FISHERMAN, SMALL_TALK } from '../data/VillagerData.js?v=1790014288';
+import { MeshBuilder, blob, tube } from '../art/Geo.js?v=1790014288';
+import { MATS } from '../art/Materials.js?v=1790014288';
+import { BARK, BUILD, mixHex } from '../art/Palette.js?v=1790014288';
+import { riverX, riverLevel } from '../world/Terrain.js?v=1790014288';
+import { WORLD } from '../core/Config.js?v=1790014288';
+import { makeRng, clamp, clamp01, lerp, damp, dampAngle, angleDelta, TAU, smoothstep } from '../core/Util.js?v=1790014288';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -145,7 +145,9 @@ export class NPCs {
       npc.home = { x: spot.x, z: spot.z, yaw: spot.yaw };
       npc.fishSpot = spot;
       npc.booth = spot.booth || null;
+      npc.village = 'home';
       this.fisherman = npc;
+      this.fishermen = [npc];
     }
 
     /* --- everybody else -------------------------------------------------- */
@@ -609,6 +611,74 @@ export class NPCs {
   /* ====================================================================== */
   /* INTERACTION                                                            */
   /* ====================================================================== */
+
+  /* ====================================================================== */
+  /* THE OTHER VILLAGES                                                     */
+  /* ====================================================================== */
+
+  /**
+   * Populate a village the moment the world raises it.
+   *
+   * EVERY VILLAGE HAS A FISHERMAN. That was the brief's point: the player
+   * should never have to walk back to the starting village to sell a
+   * creel. They each get their own name, voice and lines out of
+   * VillageData, and a handful of residents so the place is not a set of
+   * empty houses with one shopkeeper in it.
+   *
+   * Called by the game when EV.VILLAGE_FOUND fires; safe to call twice.
+   */
+  populate(outpost) {
+    if (!outpost || this._peopled?.has(outpost.id)) return;
+    (this._peopled ||= new Set()).add(outpost.id);
+    const def = outpost.def;
+    const F = def.fisher;
+    const r = this.rnd;
+
+    /* --- the fisherman, behind his booth ------------------------------- */
+    const A = outpost.fishery;
+    if (A) {
+      const def2 = {
+        ...FISHERMAN,
+        name: F.name, title: F.title, voice: F.voice,
+        greet: F.greet, proud: F.proud, idle: F.idle,
+        seed: (F.name.length * 7919 + def.id.length * 131) >>> 0,
+      };
+      const npc = this._make(def2, A.standAt[0], A.standAt[1], A.yaw, 'shopkeep');
+      npc.isFisherman = true;
+      npc.village = def.id;
+      npc.home = { x: A.standAt[0], z: A.standAt[1], yaw: A.yaw };
+      npc.fishSpot = {
+        x: A.castAt[0], z: A.castAt[1],
+        depth: 0.6, remoteness: def.zone, zone: def.zone, seed: def.id.length * 977,
+      };
+      (this.fishermen ||= []).push(npc);
+    }
+
+    /* --- and some residents -------------------------------------------- */
+    const spots = (outpost.npcSpots || []).filter(s => s.kind === 'door' || s.kind === 'well' || s.kind === 'fire');
+    const n = Math.min(spots.length, 5);
+    for (let i = 0; i < n; i++) {
+      const s = spots[Math.floor((i / n) * spots.length)];
+      const base = VILLAGERS[(i * 5 + def.id.length) % VILLAGERS.length];
+      const npc = this._make({
+        ...base,
+        name: base.name, seed: (base.name.length * 31 + def.id.length * 7919 + i) >>> 0,
+      }, s.x, s.z, s.yaw ?? 0, i === 0 ? 'wander' : base.job);
+      npc.home = { x: s.x, z: s.z, yaw: s.yaw ?? 0 };
+      npc.village = def.id;
+      npc.anchorKind = s.kind;
+    }
+  }
+
+  /** The fisherman nearest a point, for the map and the quest arrow. */
+  nearestFisherman(x, z) {
+    let best = null, bd = Infinity;
+    for (const f of (this.fishermen || [])) {
+      const d = Math.hypot(f.x - x, f.z - z);
+      if (d < bd) { bd = d; best = f; }
+    }
+    return best;
+  }
 
   /** The nearest villager the player could speak to. */
   nearest(x, z, range) {

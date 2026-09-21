@@ -56,6 +56,24 @@ const P = {
   fire: 'M12 2 c1 4-3 5-3 9a3 3 0 0 0 6 0c0-1.6-.6-2.4-.6-3.6 2 1.6 3.6 4 3.6 6.4a6 6 0 0 1-12 0C6 9 12 8 12 2 Z',
   wind: 'M3 8 h11 a2.5 2.5 0 1 0-2.5-2.5 h-2 A4.5 4.5 0 1 1 14 10 H3 Z' +
     'M3 13 h14 a2.5 2.5 0 1 1-2.5 2.5 h-2 A4.5 4.5 0 1 0 17 11 H3 Z',
+
+  /* --- FISH N STICKS ---------------------------------------------------
+     The body and the eye are ONE evenodd path, so the eye is a hole. The
+     tail is a separate path, because a tail that overlapped the body in
+     the same evenodd path would cancel it — which is exactly the trap the
+     header warns about, and exactly what happened on the first attempt. */
+  fish: 'M13.6 5 C17.8 5 21 8.2 22 12 21 15.8 17.8 19 13.6 19 9.4 19 6.2 15.8 5.2 12 '
+    + '6.2 8.2 9.4 5 13.6 5 Z M16.4 9.6 a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3 Z',
+  tail: 'M5.4 12 L1.6 7.4 v9.2 Z',
+  rod: 'M2.6 20.2 L4.1 21.7 6.6 19.2 5.1 17.7 Z'          // the cork grip
+    + 'M5.8 17 L7.1 18.3 C12.4 13 16.6 8.6 20.9 2.6 15 6.9 10.7 11.4 5.8 17 Z'  // the shaft
+    + 'M8.2 14.2 a2.4 2.4 0 1 0 0 4.8 2.4 2.4 0 0 0 0-4.8 Z'                    // the reel
+    + 'M19.4 3.4 L21 5 C19 8.4 17.2 11.2 15.4 13 l-1-1 c1.8-2 3.4-4.6 5-8.6 Z', // the line
+  coin: 'M12 2 a10 10 0 1 0 0 20 10 10 0 0 0 0-20 Z M12 4.4 a7.6 7.6 0 1 1 0 15.2 7.6 7.6 0 0 1 0-15.2 Z'
+    + 'M11 6.4 h2 v1.2 h2 v2 h-4 v1.4 h4 v4.6 h-2 v1.2 h-2 v-1.2 H9 v-2 h4 v-1.4 H9 V7.6 h2 Z',
+  star: 'M12 1.8 l3.1 6.6 7 .9 -5.1 4.9 1.3 7.1 -6.3-3.5 -6.3 3.5 1.3-7.1 -5.1-4.9 7-.9 Z',
+  sort: 'M7 3 L11 8 H8 v13 H6 V8 H3 Z M17 21 L13 16 h3 V3 h2 v13 h3 Z',
+  scale: 'M11 2 h2 v2.4 h6 v2 h-6 V20 h5 v2 H6 v-2 h5 V6.4 H5 v-2 h6 Z',
 };
 
 /** Icon markup, for interpolating straight into innerHTML. */

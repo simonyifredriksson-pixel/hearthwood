@@ -38,15 +38,15 @@
    TYPE and the RARITY, and those land on the card at the end.
 */
 
-import * as THREE from '../../lib/three.module.js?v=20260921164117';
-import { MeshBuilder, blob, box } from '../art/Geo.js?v=20260921164117';
-import { MATS } from '../art/Materials.js?v=20260921164117';
-import { buildStick } from '../art/StickGen.js?v=20260921164117';
-import { weaponMeshes } from '../art/WeaponArt.js?v=20260921164117';
-import { WEAPON_CLASSES } from '../data/WeaponData.js?v=20260921164117';
-import { MATERIALS, EFFECTS } from '../data/StickData.js?v=20260921164117';
-import { carryFor } from './Combat.js?v=20260921164117';
-import { clamp01, lerp, smoothstep, TAU, makeRng } from '../core/Util.js?v=20260921164117';
+import * as THREE from '../../lib/three.module.js?v=1790014288';
+import { MeshBuilder, blob, box } from '../art/Geo.js?v=1790014288';
+import { MATS } from '../art/Materials.js?v=1790014288';
+import { buildStick } from '../art/StickGen.js?v=1790014288';
+import { weaponMeshes } from '../art/WeaponArt.js?v=1790014288';
+import { WEAPON_CLASSES } from '../data/WeaponData.js?v=1790014288';
+import { MATERIALS, EFFECTS } from '../data/StickData.js?v=1790014288';
+import { carryFor } from './Combat.js?v=1790014288';
+import { clamp01, lerp, smoothstep, TAU, makeRng } from '../core/Util.js?v=1790014288';
 
 /* ========================================================================= */
 /* THE BEATS                                                                 */
@@ -80,43 +80,105 @@ const MARK = {
  * fits a person that size in a shed this size. Run probe_forgeset.mjs before
  * touching any of these numbers.
  */
+/*
+ * THE LENS, and why every beat now names one.
+ *
+ * The first cut of this scene filmed all ten beats on the gameplay camera's
+ * 55 degrees, and it played like one camera being carried round a shed. A
+ * smith's hands want a long lens — WORK below — which compresses the depth
+ * and puts the player's nose in the job; the room and the presentation want
+ * a wide, which takes in the shed and the light coming through the opening.
+ * These are the only three focal lengths in the scene, used on purpose.
+ */
+const LENS = { WIDE: 52, ROOM: 42, WORK: 32, TIGHT: 26 };
+
 const BEATS = [
   {
-    id: 'take', ms: 2100, mark: 'bench', hold: 'up',
+    id: 'take', ms: 1900, mark: 'bench', hold: 'up', fov: LENS.ROOM,
     cam: { from: [2.10, 1.35, 1.55], to: [1.55, 1.25, 1.10], at: [0.30, 0.95, -0.55] },
   },
   {
-    id: 'turn', ms: 1700, mark: 'bench', hold: 'sight',
+    id: 'turn', ms: 1500, mark: 'bench', hold: 'sight', fov: LENS.WORK,
     cam: { from: [-1.95, 1.30, 1.35], to: [-1.50, 1.20, 0.95], at: [0.30, 0.98, -0.55] },
   },
   {
-    id: 'place', ms: 1100, mark: 'bench', hold: 'down',
+    id: 'place', ms: 1000, mark: 'bench', hold: 'down', fov: LENS.ROOM,
     cam: { from: [1.40, 1.95, 0.85], to: [1.10, 1.70, 0.45], at: [0.35, 0.72, -1.15] },
   },
   {
     /* THE BLUEPRINT. Behind her shoulder, below the page, page tilted away. */
-    id: 'draw', ms: 2300, mark: 'bench', hold: 'none', sheet: true,
+    id: 'draw', ms: 2000, mark: 'bench', hold: 'none', sheet: true, fov: LENS.WORK,
     cam: { from: [-0.85, 1.58, 0.35], to: [-0.70, 1.48, 0.08], at: [0.34, 0.78, -1.05] },
   },
   {
-    id: 'shape', ms: 1700, mark: 'bench', hold: 'work', chips: true,
+    /* PREPARING. Everything the job needs, laid out in a row on the bench:
+       cord, a strip of hide, a pot of wax — and, if the wood brought
+       anything with it, that too, sitting there glowing. A long slow slide
+       along the bench top on the tight lens, so the player reads the
+       materials as objects rather than as a list. */
+    id: 'gather', ms: 1500, mark: 'bench', hold: 'gather', kit: true, fov: LENS.TIGHT,
+    /* HIGH AND OFF TO HER LEFT, looking down the bench. The first staging
+       put the lens between her and the bench at nose height and dollied
+       it straight through her skull — she stands BETWEEN the camera and
+       the thing this beat is about, so the only place to film the bench
+       from is above and to one side, with her paw coming into frame. */
+    cam: { from: [1.60, 1.42, -0.32], to: [1.05, 1.32, -0.54], at: [0.36, 0.99, -1.08] },
+  },
+  {
+    /* CUTTING IT TO LENGTH. The first irreversible thing that happens to
+       the stick, and the beat the sequence was missing — she went straight
+       from drawing it to shaping it, and a plan with no cut in between is
+       a plan that never touched the wood. */
+    id: 'cut', ms: 1500, mark: 'bench', hold: 'saw', chips: true, saw: true, fov: LENS.WORK,
+    cam: { from: [2.05, 1.08, 0.15], to: [1.60, 1.00, -0.20], at: [0.40, 0.76, -1.05] },
+  },
+  {
+    id: 'shape', ms: 1500, mark: 'bench', hold: 'work', chips: true, fov: LENS.WORK,
     cam: { from: [2.75, 1.25, 0.55], to: [2.35, 1.18, 0.15], at: [0.40, 0.78, -1.00] },
   },
   {
-    id: 'hammer', ms: 2300, mark: 'anvil', hold: 'anvil', sparks: true, weapon: true,
+    /* THE HEAT. The only warm light in the shop, and the only beat where
+       something happens TO her rather than under her hands — the coals
+       come up under the bellows and put her face in orange. Filmed low and
+       close across the fire so the flare is between the lens and her. */
+    id: 'heat', ms: 2000, mark: 'forge', hold: 'bellows', fire: true, weapon: true, fov: LENS.WORK,
+    /* THE HEARTH BEATS LIVE IN THE BACK CORNER, so their cameras can only
+       ever be on the +forward side of it — the shop's rear wall is about
+       half a metre behind the fire, and a mark further back than that
+       films the inside of the building. The aim sits between the coals
+       and where she stands rather than on the coals, or she ends up
+       clipped to the edge of frame. */
+    cam: {
+      rel: 'forge', from: [1.55, 0.78, 1.40], to: [1.10, 0.68, 1.00],
+      at: [0.30, 0.40, 0.10], at2: [0.20, 0.58, 0.00],
+    },
+  },
+  {
+    id: 'hammer', ms: 2100, mark: 'anvil', hold: 'anvil', sparks: true, weapon: true, fov: LENS.WORK,
     cam: { from: [-0.95, 1.05, 1.95], to: [-1.35, 0.95, 1.45], at: [-2.35, 0.62, -0.34] },
   },
   /* one family beat is spliced in here — see `variantBeat` */
+  /* and, only when the wood brought something with it, `inlayBeat` */
   {
-    id: 'bind', ms: 1500, mark: 'bench', hold: 'bind', weapon: true,
+    /* QUENCH. Short, loud and the end of the hot half of the scene: in it
+       goes, the shop fills with steam, and everything after this is quiet
+       work with a cloth. */
+    id: 'quench', ms: 1300, mark: 'forge', hold: 'quench', steam: true, weapon: true, fov: LENS.WORK,
+    cam: {
+      rel: 'forge', from: [1.50, 1.08, 1.10], to: [1.22, 0.98, 0.88],
+      at: [0.45, 0.34, 0.10], at2: [0.55, 0.58, 0.10],
+    },
+  },
+  {
+    id: 'bind', ms: 1400, mark: 'bench', hold: 'bind', weapon: true, fov: LENS.TIGHT,
     cam: { from: [1.75, 1.20, 0.95], to: [1.45, 1.14, 0.60], at: [0.40, 0.88, -0.55] },
   },
   {
-    id: 'polish', ms: 1400, mark: 'bench', hold: 'polish', weapon: true,
+    id: 'polish', ms: 1300, mark: 'bench', hold: 'polish', weapon: true, fov: LENS.TIGHT,
     cam: { from: [-1.55, 1.25, 0.95], to: [-1.20, 1.18, 0.62], at: [0.30, 0.90, -0.55] },
   },
   {
-    id: 'present', ms: 2200, mark: 'front', hold: 'present', weapon: true,
+    id: 'present', ms: 2100, mark: 'front', hold: 'present', weapon: true, fov: LENS.WIDE,
     cam: { from: [0.70, 1.55, 3.30], to: [0.34, 1.34, 2.55], at: [0.30, 0.88, 1.20], at2: [0.30, 1.02, 1.20] },
   },
 ];
@@ -161,6 +223,31 @@ function variantBeat(build) {
   }
 }
 
+/**
+ * THE BEAT THAT ONLY SOME STICKS EARN.
+ *
+ * A branch with amber in it, or one that came off a tree the lightning
+ * found, is worth more and reads differently in the satchel — and until
+ * now the cutscene said nothing about it at all. It ran the identical
+ * sequence whether the wood was hazel from the fence line or something
+ * that hums. This beat exists solely so the player who finds a rare
+ * material SEES it being set into the weapon.
+ *
+ * Returned only when there is something to set. An empty beat that plays
+ * for ordinary wood would be a hare staring at her own hands.
+ */
+function inlayBeat(stick) {
+  if (!stick?.special && !stick?.effect) return null;
+  return {
+    id: 'inlay', ms: 1800, mark: 'bench', hold: 'inlay', weapon: true, kit: true,
+    fov: LENS.WORK,
+    /* over her left shoulder with a metre of clearance — closer than this
+       and the back of her head is the whole frame, which is what the
+       first attempt came back as */
+    cam: { from: [1.55, 1.20, 0.10], to: [1.25, 1.14, -0.18], at: [0.42, 0.88, -0.85] },
+  };
+}
+
 /* ========================================================================= */
 /* WHAT SHE SAYS                                                             */
 /* ========================================================================= */
@@ -189,7 +276,12 @@ function turnLine(s) {
 const LINES = {
   place: 'She sets it down, and reaches for a sheet of parchment.',
   draw: '"Not yet," she says, without looking up.',
+  gather: 'Cord, hide, wax. She lays them out in the order she will want them.',
+  cut: 'The saw goes on, twice, and two ends come off.',
   shape: 'The drawknife goes on, and the shavings begin to fall.',
+  heat: 'The bellows go down, and the shed turns orange.',
+  inlay: 'She sets the piece in, and closes the wood over it.',
+  quench: 'Into the trough. The whole shop disappears for a moment.',
   hammer: 'Hammer. Hammer. A spray of sparks across the floor.',
   grind: 'The wheel turns, and takes an edge off it.',
   seat: 'She seats the head, and beats it home.',
@@ -216,6 +308,7 @@ class Motes {
   constructor(scene, n = 22) {
     this.hot = moteGeo(0xffcc72);
     this.chip = moteGeo(0xd9bc86);
+    this.vapour = moteGeo(0xe8eef2, 0.030);   // bigger and paler: steam
     this.items = [];
     this.group = new THREE.Group();
     scene.add(this.group);
@@ -228,24 +321,37 @@ class Motes {
     this.rnd = makeRng(0x5c1e);
   }
 
+  /**
+   * @param kind 'hot' (sparks), 'chip' (shavings) or 'steam'.
+   *
+   * Steam is the same ballistics with the sign of gravity flipped: it
+   * drifts UP and slows instead of arcing and falling, which is the whole
+   * difference between a cloud and a firework.
+   */
   burst(x, y, z, kind = 'hot', power = 1) {
     const r = this.rnd;
-    const geo = kind === 'hot' ? this.hot : this.chip;
-    const n = kind === 'hot' ? this.items.length : Math.floor(this.items.length * 0.5);
+    const geo = kind === 'hot' ? this.hot : kind === 'steam' ? this.vapour : this.chip;
+    const n = kind === 'hot' ? this.items.length : Math.floor(this.items.length * 0.6);
     for (let i = 0; i < n; i++) {
       const it = this.items[i];
       const a = r.range(0, TAU);
-      const up = kind === 'hot' ? r.range(1.4, 3.6) : r.range(0.2, 0.9);
-      const out = kind === 'hot' ? r.range(0.8, 2.6) : r.range(0.5, 1.4);
+      const up = kind === 'hot' ? r.range(1.4, 3.6)
+        : kind === 'steam' ? r.range(0.7, 1.5) : r.range(0.2, 0.9);
+      const out = kind === 'hot' ? r.range(0.8, 2.6)
+        : kind === 'steam' ? r.range(0.25, 0.85) : r.range(0.5, 1.4);
+      const spread = kind === 'steam' ? 0.10 : 0.03;
       it.m.geometry = geo;
-      it.m.position.set(x + r.range(-0.03, 0.03), y, z + r.range(-0.03, 0.03));
+      it.m.position.set(x + r.range(-spread, spread), y, z + r.range(-spread, spread));
       it.m.visible = true;
       it.vx = Math.cos(a) * out * power;
       it.vz = Math.sin(a) * out * power;
       it.vy = up * power;
-      it.g = kind === 'hot' ? -9 : -3.2;
+      it.g = kind === 'hot' ? -9 : kind === 'steam' ? 0.35 : -3.2;
+      it.drag = kind === 'steam' ? 1.7 : 0;
+      it.grow = kind === 'steam';
       it.life = 0;
-      it.max = kind === 'hot' ? r.range(0.30, 0.62) : r.range(0.6, 1.1);
+      it.max = kind === 'hot' ? r.range(0.30, 0.62)
+        : kind === 'steam' ? r.range(0.8, 1.5) : r.range(0.6, 1.1);
     }
   }
 
@@ -255,11 +361,17 @@ class Motes {
       it.life += dt;
       if (it.life >= it.max) { it.m.visible = false; continue; }
       it.vy += it.g * dt;
+      if (it.drag) {
+        const d = Math.exp(-it.drag * dt);
+        it.vx *= d; it.vz *= d; it.vy *= d;
+      }
       it.m.position.x += it.vx * dt;
       it.m.position.y += it.vy * dt;
       it.m.position.z += it.vz * dt;
       const k = 1 - it.life / it.max;
-      it.m.scale.setScalar(0.35 + k * 0.9);
+      /* a spark shrinks as it burns out; a cloud of steam expands as it
+         thins, which is the other half of reading as vapour */
+      it.m.scale.setScalar(it.grow ? 0.5 + (1 - k) * 2.2 : 0.35 + k * 0.9);
     }
   }
 
@@ -269,13 +381,14 @@ class Motes {
     this.group.parent?.remove(this.group);
     this.hot.dispose();
     this.chip.dispose();
+    this.vapour.dispose();
   }
 }
 
-function moteGeo(hex) {
+function moteGeo(hex, r = 0.014) {
   const b = new MeshBuilder();
   b.color(hex, 0);
-  blob(b, 0, 0, 0, 0.014, 2, 4);
+  blob(b, 0, 0, 0, r, 2, 4);
   return b.build({ flat: true });
 }
 
@@ -335,11 +448,32 @@ export class ForgeScene {
     this.c = Math.cos(A.yaw);
     this.s = Math.sin(A.yaw);
 
-    /* splice the family beat in after the hammering */
+    /* WHERE THE HEARTH IS, in the shop's own frame.
+       The fire pit is placed by the village layout, so its position is
+       whatever that decided; the two beats staged against it therefore
+       measure themselves from the anchor rather than from a number typed
+       into this file, which would drift the next time the shop is laid
+       out. The fallback is where it has always been put. */
+    this.forgeL = A.forgeAt ? this._local(A.forgeAt[0], A.forgeAt[1]) : [-2.50, -1.98];
+    this.forgeY = A.forgeTop ?? (this.ground + 0.30);
+    this.MARK = {
+      ...MARK,
+      forge: {
+        at: [this.forgeL[0] + 0.90, this.forgeL[1] + 0.20],
+        face: [this.forgeL[0], this.forgeL[1]],
+      },
+    };
+
+    /* splice the family beat in after the hammering, and the inlay after
+       that when the wood has something worth setting into it */
     const cls = WEAPON_CLASSES[w.cls] || WEAPON_CLASSES.club;
     const list = BEATS.slice();
-    list.splice(6, 0, variantBeat(cls.build));
+    const at = list.findIndex(b => b.id === 'hammer') + 1;
+    const extra = [variantBeat(cls.build), inlayBeat(stick)].filter(Boolean);
+    list.splice(at, 0, ...extra);
     this.beats = list;
+    this.heat = 0;            // how hot the coals are, 0..1 — drives the light
+    this.kick = 0;            // camera recoil left over from the last blow
     this.i = 0;
     this.t = 0;
     this.active = true;
@@ -357,6 +491,12 @@ export class ForgeScene {
   _w(lx, ly, lz) {
     const A = this.A;
     return [A.x + lx * this.c + lz * this.s, this.ground + ly, A.z - lx * this.s + lz * this.c];
+  }
+
+  /** World [x, z] -> shop space [left, forward]. The inverse of `_w`. */
+  _local(wx, wz) {
+    const dx = wx - this.A.x, dz = wz - this.A.z;
+    return [dx * this.c - dz * this.s, dx * this.s + dz * this.c];
   }
 
   /* ----------------------------------------------------------- the taking */
@@ -441,6 +581,88 @@ export class ForgeScene {
       this.props.add(this.weaponMesh);
     }
 
+    /* THE MATERIALS. A coil of cord, a strip of hide and a pot of wax,
+       laid out along the bench — and, when the wood brought something with
+       it, the material itself sitting there in its own light. The player
+       who walked eight hundred metres for a stick with amber in it gets to
+       watch the amber go in. */
+    {
+      const b = new MeshBuilder(), g = new MeshBuilder();
+      const r = makeRng((this.stick.seed ?? 1) ^ 0x4b17);
+
+      /* SIZED TO BE READ, not to be accurate. The first pass built these
+         at the size a hare's cord and wax pot would really be, and from
+         the only camera that can see the bench they came out about twenty
+         pixels across — a beat about materials in which no material was
+         legible. They are roughly half again as big now and spread wider
+         along the bench, which is the difference between a row of objects
+         and a smudge. */
+      // a coil of waxed cord
+      b.color(0xb4a074, 0.06, r);
+      for (let i = 0; i < 4; i++) {
+        blob(b, -0.30, 0.014 + i * 0.013, 0, 0.072 - i * 0.008, 3, 9);
+      }
+      // a folded strip of hide
+      b.color(0x7a5436, 0.07, r);
+      box(b, -0.04, 0.014, 0.01, 0.21, 0.026, 0.115);
+      box(b, 0.01, 0.038, -0.01, 0.16, 0.020, 0.090);
+      // a pot of wax, lid off and leaning against it
+      b.color(0x4e4236, 0.05, r);
+      blob(b, 0.25, 0.044, 0, 0.060, 3, 9);
+      b.color(0xd8b45c, 0.04, r);
+      blob(b, 0.25, 0.074, 0, 0.048, 2, 9);
+      b.color(0x4e4236, 0.05, r);
+      box(b, 0.25, 0.010, 0.085, 0.115, 0.016, 0.028);
+
+      /* WHAT THE WOOD BROUGHT. Coloured from the material's own entry so a
+         vein of amber is amber and a piece of stormstruck heart is not. */
+      const M = this.stick.special ? MATERIALS[this.stick.special] : null;
+      const E = this.stick.effect ? EFFECTS[this.stick.effect] : null;
+      const tint = M?.hex ?? E?.hex ?? 0xc8a24c;
+      if (M || E) {
+        b.color(tint, 0.03, r);
+        blob(b, 0.46, 0.040, 0, 0.055, 3, 9);
+        g.color(tint, 0.02, r);
+        blob(g, 0.46, 0.040, 0, 0.072, 2, 9);
+      }
+
+      this.kit = new THREE.Group();
+      this.kit.add(new THREE.Mesh(b.build({ flat: false }), MATS.item));
+      if (!g.isEmpty) this.kit.add(new THREE.Mesh(g.build({ flat: false }), MATS.glow));
+      this.kit.visible = false;
+      this.props.add(this.kit);
+    }
+
+    /* THE SAW. Small, plain, and only ever seen for a second and a half —
+       but a cutting beat with no saw in it is a hare miming. */
+    {
+      const b = new MeshBuilder();
+      const r = makeRng(0x5a77);
+      b.color(0xb8bcc0, 0.04, r);
+      box(b, 0, 0, 0, 0.30, 0.055, 0.004);          // the plate
+      b.color(0x9aa0a6, 0.05, r);
+      for (let i = 0; i < 14; i++) {                 // the teeth
+        box(b, -0.14 + i * 0.021, -0.034, 0, 0.012, 0.016, 0.004);
+      }
+      b.color(0x6b4e30, 0.07, r);
+      box(b, 0.19, 0.005, 0, 0.085, 0.075, 0.032);   // the handle
+      this.saw = new THREE.Group();
+      this.saw.add(new THREE.Mesh(b.build({ flat: false }), MATS.item));
+      this.saw.visible = false;
+      this.props.add(this.saw);
+    }
+
+    /* THE FORGE LIGHT. One point light in the coals that the heat beat
+       drives, and that every hammer blow flares. This is the single
+       biggest thing separating "a hare moving her arms in a brown shed"
+       from "a smith working": the light has to come from the work. */
+    {
+      const [fx, fz] = this.A.forgeAt || [this.A.x, this.A.z];
+      this.forgeLight = new THREE.PointLight(0xff7a2c, 0, 7.5, 1.8);
+      this.forgeLight.position.set(fx, this.forgeY + 0.10, fz);
+      this.props.add(this.forgeLight);
+    }
+
     /* THE PARCHMENT, propped on the bench facing AWAY. */
     {
       const b = new MeshBuilder();
@@ -471,30 +693,45 @@ export class ForgeScene {
    * rest of the game standing at her bench holding your sword.
    */
   _disposeProps() {
-    for (const m of [this.stickMesh, this.weaponMesh, this.sheet]) {
+    for (const m of [this.stickMesh, this.weaponMesh, this.sheet, this.kit, this.saw]) {
       if (!m) continue;
       m.parent?.remove(m);
       m.traverse(o => { if (o.isMesh) o.geometry.dispose(); });
     }
+    if (this.forgeLight) { this.forgeLight.parent?.remove(this.forgeLight); this.forgeLight = null; }
     this.props.parent?.remove(this.props);
     this.props.clear();
-    this.stickMesh = this.weaponMesh = this.sheet = null;
+    this.stickMesh = this.weaponMesh = this.sheet = this.kit = this.saw = null;
   }
 
   /* --------------------------------------------------------------- overlay */
 
+  /**
+   * The overlay, and what is NOT on it.
+   *
+   * THE BOTTOM THIRD IS CLEAR. The first version ran a line of narration
+   * under every beat — "she taps it on the bench and listens to it" — and
+   * it read as a tutorial talking over the scene. The whole point of
+   * building the cutscene in the world was that the player can WATCH
+   * somebody make the thing; captioning it is admitting the pictures are
+   * not doing the job.
+   *
+   * What is left is two soft letterbox bars, the Stickwright's name once
+   * at the start so you know whose shop this is, and a small skip hint in
+   * the corner. Nothing crosses the middle of the frame, ever.
+   */
   _openOverlay() {
     const el = document.createElement('div');
     el.className = 'cine';
     el.innerHTML = `
       <div class="cine-bar top"></div>
       <div class="cine-bar bottom"></div>
-      <p class="cine-line"></p>
+      <div class="cine-title"><b>Nissel</b><i>Stickwright</i></div>
       <span class="cine-skip">press <kbd>Esc</kbd> to skip</span>`;
     document.getElementById('ui').appendChild(el);
     requestAnimationFrame(() => el.classList.add('in'));
     this.el = el;
-    this.lineEl = el.querySelector('.cine-line');
+    this.lineEl = null;   // there is no caption any more; see _openOverlay
   }
 
   _closeOverlay() {
@@ -525,7 +762,21 @@ export class ForgeScene {
     if (this.sheet) this.sheet.visible = !!B.sheet;
     if (this.weaponMesh) this.weaponMesh.visible = !!B.weapon;
     if (this.stickMesh) this.stickMesh.visible = !B.weapon;
-    if (B.id === 'hammer' || B.id === 'seat') this.G.audio?.craft?.();
+    if (this.kit) this.kit.visible = !!B.kit;
+    if (this.saw) this.saw.visible = !!B.saw;
+    if (this.kit && B.kit) this._layKit();
+
+    /* THE SOUND OF THE BEAT STARTING. The scene used to cue one `craft()`
+       rasp at the anvil and nothing else — every other beat was silent,
+       including the bellows and the quench, which are the two loudest
+       things that happen in a forge. */
+    const a = this.G.audio;
+    if (a) {
+      if (B.id === 'heat') a.bellows?.();
+      else if (B.id === 'quench') a.quench?.();
+      else if (B.id === 'gather') a.ui?.('tick');
+      else if (B.id === 'inlay') a.craft?.();
+    }
   }
 
   /** Driven from the main loop. */
@@ -568,11 +819,36 @@ export class ForgeScene {
        The easing here is the slow drift within one shot, which is what makes
        a static set feel like it is being filmed. */
     const e = smoothstep(u);
-    const f = B.cam.from, t = B.cam.to;
-    const eye = this._w(lerp(f[0], t[0], e), lerp(f[1], t[1], e), lerp(f[2], t[2], e));
-    const a1 = B.cam.at, a2 = B.cam.at2 || B.cam.at;
-    const at = this._w(lerp(a1[0], a2[0], e), lerp(a1[1], a2[1], e), lerp(a1[2], a2[2], e));
-    this.G.rig?.setShot(eye, at);
+    const C = B.cam;
+    /* A beat can be staged against the hearth instead of the shop origin,
+       because the hearth is wherever the village layout put it. */
+    const ox = C.rel === 'forge' ? this.forgeL[0] : 0;
+    const oz = C.rel === 'forge' ? this.forgeL[1] : 0;
+    const oy = C.rel === 'forge' ? (this.forgeY - this.ground) : 0;
+
+    const f = C.from, t = C.to;
+    let ex = ox + lerp(f[0], t[0], e);
+    let ey = oy + lerp(f[1], t[1], e);
+    let ez = oz + lerp(f[2], t[2], e);
+
+    /* THE KICK. Not a shake — a shake on a handheld rig is a different
+       film and it makes close work unreadable. This is the lens being
+       nudged back a couple of centimetres by the blow and settling, which
+       is what actually happens to a camera on a tripod in a small shed
+       when somebody hits an anvil next to it. It decays in about a fifth
+       of a second and never touches the aim, so the frame stays legible. */
+    if (this.kick > 0.0001) {
+      ex += this.kick * 0.030;
+      ey += this.kick * 0.018;
+    }
+
+    const a1 = C.at, a2 = C.at2 || C.at;
+    const eye = this._w(ex, ey, ez);
+    const at = this._w(
+      ox + lerp(a1[0], a2[0], e),
+      oy + lerp(a1[1], a2[1], e),
+      oz + lerp(a1[2], a2[2], e));
+    this.G.rig?.setShot(eye, at, B.fov || 0);
   }
 
   /* ------------------------------------------------------------------ pose */
@@ -581,7 +857,9 @@ export class ForgeScene {
     const npc = this.npc;
     const rig = npc.rig;
     const p = rig.parts;
-    const M = MARK[B.mark] || MARK.bench;
+    /* this.MARK, not MARK: the hearth's mark is worked out per-shop from
+       the anchor, so the table is per-run rather than module-level */
+    const M = (this.MARK || MARK)[B.mark] || MARK.bench;
 
     /* --- where she is standing, and which way she is facing -------------- */
     const [mx, , mz] = this._w(M.at[0], 0, M.at[1]);
@@ -656,6 +934,93 @@ export class ForgeScene {
         R.elbow.rotation.x = -1.42 + w * 0.16;
         this._benchStick(1);
         this._sheet();
+        break;
+      }
+      case 'gather': {
+        /* reaching along the bench and setting things down, one at a time.
+           Three reaches in the beat, each a little further left, which is
+           the movement that makes a row of props read as being LAID OUT
+           rather than as having always been there. */
+        const n = 3, ph = (u * n) % 1, which = Math.floor(u * n);
+        const reach = Math.sin(ph * Math.PI);
+        R.shoulder.rotation.x = -0.55 - reach * 0.55;
+        R.shoulder.rotation.z = 0.18 + which * 0.16 + reach * 0.30;
+        R.elbow.rotation.x = -1.25 + reach * 0.75;
+        L.shoulder.rotation.x = -0.55;
+        L.shoulder.rotation.z = 0.40;
+        L.elbow.rotation.x = -1.05;
+        p.torso.rotation.x = 0.22 + reach * 0.10;
+        p.torso.rotation.y = -0.10 - which * 0.07;
+        p.head.rotation.x = 0.42;
+        p.head.rotation.y = -0.14 - which * 0.09;
+        this._benchStick(1);
+        break;
+      }
+      case 'saw': {
+        /* THE CUT. Short fast strokes, not the long slow ones the
+           drawknife gets — a saw is a different rhythm and using the same
+           sine for both would make two beats look like one beat twice.
+           The off hand holds the work down and does not move. */
+        const c = Math.sin(u * T * 5.2);
+        R.shoulder.rotation.x = -0.70 + c * 0.24;
+        R.shoulder.rotation.z = 0.24;
+        R.elbow.rotation.x = -1.00 - c * 0.52;
+        L.shoulder.rotation.x = -0.85;
+        L.shoulder.rotation.z = 0.46;
+        L.elbow.rotation.x = -1.35;
+        p.torso.rotation.x = 0.34 + c * 0.05;
+        p.torso.rotation.y = c * 0.06;
+        p.head.rotation.x = 0.46;
+        this._benchStick(1);
+        this._handSaw(c);
+        break;
+      }
+      case 'bellows': {
+        /* Both paws on the bellows handle, whole body behind it, pushing
+           down from the shoulders rather than the elbows — she weighs
+           about as much as the air she is moving and it should look like
+           work. Two full strokes in the beat. */
+        const ph = (u * 2) % 1;
+        const push = ph < 0.42 ? smoothstep(ph / 0.42) : 1 - smoothstep((ph - 0.42) / 0.58);
+        for (const arm of [L, R]) {
+          arm.shoulder.rotation.x = -0.85 + push * 0.55;
+          arm.shoulder.rotation.z = arm.side * 0.20;
+          arm.elbow.rotation.x = -1.05 + push * 0.30;
+        }
+        p.torso.rotation.x = 0.16 + push * 0.26;
+        p.hip.rotation.x = push * 0.10;
+        p.head.rotation.x = 0.30 - push * 0.10;
+        for (const leg of p.legs) leg.knee.rotation.x = 0.08 + push * 0.18;
+        this._forgeWeapon();
+        break;
+      }
+      case 'inlay': {
+        /* Very small movements, very close in, and her head right down
+           over it — this is the beat that says the material matters. */
+        const t2 = u * T;
+        R.shoulder.rotation.x = -1.12;
+        R.shoulder.rotation.z = 0.22 + Math.sin(t2 * 1.6) * 0.05;
+        R.elbow.rotation.x = -1.48 + Math.sin(t2 * 2.3) * 0.07;
+        L.shoulder.rotation.x = -1.05;
+        L.shoulder.rotation.z = 0.42;
+        L.elbow.rotation.x = -1.42;
+        p.torso.rotation.x = 0.40;
+        p.head.rotation.x = 0.56;
+        this._handWeapon(-0.30, 0.05);
+        break;
+      }
+      case 'quench': {
+        /* Down, fast, and then she just stands there while the steam
+           goes up — the stillness after is the whole beat. */
+        const dip = smoothstep(clamp01(u / 0.28));
+        for (const arm of [L, R]) {
+          arm.shoulder.rotation.x = lerp(-1.15, -0.30, dip);
+          arm.shoulder.rotation.z = arm.side * 0.22;
+          arm.elbow.rotation.x = lerp(-1.25, -0.70, dip);
+        }
+        p.torso.rotation.x = 0.14 + dip * 0.22;
+        p.head.rotation.x = 0.20 + dip * 0.26;
+        this._handWeapon(1.30, 0);
         break;
       }
       case 'work': {
@@ -857,6 +1222,31 @@ export class ForgeScene {
     sh.rotation.set(-1.16, this.A.yaw, 0, 'YXZ');
   }
 
+  /** The materials, laid out along the bench where she can reach them. */
+  _layKit() {
+    const k = this.kit;
+    if (!k || !this.A.benchAt) return;
+    const [bx, bz] = this.A.benchAt;
+    const top = this.A.benchTop ?? this.ground + 0.94;
+    /* pushed to the far side of the bench so it does not sit on top of the
+       stick, and turned with the shop so the row runs along the bench */
+    k.position.set(bx - this.s * 0.16, top + 0.01, bz - this.c * 0.16);
+    k.rotation.set(0, this.A.yaw, 0);
+    k.scale.setScalar(1);
+  }
+
+  /** The saw, in her paw, biting deeper as the stroke goes on. */
+  _handSaw(c) {
+    this._hold(this.saw, 1, [Math.PI * 0.5, 0.18, 0.12], [0.05, -0.02 - c * 0.02, 0.10]);
+  }
+
+  /** Held in the coals, which is where the heat beat wants it. */
+  _forgeWeapon() {
+    const [fx, fz] = this.A.forgeAt || [this.A.x, this.A.z];
+    this._lay(this.weaponMesh, fx, this.forgeY + 0.05, fz,
+      this.A.yaw + 0.5, Math.PI / 2 - 0.12, this.weaponScale);
+  }
+
   /** Lying on the anvil, being hit. */
   _anvilWeapon() {
     const [ax, az] = this.A.anvilAt || [this.A.x, this.A.z];
@@ -873,24 +1263,80 @@ export class ForgeScene {
   /* --------------------------------------------------------------- effects */
 
   _effects(B, u, dt) {
+    /* --- THE KICK decays on its own, wherever it came from ------------- */
+    this.kick = Math.max(0, this.kick - dt * 6.5);
+
     if (B.sparks) {
       /* one burst per hammer blow, timed to the bottom of the swing */
-      const beats = B.id === 'grind' ? 10 : 4;
+      const grind = B.id === 'grind';
+      const beats = grind ? 10 : 4;
       const idx = Math.floor(u * beats);
       if (idx !== this._strikeAt) {
         this._strikeAt = idx;
-        const at = B.id === 'grind' ? this.A.grindAt : this.A.anvilAt;
-        const y = B.id === 'grind' ? (this.A.grindTop ?? this.ground + 0.74) : (this.A.anvilTop ?? this.ground + 0.78);
-        if (at) this.motes.burst(at[0], y + 0.06, at[1], 'hot', B.id === 'grind' ? 0.55 : 1);
-        if (B.id !== 'grind') this.G.audio?.thump?.(0.5);
+        const at = grind ? this.A.grindAt : this.A.anvilAt;
+        const y = grind ? (this.A.grindTop ?? this.ground + 0.74) : (this.A.anvilTop ?? this.ground + 0.78);
+        if (at) this.motes.burst(at[0], y + 0.06, at[1], 'hot', grind ? 0.55 : 1);
+        if (grind) {
+          this.G.audio?.rasp?.(0.55);
+        } else {
+          /* `thump` never existed. Every hammer blow in this scene has
+             been silent since the day it was written, and optional
+             chaining meant nothing ever said so. */
+          this.G.audio?.forgeHit?.(1);
+          this.kick = 1;
+          this.heat = Math.min(1, this.heat + 0.10);   // the work flares
+        }
       }
     }
+
     if (B.chips) {
-      const idx = Math.floor(u * 5);
+      const n = B.id === 'cut' ? 7 : 5;
+      const idx = Math.floor(u * n);
       if (idx !== this._strikeAt) {
         this._strikeAt = idx;
         const [bx, bz] = this.A.benchAt || [this.A.x, this.A.z];
         this.motes.burst(bx, (this.A.benchTop ?? this.ground + 0.94) + 0.05, bz, 'chip', 1);
+        if (B.id === 'cut') this.G.audio?.rasp?.(0.42);
+      }
+    }
+
+    /* --- THE HEARTH -----------------------------------------------------
+       The heat beat drives it up; it holds through the hot beats and dies
+       away over the cold ones. Flicker is two detuned sines rather than
+       noise: a light that flickers randomly reads as a fault, and one
+       that breathes reads as a fire. */
+    if (B.fire) {
+      const ph = (u * 2) % 1;                                // two bellows strokes
+      const push = ph < 0.42 ? smoothstep(ph / 0.42) : 1 - smoothstep((ph - 0.42) / 0.58);
+      this.heat = Math.max(this.heat, 0.35 + push * 0.65);
+      if (Math.floor(u * 2) !== this._strikeAt) {
+        this._strikeAt = Math.floor(u * 2);
+        this.motes.burst(this.A.forgeAt?.[0] ?? this.A.x, this.forgeY + 0.08,
+          this.A.forgeAt?.[1] ?? this.A.z, 'hot', 0.55);
+        this.G.audio?.coals?.(4);
+      }
+    } else if (B.id === 'quench') {
+      this.heat = Math.max(0, this.heat - dt * 2.2);          // it goes out fast
+    } else {
+      this.heat = Math.max(0.12, this.heat - dt * 0.45);      // embers
+    }
+
+    if (this.forgeLight) {
+      const f = 1 + Math.sin(this.t * 7.3) * 0.07 + Math.sin(this.t * 11.9 + 1.3) * 0.045;
+      this.forgeLight.intensity = this.heat * 5.2 * f;
+      /* hotter coals are yellower, dying ones are red — the colour is
+         doing as much work here as the brightness */
+      this.forgeLight.color.setHex(this.heat > 0.6 ? 0xffa23c : this.heat > 0.3 ? 0xff7a2c : 0xd8481c);
+    }
+
+    /* --- STEAM. Slow, pale and rising, which is the only thing that
+       makes it read as steam rather than as more sparks. */
+    if (B.steam) {
+      const idx = Math.floor(u * 4);
+      if (idx !== this._strikeAt) {
+        this._strikeAt = idx;
+        this.motes.burst(this.A.forgeAt?.[0] ?? this.A.x, this.forgeY + 0.12,
+          this.A.forgeAt?.[1] ?? this.A.z, 'steam', 1);
       }
     }
   }

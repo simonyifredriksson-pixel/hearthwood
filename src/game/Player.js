@@ -20,13 +20,13 @@
    and facing. Everything visual about how a species moves lives there.
 */
 
-import * as THREE from '../../lib/three.module.js?v=20260921164117';
-import { buildAnimal } from '../art/AnimalArt.js?v=20260921164117';
-import { poseAnimal, SPECIES } from './Anim.js?v=20260921164117';
-import { carryFor, swingOf, chargeStage, chargeProgress, CHARGE, CHARGE_STAGE_SECONDS, COMBO, COMBO_WINDOW } from './Combat.js?v=20260921164117';
-import { MATS } from '../art/Materials.js?v=20260921164117';
-import { PLAYER, WORLD } from '../core/Config.js?v=20260921164117';
-import { clamp, clamp01, lerp, damp, dampAngle, angleDelta, TAU, smoothstep } from '../core/Util.js?v=20260921164117';
+import * as THREE from '../../lib/three.module.js?v=1790014288';
+import { buildAnimal } from '../art/AnimalArt.js?v=1790014288';
+import { poseAnimal, SPECIES } from './Anim.js?v=1790014288';
+import { carryFor, swingOf, chargeStage, chargeProgress, CHARGE, CHARGE_STAGE_SECONDS, COMBO, COMBO_WINDOW } from './Combat.js?v=1790014288';
+import { MATS } from '../art/Materials.js?v=1790014288';
+import { PLAYER, WORLD } from '../core/Config.js?v=1790014288';
+import { clamp, clamp01, lerp, damp, dampAngle, angleDelta, TAU, smoothstep } from '../core/Util.js?v=1790014288';
 
 const UP = new THREE.Vector3(0, 1, 0);
 

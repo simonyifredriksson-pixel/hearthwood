@@ -16,10 +16,10 @@
    the player is standing on a riverbank talking to somebody.
 */
 
-import { rodsAt, rodOf, ROD_STATS, ROD_BY_ID } from '../data/RodData.js?v=20260921164117';
-import { ic } from './Icons.js?v=20260921164117';
-import { input } from '../core/Input.js?v=20260921164117';
-import { esc, clamp } from '../core/Util.js?v=20260921164117';
+import { rodsAt, rodOf, ROD_STATS, ROD_BY_ID } from '../data/RodData.js?v=1790014288';
+import { ic } from './Icons.js?v=1790014288';
+import { input } from '../core/Input.js?v=1790014288';
+import { esc, clamp } from '../core/Util.js?v=1790014288';
 
 const money = n => '$' + Math.round(n).toLocaleString('en-US');
 

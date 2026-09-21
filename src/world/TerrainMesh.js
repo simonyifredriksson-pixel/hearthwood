@@ -15,13 +15,13 @@
    with its vertex red channel carrying depth for the shader.
 */
 
-import * as THREE from '../../lib/three.module.js?v=20260921164117';
-import { MeshBuilder, quadIdx } from '../art/Geo.js?v=20260921164117';
-import { WORLD } from '../core/Config.js?v=20260921164117';
-import { riverX, riverLevel } from './Terrain.js?v=20260921164117';
-import { WATER, mixHex } from '../art/Palette.js?v=20260921164117';
-import { Fields } from './Scatter.js?v=20260921164117';
-import { clamp, clamp01, lerp, invLerp } from '../core/Util.js?v=20260921164117';
+import * as THREE from '../../lib/three.module.js?v=1790014288';
+import { MeshBuilder, quadIdx } from '../art/Geo.js?v=1790014288';
+import { WORLD } from '../core/Config.js?v=1790014288';
+import { riverX, riverLevel } from './Terrain.js?v=1790014288';
+import { WATER, mixHex } from '../art/Palette.js?v=1790014288';
+import { Fields } from './Scatter.js?v=1790014288';
+import { clamp, clamp01, lerp, invLerp } from '../core/Util.js?v=1790014288';
 
 /** Vertices along a tile edge, by LOD. LOD 0 is 2.5 m steps. */
 export const TILE_RES = [26, 14, 8, 4];
@@ -180,6 +180,39 @@ export function buildRiverMesh(T) {
     prev = row;
   }
 
+  const geo = b.build({ flat: false });
+  geo.computeBoundingSphere();
+  return geo;
+}
+
+/**
+ * A lake surface: a fan of rings out to the shoreline.
+ *
+ * Built as rings rather than a grid so the edge is a circle rather than a
+ * staircase, and the depth tint in the vertex colour runs from the middle
+ * outwards — which is what makes a lake read as having a bottom. Wound to
+ * face the SKY; the same winding trap as the river and the terrain, and it
+ * would be invisible the other way round.
+ */
+export function buildLakeMesh(L) {
+  const b = new MeshBuilder();
+  const rings = 9, seg = 34;
+  let prev = null;
+  for (let i = 0; i <= rings; i++) {
+    const t = i / rings;
+    const rad = L.r * 1.06 * t;
+    const depth = clamp01(1 - t * 1.12);
+    const row = [];
+    for (let k = 0; k <= seg; k++) {
+      const a = (k / seg) * Math.PI * 2;
+      b.colorRGB(depth, 0.25, 0.25);
+      row.push(b.vert(L.x + Math.cos(a) * rad, L.level, L.z + Math.sin(a) * rad, 0));
+    }
+    if (prev) {
+      for (let k = 0; k < seg; k++) b.quad(prev[k], prev[k + 1], row[k + 1], row[k]);
+    }
+    prev = row;
+  }
   const geo = b.build({ flat: false });
   geo.computeBoundingSphere();
   return geo;

@@ -22,10 +22,10 @@
    run through the village.
 */
 
-import { Noise2D, Cellular } from '../core/Noise.js?v=20260921164117';
-import { WORLD } from '../core/Config.js?v=20260921164117';
-import { clamp, clamp01, lerp, smoothstep, invLerp, TAU, segDist2, hash2 } from '../core/Util.js?v=20260921164117';
-import { GROUND, WATER, mixHex, tweak, shade } from '../art/Palette.js?v=20260921164117';
+import { Noise2D, Cellular } from '../core/Noise.js?v=1790014288';
+import { WORLD } from '../core/Config.js?v=1790014288';
+import { clamp, clamp01, lerp, smoothstep, invLerp, TAU, segDist2, hash2 } from '../core/Util.js?v=1790014288';
+import { GROUND, WATER, mixHex, tweak, shade } from '../art/Palette.js?v=1790014288';
 
 /* ========================================================================= */
 /* THE RIVER                                                                 */
@@ -156,9 +156,59 @@ export class Terrain {
     this.paths = [];
     this.flats = [];        // building pads: {x, z, r, y}
 
+    /* NINE VILLAGES, so nine bowls and their lakes. The home bowl is
+       registered here because the world is unusable without it; the rest
+       are added by planVillages() before any terrain mesh is built. */
+    this.bowls = [{
+      x: this.V.cx, z: this.V.cz, core: this.V.core,
+      flatten: this.V.flatten, datum: this.V.datum, strength: 0.93,
+    }];
+    this.lakes = [];
+
     // the river profile has to exist before height() is ever called, and it
     // is derived from the BARE land, so it cannot use height() itself
     buildRiverProfile((x, z) => this.landHeight(x, z));
+  }
+
+  /**
+   * Register a village bowl.
+   *
+   * ORDER MATTERS, as it always does here: the datum has to be sampled from
+   * the land BEFORE any other village has flattened anything nearby, or two
+   * villages that happen to be close drag each other's ground about. It is
+   * taken from `landHeight`, which is the bare terrain with nothing applied.
+   */
+  addBowl(x, z, core, flatten, datum = null, strength = 0.93) {
+    const y = datum ?? (this.landHeight(x, z) + this._riverPull(x, z));
+    this.bowls.push({ x, z, core, flatten, datum: y, strength });
+    this._hc.clear();
+    return y;
+  }
+
+  /** How much the river valley would have pulled this point down. */
+  _riverPull(x, z) {
+    const ro = Math.abs(riverOffset(x, z));
+    if (ro > 82) return 0;
+    const lvl = riverLevel(z);
+    const land = this.landHeight(x, z);
+    const valley = 1 - smoothstep(invLerp(WORLD.river.bankWidth * 1.8, 78, ro));
+    return (Math.max(lvl + 2.6, land - 30) - land) * valley * 0.78;
+  }
+
+  /**
+   * Register a lake.
+   *
+   * The water LEVEL is fixed when the lake is made, from the bowl it sits
+   * in, and the bed is then carved below it. Doing it the other way round —
+   * carving first and asking for the level afterwards — gives you a water
+   * plane that floats above one bank and under the other, because the
+   * height function it was sampling had already been changed by the carve.
+   */
+  addLake(x, z, r, depth, level = null) {
+    const lvl = level ?? (this.height(x, z) - 0.6);
+    this.lakes.push({ x, z, r, depth, level: lvl });
+    this._hc.clear();
+    return lvl;
   }
 
   /**
@@ -246,15 +296,43 @@ export class Terrain {
       h = lerp(h, Math.min(h, lvl + 1.5), flood * 0.55);
     }
 
-    /* --- the village bowl, flattened ------------------------------------- */
-    const vd = Math.hypot(x - this.V.cx, z - this.V.cz);
-    if (vd < this.V.flatten * 1.4) {
-      // A hard edge here would look like a crater. The blend runs from full
-      // at the core out to nothing well past the fences, and it keeps a
-      // little of the underlying hill so the village is not a billiard table.
-      const t = 1 - smoothstep(invLerp(this.V.core * 0.55, this.V.flatten * 1.3, vd));
+    /* --- THE VILLAGE BOWLS, flattened -------------------------------------
+       There are nine of these now, one per village, and only the home one
+       has a datum picked in advance — the rest take the height of the land
+       they happened to land on, which is what makes a mountain village sit
+       on a mountain instead of being dragged down to the valley floor.
+
+       A hard edge here would look like a crater. The blend runs from full
+       at the core out to nothing well past the fences, and it keeps a
+       little of the underlying hill so a village is not a billiard table. */
+    for (const V of this.bowls) {
+      const vd = Math.hypot(x - V.x, z - V.z);
+      if (vd > V.flatten * 1.4) continue;
+      const t = 1 - smoothstep(invLerp(V.core * 0.55, V.flatten * 1.3, vd));
       const gentle = this.nHill.fbm(x * 0.012, z * 0.012, 2) * 1.9;
-      h = lerp(h, this.V.datum + gentle, t * 0.93);
+      h = lerp(h, V.datum + gentle, t * V.strength);
+    }
+
+    /* --- LAKES ------------------------------------------------------------
+       A lake is a bowl carved BELOW its own water line with a shelf round
+       the edge, so the shore shelves off rather than dropping like a
+       swimming pool. `level` is stored when the lake is registered, from
+       the land height at the time, so the water never ends up above the
+       ground that surrounds it. */
+    for (const L of this.lakes) {
+      const d = Math.hypot(x - L.x, z - L.z);
+      if (d > L.r * 2.4) continue;
+      const deep = 1 - smoothstep(invLerp(L.r * 0.22, L.r * 0.98, d));
+      const bed = L.level - L.depth * (0.25 + 0.75 * deep);
+      h = lerp(h, bed, deep * 0.97);
+      /* THE SHORE HAS TO REACH A LONG WAY OUT.
+         A tight shore blend is fine in a valley and wrong on a mountain:
+         the land outside it is still climbing, so the water reads as a
+         disc perched on a slope rather than as a tarn sitting in a hollow.
+         Pulling the ground down over two and a bit lake-radii gives every
+         lake a basin, wherever it is. */
+      const shore = 1 - smoothstep(invLerp(L.r * 0.95, L.r * 2.3, d));
+      h = lerp(h, Math.min(h, L.level + 2.2), shore * 0.88);
     }
 
     /* --- village paths and building pads --------------------------------- */
@@ -316,12 +394,39 @@ export class Terrain {
 
   /** Height of standing water here, or null if there is none. */
   waterAt(x, z) {
+    for (const L of this.lakes) {
+      if (Math.hypot(x - L.x, z - L.z) > L.r * 1.2) continue;
+      if (this.height(x, z) < L.level) return L.level;
+    }
     const ro = Math.abs(riverOffset(x, z));
     if (ro < WORLD.river.bankWidth * 1.9) {
       const lvl = riverLevel(z);
       if (this.height(x, z) < lvl) return lvl;
     }
     return null;
+  }
+
+  /** The lake whose water covers this point, if any. */
+  lakeAt(x, z) {
+    for (const L of this.lakes) {
+      if (Math.hypot(x - L.x, z - L.z) <= L.r * 1.2 && this.height(x, z) < L.level) return L;
+    }
+    return null;
+  }
+
+  /**
+   * How deep the water is here, 0..1, for the fishing roll.
+   * A lake's middle is the deep water; the river is shallower everywhere.
+   */
+  depthAt(x, z) {
+    const L = this.lakeAt(x, z);
+    if (L) {
+      const d = Math.hypot(x - L.x, z - L.z) / L.r;
+      return clamp01((1 - d) * clamp01(L.depth / 14) + 0.15);
+    }
+    const w = this.waterAt(x, z);
+    if (w === null) return 0.25;
+    return clamp01(0.2 + this.riverDepth(x, z) * 0.45);
   }
 
   /** 0 at the bank, 1 mid-channel. Drives the water shader's depth tint. */
@@ -338,14 +443,42 @@ export class Terrain {
     return clamp01(invLerp(this.V.radius * 0.9, this.half * 0.92, vd));
   }
 
-  /** How close to the village core, 1 inside it, 0 outside the fence line. */
+  /**
+   * How close to a village core: 1 inside one, 0 outside every fence line.
+   *
+   * THIS IS WHAT STOPS THE FOREST GROWING THROUGH THE HOUSES. It only knew
+   * about the home village, so the eight new ones were planted over with
+   * oaks and pines — from a hill Millbrook and Fenmoor were solid canopy
+   * with a roof or two showing through. Every bowl counts now, and the
+   * strongest wins, so villages that happen to be near each other do not
+   * cancel out.
+   *
+   * It is also on the hot path (the scatterer asks per candidate), hence
+   * the cheap square-distance reject before the real work.
+   */
   villageness(x, z) {
+    let best = 0;
+    for (const V of this.bowls) {
+      const reach = V.flatten * 1.6;
+      const dx = x - V.x, dz = z - V.z;
+      if (dx * dx + dz * dz > reach * reach) continue;
+      const v = 1 - smoothstep(invLerp(V.core * 0.85, reach, Math.hypot(dx, dz)));
+      if (v > best) best = v;
+    }
+    /* the home village's fence line is wider than its bowl */
     const vd = Math.hypot(x - this.V.cx, z - this.V.cz);
-    return 1 - smoothstep(invLerp(this.V.core * 0.85, this.V.radius, vd));
+    if (vd < this.V.radius) {
+      best = Math.max(best, 1 - smoothstep(invLerp(this.V.core * 0.85, this.V.radius, vd)));
+    }
+    return best;
   }
 
   isVillage(x, z) {
-    return Math.hypot(x - this.V.cx, z - this.V.cz) < this.V.radius;
+    if (Math.hypot(x - this.V.cx, z - this.V.cz) < this.V.radius) return true;
+    for (const V of this.bowls) {
+      if (Math.hypot(x - V.x, z - V.z) < V.flatten * 1.5) return true;
+    }
+    return false;
   }
 
   /** Soil moisture, 0 dry to 1 boggy. Rivers, hollows and shade all add. */
