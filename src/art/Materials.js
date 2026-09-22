@@ -12,8 +12,8 @@
    single tell that separates "alive" from "animated".
 */
 
-import * as THREE from '../../lib/three.module.js?v=1790055608';
-import { SKY } from './Palette.js?v=1790055608';
+import * as THREE from '../../lib/three.module.js?v=1790085618';
+import { SKY } from './Palette.js?v=1790085618';
 
 /** Shared uniforms. One object, updated once a frame, read by every material. */
 export const windU = {

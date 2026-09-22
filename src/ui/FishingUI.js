@@ -21,10 +21,10 @@
    this is the view while you do it.
 */
 
-import { FISH_STATE } from '../game/Fishing.js?v=1790055608';
-import { rarityOf, fishTitle, MUTATION_BY_ID, catchValue, FISH } from '../data/FishData.js?v=1790055608';
-import { ic } from './Icons.js?v=1790055608';
-import { esc, clamp, clamp01 } from '../core/Util.js?v=1790055608';
+import { FISH_STATE } from '../game/Fishing.js?v=1790085618';
+import { rarityOf, fishTitle, MUTATION_BY_ID, catchValue, FISH } from '../data/FishData.js?v=1790085618';
+import { ic } from './Icons.js?v=1790085618';
+import { esc, clamp, clamp01 } from '../core/Util.js?v=1790085618';
 
 /** Carved into the timber down the side of the gauge. */
 const DEPTHS = ['shallows', '', 'weed', '', 'deep', '', 'dark'];
@@ -103,10 +103,15 @@ export class FishingUI {
      * nobody misses a strike because of it.
      */
     const st = F.state;
+    /* THE PANEL WAITS FOR THE CLICK.
+       It used to slide in partway through the bite on a timer, which
+       made the bubbles an announcement of something that was going to
+       happen regardless. The player has to strike, so the interface
+       appears when they do and not before — during the bite there is a
+       fox, a rod and boiling water, and that is the entire prompt. */
     const reeling = st === FISH_STATE.FIGHT
       || st === FISH_STATE.CAUGHT
-      || st === FISH_STATE.LOST
-      || (st === FISH_STATE.BITE && F.stateT > 0.42);
+      || st === FISH_STATE.LOST;
     this.show(reeling);
     if (!reeling) { this._lastState = null; return; }
 

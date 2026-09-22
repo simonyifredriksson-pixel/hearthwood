@@ -22,9 +22,9 @@
    HUD and the arrow read them.
 */
 
-import { bus, EV } from '../core/Bus.js?v=1790055608';
-import { WORLD } from '../core/Config.js?v=1790055608';
-import { clamp, clamp01 } from '../core/Util.js?v=1790055608';
+import { bus, EV } from '../core/Bus.js?v=1790085618';
+import { WORLD } from '../core/Config.js?v=1790085618';
+import { clamp, clamp01 } from '../core/Util.js?v=1790085618';
 
 /* ========================================================================= */
 /* THE SPEECH                                                                */

@@ -25,9 +25,9 @@
    UI layer reads this state and draws it.
 */
 
-import { rollFish, fishTier, rarityOf } from '../data/FishData.js?v=1790055608';
-import { bus, EV } from '../core/Bus.js?v=1790055608';
-import { clamp, clamp01, lerp, makeRng } from '../core/Util.js?v=1790055608';
+import { rollFish, fishTier, rarityOf } from '../data/FishData.js?v=1790085618';
+import { bus, EV } from '../core/Bus.js?v=1790085618';
+import { clamp, clamp01, lerp, makeRng } from '../core/Util.js?v=1790085618';
 
 /*
  * THE ZONE MUST BE ABLE TO OUTRUN THE FISH.
@@ -96,8 +96,16 @@ const CAST_FLIGHT = 1.10;
 const BITE_WINDOW = 2.4;
 
 export class Fishing {
-  constructor({ audio = null } = {}) {
+  /**
+   * @param award  (fish) => storedRecord|null. Called the moment the
+   *               meter fills, BEFORE the catch is announced. Whatever
+   *               it hands back is what the player caught; null means
+   *               the fish was not secured and is therefore lost. See
+   *               `_win` for why this is a function and not an event.
+   */
+  constructor({ audio = null, award = null } = {}) {
     this.audio = audio;
+    this.award = award;
     this.state = FISH_STATE.IDLE;
     this.t = 0;
     this.reset();
@@ -118,6 +126,8 @@ export class Fishing {
     this.biteAt = 0;
     this.result = null;
     this.onFish = 0;
+    this._awarded = false;
+    this.strikeAt = 0;        // when in the bite the player clicked, 0..1
   }
 
   /* ====================================================================== */
@@ -144,23 +154,63 @@ export class Fishing {
     this.line = rod ? rod.line : 1.3;
     // the wait is the anticipation; too short and there is no anticipation
     this.biteAt = r.range(1.4, 4.6) / (rod ? rod.lure : 1);
-    this._pending = rollFish(
-      (r.seed ? r.seed() : (Math.random() * 0xffffffff)) >>> 0,
-      {
-        depth: spot.depth ?? 0.4, remoteness: spot.remoteness ?? 0.3,
-        zone: spot.zone ?? 0, night: !!spot.night,
-        luck: rod ? rod.luck : 1, rareChance: rod ? rod.rare : 1,
-        /* the character of this particular pool — see waterAt */
-        water: spot.water || null,
-      });
+    /* kept so a fish that gets away can be replaced with a fresh one
+       drawn from the same water — see the escape branch in `update` */
+    this._rollOpts = {
+      depth: spot.depth ?? 0.4, remoteness: spot.remoteness ?? 0.3,
+      zone: spot.zone ?? 0, night: !!spot.night,
+      luck: rod ? rod.luck : 1, rareChance: rod ? rod.rare : 1,
+      /* the character of this particular pool — see waterAt */
+      water: spot.water || null,
+    };
+    this._rollSeed = r;
+    this._pending = this._reroll();
     this.audio?.cast?.();
     return true;
   }
 
-  /** The player pressed the button. */
+  /** Another fish, from the same water. */
+  _reroll() {
+    const r = this._rollSeed;
+    const seed = (r && r.seed ? r.seed() : (Math.random() * 0xffffffff)) >>> 0;
+    return rollFish(seed, this._rollOpts || {});
+  }
+
+  /**
+   * The player pressed the button.
+   *
+   * THE CLICK IS THE WHOLE BITE NOW. The reeling screen used to arrive
+   * on a timer once the water started boiling, which meant the bubbles
+   * were decoration on an event that was going to happen anyway. They
+   * are the event: something is on the hook, and if you do not strike
+   * it leaves with your bait.
+   *
+   * Three outcomes, and all three are worth telling the player about:
+   *
+   *   TOO EARLY  nothing is on the hook yet. Striking at open water is
+   *              not punished — there is nothing to punish — but it
+   *              does say so, or a player who clicks the instant they
+   *              cast learns nothing from the silence.
+   *   IN TIME    the fight starts.
+   *   TOO LATE   handled in `update`: the window closes on its own and
+   *              the fish goes.
+   */
   press() {
     this.holding = true;
-    if (this.state === FISH_STATE.BITE) this._strike();
+    if (this.state === FISH_STATE.BITE) {
+      this._strike();
+      return true;
+    }
+    if (this.state === FISH_STATE.CAST || this.state === FISH_STATE.CASTING) {
+      /* rate-limited so holding the button down is one nudge, not sixty */
+      if (this.t - (this._earlyT || -9) > 0.6) {
+        this._earlyT = this.t;
+        bus.emit(EV.FISH_EARLY, { spot: this.spot });
+        this.audio?.ui?.('tick');
+      }
+      return false;
+    }
+    return false;
   }
 
   /** 0..1 through the throw, for the rig and the arm animation. */
@@ -192,6 +242,9 @@ export class Fishing {
   }
 
   _strike() {
+    /* how late in the window they were, for the feedback and for the
+       small reward below */
+    this.strikeAt = clamp01(this.stateT / BITE_WINDOW);
     this.fish = this._pending;
     this._rnd = null;                  // a new fish gets its own stream
     this._tier = null;                 // ...and its own rarity behaviour
@@ -206,18 +259,57 @@ export class Fishing {
     this.audio?.hook?.();
   }
 
+  /**
+   * THE CATCH IS NOT ANNOUNCED UNTIL IT IS SECURED.
+   *
+   * This used to set the state to CAUGHT, emit, and trust that somebody
+   * downstream put the fish in the creel. The award happened in a bus
+   * listener — and the bus deliberately swallows listener errors so one
+   * bad handler cannot take the game down — so if anything in that
+   * listener threw, the meter sat at 100%, the card never came, and the
+   * fish did not exist. The player was told they had caught something
+   * they had not.
+   *
+   * So the award is now a FUNCTION THE CALLER SUPPLIES, called before
+   * the state changes, and it has to hand back the stored record. No
+   * record, no catch: the fish slips the line, which is a true thing to
+   * say and leaves the player fishing rather than stuck on a screen that
+   * is lying to them.
+   *
+   * `_awarded` makes it idempotent. `_win` is only reachable from one
+   * branch of one update, but "exactly one fish per catch" is the sort
+   * of guarantee that should not rest on control flow being right.
+   */
   _win() {
+    if (this._awarded) return;
+
+    const caught = { ...this.fish, tier: fishTier(this.fish) };
+    let stored = null;
+    try {
+      stored = this.award ? this.award(caught) : caught;
+    } catch (e) {
+      console.error('[fishing] the award threw; treating it as a lost fish', e);
+      stored = null;
+    }
+
+    if (!stored) {
+      /* it was never secured, so it was never caught */
+      this._lose('unsecured');
+      return;
+    }
+
+    this._awarded = true;
     this.state = FISH_STATE.CAUGHT;
     this.stateT = 0;
-    this.result = { ...this.fish, tier: fishTier(this.fish) };
-    bus.emit(EV.FISH_CAUGHT, { fish: this.result });
-    this.audio?.catchFish?.(this.result.tier);
+    this.result = stored;
+    bus.emit(EV.FISH_CAUGHT, { fish: stored });
+    this.audio?.catchFish?.(fishTier(stored) ?? 0);
   }
 
-  _lose() {
+  _lose(why = 'slipped') {
     this.state = FISH_STATE.LOST;
     this.stateT = 0;
-    bus.emit(EV.FISH_LOST, { fish: this.fish });
+    bus.emit(EV.FISH_LOST, { fish: this.fish, why });
     this.audio?.lose?.();
   }
 
@@ -256,13 +348,22 @@ export class Fishing {
 
     if (this.state === FISH_STATE.BITE) {
       if (this.stateT > BITE_WINDOW) {
-        /* it got away with the bait. Back to waiting, and not for long —
-           being punished with a thirty-second wait for one slow reaction
-           is how a fishing game stops being relaxing. */
+        /* TOO LATE. It got away with the bait — and the line stays in
+           the water, because the punishment for a slow reaction should
+           be the fish you did not get, not being made to walk back and
+           cast again. Not for long, either: a thirty-second penalty
+           wait is how a fishing game stops being relaxing. */
         this.state = FISH_STATE.CAST;
         this.stateT = 0;
         this.biteAt = 2.2;
+        /* A NEW FISH COMES ALONG. The one that took the bait and left
+           is gone; keeping it on the hook would mean a player who
+           missed a Divine could simply wait and be handed it again.
+           (Nulling it instead would be worse: the next strike would
+           hook nothing and throw.) */
+        this._pending = this._reroll();
         bus.emit(EV.FISH_OFF, { spot: this.spot });
+        this.audio?.lose?.();
       }
       return;
     }

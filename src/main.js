@@ -13,25 +13,25 @@
      7. ui, then render
 */
 
-import * as THREE from '../lib/three.module.js?v=1790055608';
-import { input } from './core/Input.js?v=1790055608';
-import { CameraRig } from './core/CameraRig.js?v=1790055608';
-import { audio } from './core/Audio.js?v=1790055608';
-import { bus, EV } from './core/Bus.js?v=1790055608';
-import { BUILD, RENDER, WORLD, GAME, PLAYER } from './core/Config.js?v=1790055608';
-import { clamp, clamp01, lerp, now, Rolling } from './core/Util.js?v=1790055608';
+import * as THREE from '../lib/three.module.js?v=1790085618';
+import { input } from './core/Input.js?v=1790085618';
+import { CameraRig } from './core/CameraRig.js?v=1790085618';
+import { audio } from './core/Audio.js?v=1790085618';
+import { bus, EV } from './core/Bus.js?v=1790085618';
+import { BUILD, RENDER, WORLD, GAME, PLAYER } from './core/Config.js?v=1790085618';
+import { clamp, clamp01, lerp, now, Rolling } from './core/Util.js?v=1790085618';
 
-import { MATS } from './art/Materials.js?v=1790055608';
-import { World } from './world/World.js?v=1790055608';
-import { Player } from './game/Player.js?v=1790055608';
-import { NPCs } from './game/NPCs.js?v=1790055608';
-import { GameState } from './game/State.js?v=1790055608';
-import { SPECIES } from './game/Anim.js?v=1790055608';
-import { weaponMeshes } from './art/WeaponArt.js?v=1790055608';
-import { rodMeshes } from './art/RodArt.js?v=1790055608';
-import { fishMeshes } from './art/FishArt.js?v=1790055608';
-import { fishTitle, waterAt } from './data/FishData.js?v=1790055608';
-import { dangerBand, BAND_NAMES, payRate } from './data/VillageData.js?v=1790055608';
+import { MATS } from './art/Materials.js?v=1790085618';
+import { World } from './world/World.js?v=1790085618';
+import { Player } from './game/Player.js?v=1790085618';
+import { NPCs } from './game/NPCs.js?v=1790085618';
+import { GameState } from './game/State.js?v=1790085618';
+import { SPECIES } from './game/Anim.js?v=1790085618';
+import { weaponMeshes } from './art/WeaponArt.js?v=1790085618';
+import { rodMeshes } from './art/RodArt.js?v=1790085618';
+import { fishMeshes } from './art/FishArt.js?v=1790085618';
+import { fishTitle, waterAt } from './data/FishData.js?v=1790085618';
+import { dangerBand, BAND_NAMES, payRate } from './data/VillageData.js?v=1790085618';
 
 /**
  * A line under each region name. The name says where; this says what it
@@ -42,32 +42,32 @@ const BAND_SUB = [
   '', 'Quiet water and easy fish', 'The wood thickens',
   'Something is watching', 'Few come back this far', 'Where the old fish live',
 ];
-import { WEAPON_CLASSES } from './data/WeaponData.js?v=1790055608';
-import { RARITY } from './art/Palette.js?v=1790055608';
-import { STICKWRIGHT, FISHERMAN } from './data/VillagerData.js?v=1790055608';
-import { RARE } from './data/StickData.js?v=1790055608';
-import { STARTER_ROD, rodsAt } from './data/RodData.js?v=1790055608';
+import { WEAPON_CLASSES } from './data/WeaponData.js?v=1790085618';
+import { RARITY } from './art/Palette.js?v=1790085618';
+import { STICKWRIGHT, FISHERMAN } from './data/VillagerData.js?v=1790085618';
+import { RARE } from './data/StickData.js?v=1790085618';
+import { STARTER_ROD, rodsAt } from './data/RodData.js?v=1790085618';
 
-import { UI } from './ui/UI.js?v=1790055608';
-import { Talk } from './ui/Talk.js?v=1790055608';
-import { RodShop } from './ui/RodShop.js?v=1790055608';
-import { Minimap } from './ui/Minimap.js?v=1790055608';
-import { Combatant } from './ui/Combatant.js?v=1790055608';
-import { Hotbar } from './ui/Hotbar.js?v=1790055608';
-import { MapScreen } from './ui/MapScreen.js?v=1790055608';
-import { Fog } from './game/MapData.js?v=1790055608';
-import { Effects } from './game/Effects.js?v=1790055608';
-import { SatchelScreen, Turntable } from './ui/Satchel.js?v=1790055608';
-import { WorkshopScreen, RevealScreen } from './ui/Workshop.js?v=1790055608';
-import { ForgeScene } from './game/Forge.js?v=1790055608';
-import { Workers } from './game/Workers.js?v=1790055608';
-import { Wildlife } from './game/Wildlife.js?v=1790055608';
-import { Fishing, FISH_STATE } from './game/Fishing.js?v=1790055608';
-import { FishingRig } from './game/FishingRig.js?v=1790055608';
-import { FishingUI } from './ui/FishingUI.js?v=1790055608';
-import { Quest, FESTIVAL_SPEECH } from './game/Quest.js?v=1790055608';
-import { CHARGE } from './game/Combat.js?v=1790055608';
-import { ic } from './ui/Icons.js?v=1790055608';
+import { UI } from './ui/UI.js?v=1790085618';
+import { Talk } from './ui/Talk.js?v=1790085618';
+import { RodShop } from './ui/RodShop.js?v=1790085618';
+import { Minimap } from './ui/Minimap.js?v=1790085618';
+import { Combatant } from './ui/Combatant.js?v=1790085618';
+import { Hotbar } from './ui/Hotbar.js?v=1790085618';
+import { MapScreen } from './ui/MapScreen.js?v=1790085618';
+import { Fog } from './game/MapData.js?v=1790085618';
+import { Effects } from './game/Effects.js?v=1790085618';
+import { SatchelScreen, Turntable } from './ui/Satchel.js?v=1790085618';
+import { WorkshopScreen, RevealScreen } from './ui/Workshop.js?v=1790085618';
+import { ForgeScene } from './game/Forge.js?v=1790085618';
+import { Workers } from './game/Workers.js?v=1790085618';
+import { Wildlife } from './game/Wildlife.js?v=1790085618';
+import { Fishing, FISH_STATE } from './game/Fishing.js?v=1790085618';
+import { FishingRig } from './game/FishingRig.js?v=1790085618';
+import { FishingUI } from './ui/FishingUI.js?v=1790085618';
+import { Quest, FESTIVAL_SPEECH } from './game/Quest.js?v=1790085618';
+import { CHARGE } from './game/Combat.js?v=1790085618';
+import { ic } from './ui/Icons.js?v=1790085618';
 
 /* ========================================================================= */
 
@@ -143,7 +143,31 @@ async function boot() {
   G.workers = new Workers(G.world, scene);
   G.workers.plan(7);
   G.wildlife = new Wildlife(G.world, scene);
-  G.fishing = new Fishing({ audio });
+  /**
+   * THE ONE PLACE A CAUGHT FISH BECOMES A REAL FISH.
+   *
+   * Handed to the minigame rather than hooked onto an event, and it
+   * READS THE FISH BACK OUT OF THE CREEL before saying yes. That
+   * read-back is the whole point: `addFish` returning a record only
+   * proves a function ran, and the bug this replaces was a catch being
+   * announced for a fish that never made it into the inventory. If it
+   * is not in there under its own uid, this returns null and the
+   * minigame reports a lost fish instead of a false success.
+   */
+  const awardFish = caught => {
+    const rec = G.state.addFish(caught);
+    if (!rec || !G.state.fishById(rec.uid)) {
+      console.error('[fishing] the creel did not accept the catch', caught);
+      return null;
+    }
+    /* saving must never be able to un-catch a fish, so it is attempted
+       after the record is confirmed and its failure is not fatal — the
+       fish is in the creel in memory either way */
+    try { G.state.save(); } catch (e) { console.warn('[fishing] could not save', e); }
+    return rec;
+  };
+
+  G.fishing = new Fishing({ audio, award: awardFish });
   /* the float, the line and the water effects. The minigame is the rules;
      this is the part of fishing that happens where the player is looking. */
   G.fishRig = new FishingRig(scene, G.world);
@@ -236,6 +260,15 @@ function startGame(species, saved) {
   if (G.quest.inSpeech) setTimeout(() => runFestival(), 900);
 
   G.player.onStep = (surface, rel) => audio.step(surface, SPECIES[species].carryScale, rel);
+
+  /* GOING IN AND COMING OUT. The player reports the crossing; the
+     splash belongs here because this owns the effects pool and the
+     audio. A harder entry for a fox that ran in than one that waded. */
+  G.player.onWater = (kind, at) => {
+    const power = kind === 'enter' ? clamp(0.6 + at.speed * 0.20, 0.6, 1.8) : 0.75;
+    G.fx?.splash(at.x, at.y, at.z, power);
+    audio.splash?.(power);
+  };
 
   if (G.state.equipped) equipFromState();
 
@@ -619,10 +652,12 @@ async function runFestival() {
 
 /* --- what the systems report back ------------------------------------- */
 
+/* BY THE TIME THIS FIRES THE FISH IS ALREADY IN THE CREEL — `awardFish`
+   put it there and read it back before the minigame would announce a
+   catch at all. So this is presentation only: nothing here can lose a
+   fish, and nothing here needs to add one. */
 bus.on(EV.FISH_CAUGHT, ({ fish }) => {
-  G.state.addFish(fish);
   G.quest?.noteFish();
-  G.state.save();
   G.fishUI.reveal(fish).then(() => {
     G.fishing.reset();
     G.fishing.state = 'idle';
@@ -633,6 +668,16 @@ bus.on(EV.FISH_CAUGHT, ({ fish }) => {
 /* THE NUMBER, on the frame the blow lands. */
 bus.on(EV.BEAST_HURT, ({ at, damage, crit }) => {
   G.cfx?.damage(at, damage, { crit });
+});
+
+/* THE THREE WAYS A BITE CAN GO, told in one line each and never with a
+   banner across the middle of the screen — the water is doing most of
+   the talking, and these are just the words for it. */
+bus.on(EV.FISH_OFF, () => {
+  G.ui.toast({ text: 'It took the bait and went.', icon: 'drop', ms: 2600 });
+});
+bus.on(EV.FISH_EARLY, () => {
+  G.ui.toast({ text: 'Nothing on the line yet.', icon: 'drop', ms: 1800 });
 });
 
 bus.on(EV.FISH_LOST, () => {
@@ -994,9 +1039,18 @@ function frame() {
   /* --- 3. player -------------------------------------------------------- */
   P.update(dt, mv, {
     run: input.down('ShiftLeft', 'ShiftRight'),
-    jump: !cine && input.rawPressed('Space') && !uiUp,
+    /* HELD, NOT TAPPED, WHILE SWIMMING. On land a jump is an event and
+       one press is one jump; in water the same key is "kick for the
+       surface" and has to be holdable, or surfacing means mashing. */
+    jump: !cine && !uiUp && (P.swimming
+      ? input.down('Space')
+      : input.rawPressed('Space')),
+    dive: !cine && !uiUp && input.down('ControlLeft', 'ControlRight', 'KeyC'),
     frozen: uiUp || cine,
   });
+
+  /* the wake behind a swimming fox */
+  if (P.swimming) G.fx?.wake(P.x, P.waterY ?? P.y, P.z, P.speed, dt);
   G.state.stats.walked += Math.hypot(P.vx, P.vz) * dt;
 
   rig.setFocus(P.x, P.y, P.z);

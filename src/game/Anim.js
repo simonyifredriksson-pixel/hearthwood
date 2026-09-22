@@ -19,8 +19,8 @@
    joints. Nothing rebuilds geometry, ever.
 */
 
-import { clamp, clamp01, lerp, damp, dampAngle, TAU, smoothstep, makeRng } from '../core/Util.js?v=1790055608';
-import { applyCarry, applyAttack, applyCharge } from './Combat.js?v=1790055608';
+import { clamp, clamp01, lerp, damp, dampAngle, TAU, smoothstep, makeRng } from '../core/Util.js?v=1790085618';
+import { applyCarry, applyAttack, applyCharge } from './Combat.js?v=1790085618';
 
 /* ========================================================================= */
 /* SPECIES DEFINITIONS                                                       */
@@ -191,8 +191,113 @@ export function poseAnimal(rig, st) {
      underneath a throw. */
   if (st.cast) applyCast(rig, A, st.cast, dt);
 
+  /* AND SWIMMING GOES ON TOP OF EVERYTHING, blended by how much of the
+     fox is in the water, so wading out is a transition and not a swap. */
+  if (st.swim > 0.001) applySwim(rig, A, st, dt);
+
   headLook(rig, A, st, dt);
   return { bodyY: A.bodyY };
+}
+
+/* ========================================================================= */
+/* SWIMMING                                                                  */
+/* ========================================================================= */
+
+/**
+ * A DOG PADDLE, which is what a fox actually does.
+ *
+ * The distinguishing features, and each one is doing a job:
+ *
+ *   THE BODY LIES FLAT AND LOW. On land the fox's spine is carried with
+ *   the chest up; in water it levels out and the hips drop, because
+ *   almost all of it is submerged and only the head and shoulders are
+ *   really above the line. Getting this wrong is what makes a swimming
+ *   character look like it is standing on an invisible floor.
+ *
+ *   THE FRONT PAWS DO THE WORK, alternating, reaching forward and
+ *   pulling down and back under the chest. They are also the only part
+ *   of the animation the player can see clearly from behind, so they
+ *   carry most of the read.
+ *
+ *   THE BACK LEGS KICK, out of phase with the front and with a much
+ *   smaller amplitude — they are trim and thrust, not the engine.
+ *
+ *   THE HEAD STAYS UP. A fox swims with its chin clear of the water and
+ *   its ears back, and that single detail is most of what makes it look
+ *   like it is swimming rather than drowning.
+ *
+ *   THE TAIL STREAMS. Not a wag: it trails behind and sweeps slowly,
+ *   because it is floating rather than being held.
+ *
+ * Everything is multiplied by `k`, the blend, so the paddle fades in as
+ * the fox wades deeper instead of switching on.
+ */
+function applySwim(rig, A, st, dt) {
+  const p = rig.parts;
+  const k = clamp01(st.swim);
+  const t = st.swimBob ?? A.t;
+  /* paddle faster when actually going somewhere, but never stop — a fox
+     treading water is still working */
+  const rate = 7.4 + clamp01(st.speed ?? 0) * 3.2;
+  const ph = t * rate;
+
+  /* --- the body lies down in the water --------------------------------- */
+  const level = (a, b) => lerp(a, b, k);
+  p.hip.position.y = level(p.hip.position.y, rig.metrics.hipHeight * 0.52);
+  p.hip.rotation.x = level(p.hip.rotation.x, 0.16);
+  p.hip.rotation.z = level(p.hip.rotation.z, Math.sin(ph * 0.5) * 0.05);
+  p.torso.rotation.x = level(p.torso.rotation.x, -0.20);
+  p.torso.rotation.z = level(p.torso.rotation.z, Math.sin(ph * 0.5 + 0.8) * 0.06);
+  /* a slow roll and a rise and fall with the swell */
+  A.bodyY = lerp(A.bodyY ?? 0, Math.sin(ph * 0.5) * 0.020, k);
+
+  /* --- the head stays clear ------------------------------------------- */
+  p.head.rotation.x = level(p.head.rotation.x, -0.30 + Math.sin(ph * 0.5) * 0.04);
+  if (p.neck) p.neck.rotation.x = level(p.neck.rotation.x, -0.22);
+  if (p.ears?.length) {
+    for (let i = 0; i < p.ears.length; i++) {
+      const s = i === 0 ? -1 : 1;
+      /* ears back and flat, which reads as wet */
+      p.ears[i].rotation.x = level(p.ears[i].rotation.x, 0.42);
+      p.ears[i].rotation.z = level(p.ears[i].rotation.z, s * 0.34);
+    }
+  }
+
+  /* --- the paddle ------------------------------------------------------ */
+  if (p.arms?.length) {
+    for (let i = 0; i < p.arms.length; i++) {
+      const arm = p.arms[i];
+      const off = i * Math.PI;                 // the two forelegs alternate
+      const c = Math.sin(ph + off);
+      const reach = Math.max(0, c);            // forward and up
+      const pull = Math.max(0, -c);            // down and back under the chest
+      arm.shoulder.rotation.x = level(arm.shoulder.rotation.x,
+        -0.55 - reach * 0.95 + pull * 0.55);
+      arm.shoulder.rotation.z = level(arm.shoulder.rotation.z, arm.side * (0.22 + reach * 0.12));
+      arm.elbow.rotation.x = level(arm.elbow.rotation.x, -0.75 - reach * 0.55 + pull * 0.35);
+    }
+  }
+
+  /* --- the kick -------------------------------------------------------- */
+  if (p.legs?.length) {
+    for (let i = 0; i < p.legs.length; i++) {
+      const leg = p.legs[i];
+      const c = Math.sin(ph * 0.92 + i * Math.PI + 1.1);
+      leg.hip.rotation.x = level(leg.hip.rotation.x, 0.10 + c * 0.34);
+      leg.knee.rotation.x = level(leg.knee.rotation.x, 0.45 - c * 0.30);
+      if (leg.ankle) leg.ankle.rotation.x = level(leg.ankle.rotation.x, -0.20 + c * 0.18);
+    }
+  }
+
+  /* --- the tail streams ------------------------------------------------ */
+  if (p.tail?.length) {
+    for (let i = 0; i < p.tail.length; i++) {
+      const seg = p.tail[i];
+      const lag = i * 0.55;
+      seg.rotation.y = level(seg.rotation.y, Math.sin(ph * 0.42 - lag) * 0.16);
+      seg.rotation.x = level(seg.rotation.x, 0.06 + Math.sin(ph * 0.5 - lag) * 0.05);
+    }
+  }
 }
 
 /* ========================================================================= */

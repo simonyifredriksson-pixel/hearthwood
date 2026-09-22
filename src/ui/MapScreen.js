@@ -17,13 +17,13 @@
    thousand fog cells and a painting; the only DOM is the frame round it.
 */
 
-import { buildMapImage, worldToMap, mapMarkers, FOG_CELL } from '../game/MapData.js?v=1790055608';
-import { VILLAGES } from '../data/VillageData.js?v=1790055608';
-import { makeScreen } from './UI.js?v=1790055608';
-import { ic } from './Icons.js?v=1790055608';
-import { input } from '../core/Input.js?v=1790055608';
-import { esc, clamp, clamp01, lerp } from '../core/Util.js?v=1790055608';
-import { WORLD } from '../core/Config.js?v=1790055608';
+import { buildMapImage, worldToMap, mapMarkers, FOG_CELL } from '../game/MapData.js?v=1790085618';
+import { VILLAGES } from '../data/VillageData.js?v=1790085618';
+import { makeScreen } from './UI.js?v=1790085618';
+import { ic } from './Icons.js?v=1790085618';
+import { input } from '../core/Input.js?v=1790085618';
+import { esc, clamp, clamp01, lerp } from '../core/Util.js?v=1790085618';
+import { WORLD } from '../core/Config.js?v=1790085618';
 
 const SYM = {
   village: { r: 7, fill: '#8a5a28', stroke: '#f0dcae', label: true },

@@ -32,12 +32,12 @@
    the middle of a cast.
 */
 
-import * as THREE from '../../lib/three.module.js?v=1790055608';
-import { MeshBuilder, blob, cylinder, quad } from '../art/Geo.js?v=1790055608';
-import { MATS } from '../art/Materials.js?v=1790055608';
-import { bus, EV } from '../core/Bus.js?v=1790055608';
-import { FISH_STATE } from './Fishing.js?v=1790055608';
-import { clamp, clamp01, lerp, smoothstep, TAU, makeRng } from '../core/Util.js?v=1790055608';
+import * as THREE from '../../lib/three.module.js?v=1790085618';
+import { MeshBuilder, blob, cylinder, quad } from '../art/Geo.js?v=1790085618';
+import { MATS } from '../art/Materials.js?v=1790085618';
+import { bus, EV } from '../core/Bus.js?v=1790085618';
+import { FISH_STATE } from './Fishing.js?v=1790085618';
+import { clamp, clamp01, lerp, smoothstep, TAU, makeRng } from '../core/Util.js?v=1790085618';
 
 const RINGS = 7;
 const BUBBLES = 18;
@@ -80,7 +80,13 @@ export class FishingRig {
       bus.on(EV.FISH_SPLASH, () => this.splash(1)),
       bus.on(EV.FISH_BITING, () => { this.ring(0.5, 0.9); this.duck = 0.0; }),
       bus.on(EV.FISH_HOOKED, () => this.splash(0.7)),
-      bus.on(EV.FISH_OFF, () => this.ring(0.3, 0.5)),
+      /* IT GOT AWAY. A single hard ring and a scatter of bubbles as the
+         fish turns and goes — enough to read as "that was yours and now
+         it is not" without a caption saying so. */
+      bus.on(EV.FISH_OFF, () => { this.splash(0.55); this.ring(0.1, 1.5, 1.8); }),
+      /* STRUCK AT NOTHING. One small ring where the float is, which is
+         exactly what yanking a line out of empty water looks like. */
+      bus.on(EV.FISH_EARLY, () => this.ring(0.04, 0.34, 0.8)),
     ];
   }
 

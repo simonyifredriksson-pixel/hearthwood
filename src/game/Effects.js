@@ -19,10 +19,10 @@
    that allocate are particles that stutter.
 */
 
-import * as THREE from '../../lib/three.module.js?v=1790055608';
-import { MeshBuilder, quad, blob } from '../art/Geo.js?v=1790055608';
-import { MATS } from '../art/Materials.js?v=1790055608';
-import { makeRng, clamp01, lerp, TAU } from '../core/Util.js?v=1790055608';
+import * as THREE from '../../lib/three.module.js?v=1790085618';
+import { MeshBuilder, quad, blob } from '../art/Geo.js?v=1790085618';
+import { MATS } from '../art/Materials.js?v=1790085618';
+import { makeRng, clamp01, lerp, TAU } from '../core/Util.js?v=1790085618';
 
 /* A streak is a long thin quad, built once, drawn many times. */
 function streakGeo(hex, len = 1, wide = 0.055) {
@@ -180,6 +180,82 @@ export class Effects {
       it.life = 0;
       it.max = r.range(0.14, 0.30);
     }
+  }
+
+  /* ====================================================================== */
+  /* WATER                                                                  */
+  /* ====================================================================== */
+
+  /**
+   * GOING IN, OR COMING OUT.
+   *
+   * Droplets thrown up and out plus a spreading ring on the surface.
+   * Everything is placed at the WATERLINE rather than at the fox, so a
+   * splash from something half-submerged still happens where the water
+   * is — putting it at the body's centre is what makes a splash look
+   * like it is happening inside the animal.
+   */
+  splash(x, y, z, power = 1) {
+    const r = this.rnd;
+    const n = Math.min(12, 4 + Math.round(power * 6));
+    for (let i = 0; i < n; i++) {
+      const it = this._free();
+      it.m.geometry = this.gWind;
+      it.m.material = MATS.glowSoft;
+      it.m.position.set(x + r.range(-0.18, 0.18), y, z + r.range(-0.18, 0.18));
+      it.m.rotation.set(r.range(0, TAU), r.range(0, TAU), r.range(0, TAU));
+      it.base = r.range(0.07, 0.16) * (0.6 + power);
+      it.m.scale.set(it.base, 1, 1);
+      it.m.visible = true;
+      it.kind = 'wind';
+      const a = r.range(0, TAU);
+      /* up and OUT: a splash that only goes up is a fountain */
+      it.vx = Math.cos(a) * r.range(0.8, 2.4) * power;
+      it.vz = Math.sin(a) * r.range(0.8, 2.4) * power;
+      it.vy = r.range(1.4, 3.4) * power;
+      it.grow = -0.5;                       // droplets shrink as they fall
+      it.life = 0;
+      it.max = r.range(0.28, 0.58);
+    }
+    /* and the ring it leaves behind */
+    const ring = this._free();
+    ring.m.geometry = this.gRing;
+    ring.m.material = MATS.glowSoft;
+    ring.m.position.set(x, y + 0.02, z);
+    ring.m.rotation.set(-Math.PI / 2, 0, 0);
+    ring.base = 0.25 * power;
+    ring.m.scale.setScalar(ring.base);
+    ring.m.visible = true;
+    ring.kind = 'ring';
+    ring.vx = ring.vy = ring.vz = 0;
+    ring.grow = 3.4 * power;
+    ring.life = 0;
+    ring.max = 1.1;
+  }
+
+  /**
+   * The wake behind something swimming: a slow trickle of small rings
+   * off the shoulders, only while actually moving.
+   */
+  wake(x, y, z, speed, dt) {
+    if (speed < 0.45) return;
+    this._wakeT = (this._wakeT || 0) + dt * speed;
+    if (this._wakeT < 0.55) return;
+    this._wakeT = 0;
+    const r = this.rnd;
+    const it = this._free();
+    it.m.geometry = this.gRing;
+    it.m.material = MATS.glowSoft;
+    it.m.position.set(x + r.range(-0.2, 0.2), y + 0.02, z + r.range(-0.2, 0.2));
+    it.m.rotation.set(-Math.PI / 2, 0, 0);
+    it.base = 0.18;
+    it.m.scale.setScalar(it.base);
+    it.m.visible = true;
+    it.kind = 'ring';
+    it.vx = it.vy = it.vz = 0;
+    it.grow = 1.5;
+    it.life = 0;
+    it.max = 1.3;
   }
 
   /* ====================================================================== */

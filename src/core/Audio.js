@@ -14,8 +14,8 @@
    then every call here is a no-op that costs nothing.
 */
 
-import { AUDIO } from './Config.js?v=1790055608';
-import { clamp, lerp, makeRng } from './Util.js?v=1790055608';
+import { AUDIO } from './Config.js?v=1790085618';
+import { clamp, lerp, makeRng } from './Util.js?v=1790085618';
 
 const rnd = makeRng(0x50554e4b);
 
@@ -465,6 +465,22 @@ export class AudioEngine {
     const t = this.ctx.currentTime;
     this._burst({ freq: 2200, q: 0.6, dur: 0.26, gain: 0.075 * hard, rate: 1.25, when: t });
     this._burst({ freq: 900, q: 1.4, dur: 0.18, gain: 0.05 * hard, rate: 0.95, when: t + 0.05 });
+  }
+
+  /** Going into water: the slap, then the swallow. */
+  splash(power = 1) {
+    if (!this.ready || !this.enabled) return;
+    const t = this.ctx.currentTime;
+    const p = clamp(power, 0.3, 2);
+    this._burst({ freq: 900, q: 0.6, dur: 0.14, gain: 0.13 * p, rate: 1.3, when: t });
+    this._burst({ freq: 260, q: 1.4, dur: 0.30, gain: 0.11 * p, rate: 0.7, when: t + 0.01 });
+    this._burst({ freq: 2200, q: 0.5, dur: 0.42, gain: 0.05 * p, rate: 1.5, when: t + 0.05 });
+  }
+
+  /** The quiet, regular sound of paddling. */
+  paddle() {
+    if (!this.ready || !this.enabled) return;
+    this._burst({ freq: 700, q: 0.8, dur: 0.11, gain: 0.045, rate: 1.1 });
   }
 
   /** Cord being drawn tight round a grip. */

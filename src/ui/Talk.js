@@ -25,9 +25,9 @@
    dialogue in the place that knows what the branches mean.
 */
 
-import { ic } from './Icons.js?v=1790055608';
-import { input } from '../core/Input.js?v=1790055608';
-import { esc, clamp } from '../core/Util.js?v=1790055608';
+import { ic } from './Icons.js?v=1790085618';
+import { input } from '../core/Input.js?v=1790085618';
+import { esc, clamp } from '../core/Util.js?v=1790085618';
 
 export class Talk {
   constructor(root, { audio = null } = {}) {

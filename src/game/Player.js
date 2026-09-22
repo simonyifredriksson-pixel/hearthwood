@@ -20,15 +20,30 @@
    and facing. Everything visual about how a species moves lives there.
 */
 
-import * as THREE from '../../lib/three.module.js?v=1790055608';
-import { buildAnimal } from '../art/AnimalArt.js?v=1790055608';
-import { poseAnimal, SPECIES } from './Anim.js?v=1790055608';
-import { carryFor, swingOf, chargeStage, chargeProgress, CHARGE, CHARGE_STAGE_SECONDS, COMBO, COMBO_WINDOW } from './Combat.js?v=1790055608';
-import { MATS } from '../art/Materials.js?v=1790055608';
-import { PLAYER, WORLD } from '../core/Config.js?v=1790055608';
-import { clamp, clamp01, lerp, damp, dampAngle, angleDelta, TAU, smoothstep } from '../core/Util.js?v=1790055608';
+import * as THREE from '../../lib/three.module.js?v=1790085618';
+import { buildAnimal } from '../art/AnimalArt.js?v=1790085618';
+import { poseAnimal, SPECIES } from './Anim.js?v=1790085618';
+import { carryFor, swingOf, chargeStage, chargeProgress, CHARGE, CHARGE_STAGE_SECONDS, COMBO, COMBO_WINDOW } from './Combat.js?v=1790085618';
+import { MATS } from '../art/Materials.js?v=1790085618';
+import { PLAYER, WORLD } from '../core/Config.js?v=1790085618';
+import { clamp, clamp01, lerp, damp, dampAngle, angleDelta, TAU, smoothstep } from '../core/Util.js?v=1790085618';
 
 const UP = new THREE.Vector3(0, 1, 0);
+
+/*
+ * WADING AND SWIMMING ARE DIFFERENT THINGS.
+ *
+ * A fox walks through anything up to roughly its chest and swims past
+ * it. One threshold for both would mean either paddling across puddles
+ * or walking along a lake bed, so there are two — and they are apart,
+ * so that standing at the margin where the water is exactly deep enough
+ * cannot flip the animation back and forth several times a second.
+ */
+const SWIM_IN = 0.58;      // deeper than this and it starts swimming
+const SWIM_OUT = 0.44;     // shallower than this and its feet find the bottom
+const SWIM_SINK = 0.26;    // how far below the surface the body rides
+const SWIM_RISE = 1.5;     // kick for the top
+const SWIM_DIVE = 1.2;     // and push under
 
 export class Player {
   constructor(world, species = 'fox') {
@@ -60,6 +75,14 @@ export class Player {
     this.lookAt = null;
     /** {t, state, pull} while a line is out; null otherwise. See applyCast. */
     this.castPose = null;
+    /* water */
+    this.swimming = false;
+    this.swim = 0;            // blended 0..1, drives the animation
+    this.waterY = null;
+    this.depth = 0;
+    this.swimBob = 0;
+    /** (kind, at) => void, for the splash. Set by main.js. */
+    this.onWater = null;
     this._blockers = [];
 
     /* combat */
@@ -114,6 +137,7 @@ export class Player {
       for (const m of this.weapon.meshes) m.parent?.remove(m);
     }
     this.weapon = null;
+    this._inMouth = false;    // nothing to carry, in either place
   }
 
   _mountWeapon() {
@@ -158,6 +182,58 @@ export class Player {
       m.rotation.set(C.rot[0], C.rot[1], C.rot[2]);
       m.position.set(C.pos[0] * sp, C.pos[1] * sp, C.pos[2] * sp);
       grip.add(m);
+    }
+    /* anything newly equipped starts in the paw; `_carry` moves it to the
+       mouth on the next frame if the fox happens to be mid-sprint */
+    this._inMouth = false;
+  }
+
+  /**
+   * WHAT THE FOX DOES WITH ITS HANDS WHEN IT NEEDS THEM TO RUN.
+   *
+   * Dropping onto all fours turns both forelimbs into legs, so whatever
+   * was in the paw has nowhere to be — and the old code dodged this by
+   * simply refusing to go quadruped while carrying anything, which is
+   * why the sprint never happened at all.
+   *
+   * A fox carries things in its mouth. So above the halfway point of
+   * the blend the held mesh re-parents from the grip to the head, turned
+   * along the muzzle and tucked back so it does not spear the ground on
+   * the down-stroke of a bound. It is also the right answer for the
+   * game: a fox belting across a meadow with a fishing rod in its teeth
+   * is the most Fish n Sticks image there is.
+   *
+   * Hysteresis on the swap, because a player hovering at exactly the
+   * threshold would otherwise make the rod flicker between two places
+   * several times a second.
+   */
+  _carry(q) {
+    if (!this.weapon?.meshes?.length || !this.rig?.parts) return;
+    const p = this.rig.parts;
+    const mouth = p.head || p.neck;
+    const grip = p.grip;
+    if (!mouth || !grip) return;
+
+    const want = this._inMouth ? q > 0.40 : q > 0.62;
+    if (want === this._inMouth) return;
+    this._inMouth = want;
+
+    const cls = this.weapon.cls || this.weapon.weapon?.cls;
+    const C = carryFor(cls);
+    const s = this.weaponScale ?? 1;
+    const raw = cls === 'fish';
+
+    for (const m of this.weapon.meshes) {
+      (want ? mouth : grip).add(m);
+      if (want) {
+        /* along the muzzle, pointing forward and tipped down a little so
+           a long rod trails over the shoulder rather than through it */
+        m.rotation.set(Math.PI * 0.5 - 0.22, 0, 0.06);
+        m.position.set(0, raw ? 0.02 : 0.03 * s, (raw ? 0.10 : 0.12) * (raw ? 1 : s));
+      } else {
+        m.rotation.set(C.rot[0], C.rot[1], C.rot[2]);
+        m.position.set(C.pos[0] * (raw ? 1 : s), C.pos[1] * (raw ? 1 : s), C.pos[2] * (raw ? 1 : s));
+      }
     }
   }
 
@@ -324,10 +400,43 @@ export class Player {
     this.running = !!opts.run && wantMove;
     const target = this.running ? S.run : S.walk;
 
-    /* --- horizontal velocity -------------------------------------------- */
-    const ax = wantMove ? move.x * target : 0;
-    const az = wantMove ? move.z * target : 0;
-    const rate = wantMove ? S.accel : S.accel * 1.6;
+    /* --- IS THERE WATER HERE, AND IS IT DEEP ENOUGH TO SWIM IN? ---------
+       `waterAt` returns the SURFACE HEIGHT of standing water, or null for
+       dry land — so the depth is that minus the bed. A fox wades through
+       anything up to about its chest and swims past it; using one
+       threshold for both would mean either paddling through puddles or
+       walking along the bottom of a lake. */
+    const bed = W ? W.groundAt(this.x, this.z) : 0;
+    const surf = W?.terrain?.waterAt ? W.terrain.waterAt(this.x, this.z) : null;
+    const depth = (surf !== null && surf !== undefined) ? surf - bed : 0;
+    this.waterY = (surf !== null && surf !== undefined) ? surf : null;
+    this.depth = depth;
+
+    const wasSwimming = this.swimming;
+    /* hysteresis: stepping off a shelf should commit, and a wave at the
+       margin should not flip the fox between two gaits several times a
+       second */
+    this.swimming = depth > (this.swimming ? SWIM_OUT : SWIM_IN);
+    this.swim = damp(this.swim, this.swimming ? 1 : 0, this.swimming ? 6.5 : 4.5, dt);
+    if (this.swim < 1e-3) this.swim = 0;
+
+    if (this.swimming !== wasSwimming) {
+      /* the splash is the caller's business — it owns the effects pool —
+         so the player only reports the event and where it happened */
+      this.onWater?.(this.swimming ? 'enter' : 'exit', {
+        x: this.x, y: surf ?? this.y, z: this.z, speed: this.speed,
+      });
+    }
+
+    /* --- horizontal velocity --------------------------------------------
+       WATER IS SLOWER AND HEAVIER. A swimming fox does not sprint, and it
+       does not stop dead either — the acceleration is halved in both
+       directions, which is most of what makes water feel like water
+       rather than like ground you happen to be lower in. */
+    const swimT = target * (this.swimming ? (this.running ? 0.52 : 0.62) : 1);
+    const ax = wantMove ? move.x * swimT : 0;
+    const az = wantMove ? move.z * swimT : 0;
+    const rate = (wantMove ? S.accel : S.accel * 1.6) * (this.swimming ? 0.55 : 1);
     this.vx = damp(this.vx, ax, rate / Math.max(0.5, target), dt);
     this.vz = damp(this.vz, az, rate / Math.max(0.5, target), dt);
     this.speed = Math.hypot(this.vx, this.vz);
@@ -360,7 +469,32 @@ export class Player {
     this.x = nx; this.z = nz;
     const ground = W ? W.groundAt(this.x, this.z) : 0;
 
-    /* --- vertical -------------------------------------------------------- */
+    /* --- vertical --------------------------------------------------------
+       IN WATER THERE IS NO GRAVITY AND NO GROUND, only buoyancy. The fox
+       floats with its back at the surface and can push itself down or
+       kick for the top; let go and it rises, because a fox is buoyant and
+       because a player who cannot find the surface again is a player
+       drowning in a cozy game. */
+    if (this.swimming) {
+      const surfY = (this.waterY ?? this.y) - SWIM_SINK;
+      let want = 0;
+      if (!frozen && opts.jump) want = SWIM_RISE;          // space: kick up
+      else if (!frozen && opts.dive) want = -SWIM_DIVE;    // and down
+
+      if (want !== 0) {
+        this.vy = damp(this.vy, want, 7, dt);
+      } else {
+        /* bob back to the waterline, easing so the fox does not pop */
+        const toSurf = surfY - this.y;
+        this.vy = damp(this.vy, clamp(toSurf * 2.4, -1.2, 1.4), 5, dt);
+      }
+      this.y += this.vy * dt;
+      /* never through the bed, never out of the water on the vertical */
+      this.y = clamp(this.y, bed + 0.05, surfY + 0.12);
+      this.grounded = false;
+      this.swimBob = (this.swimBob || 0) + dt * (1.4 + this.speed * 0.5);
+    } else {
+
     if (!frozen && opts.jump && this.grounded) {
       this.vy = S.jump;
       this.grounded = false;
@@ -376,6 +510,7 @@ export class Player {
       if (this.y <= ground) { this.y = ground; this.vy = 0; this.grounded = true; this._land(); }
     }
     if (this.y < ground - 0.05) { this.y = ground; this.grounded = true; this.vy = 0; }
+    }
 
     /* --- keep inside the map --------------------------------------------- */
     const lim = WORLD.half - 8;
@@ -390,12 +525,24 @@ export class Player {
        over about a third of a second instead of snapping upright.
 
        Asymmetric on purpose: going down is faster than coming up, because
-       a run starts with a lunge and ends with a settle. */
-    const wantQuad = (this.running && this.grounded && this.speed > S.walk * 0.85 && !this.weapon) ? 1 : 0;
+       a run starts with a lunge and ends with a settle.
+
+       IT USED TO BE GATED ON CARRYING NOTHING, and that meant it never
+       once happened. `!this.weapon` was written when the paw was empty
+       most of the time; since the rod became a carried item the fox has
+       something in its hand almost always — a rod, a fish, or a weapon —
+       so the condition was false in every ordinary moment of play and the
+       whole bound gait sat there unreachable.
+
+       A fox holding something still drops onto all fours to run. What
+       changes is where the thing goes: into its mouth. See `_carry`. */
+    const wantQuad = (this.running && this.grounded && !this.swimming
+      && this.speed > S.walk * 0.85) ? 1 : 0;
     const quadRate = wantQuad ? 7.5 : 4.8;
     this.quad = damp(this.quad, wantQuad, quadRate, dt);
     if (this.quad < 1e-3) this.quad = 0;
     this.sprintT += dt * (1 + this.quad * 1.6);
+    this._carry(this.quad);
 
     /* --- pose ------------------------------------------------------------- */
     const rel = clamp01(this.speed / S.run);
@@ -414,6 +561,10 @@ export class Player {
          time — the animator only reaches for the arms when there is
          actually a line in the water */
       cast: this.castPose,
+      /* 0 on land, 1 swimming, blended across the margin so entering the
+         water is a transition rather than a costume change */
+      swim: this.swim,
+      swimBob: this.swimBob,
       lookAt: this.lookAt,
     });
 

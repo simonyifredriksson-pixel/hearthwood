@@ -25,7 +25,7 @@
    that the walk between two villages is itself a journey.
 */
 
-import { WORLD } from '../core/Config.js?v=1790055608';
+import { WORLD } from '../core/Config.js?v=1790085618';
 
 /**
  *   x, z        centre of the green

@@ -78,6 +78,7 @@ export const EV = {
   FISH_SPLASH: 'fish:splash',    // the bobber has hit the water
   FISH_BITING: 'fish:biting',    // something is down there; the water boils
   FISH_OFF: 'fish:off',          // ...and it lost interest
+  FISH_EARLY: 'fish:early',      // struck at open water
   BEAST_HURT: 'beast:hurt',      // carries the damage, the hp and where to draw it
   BEAST_LOST: 'beast:lost',      // gave up the chase and is going home
   FISH_HOOKED: 'fish:hooked',
