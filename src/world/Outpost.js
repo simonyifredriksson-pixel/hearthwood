@@ -27,14 +27,14 @@
    village works wherever the terrain put it.
 */
 
-import * as THREE from '../../lib/three.module.js?v=1790020991';
-import { MeshBuilder, box, hexa, beam, cylinder, lathe, blob, quad, tube, sheet } from '../art/Geo.js?v=1790020991';
-import * as P from '../art/PropArt.js?v=1790020991';
-import { buildTree } from '../art/TreeGen.js?v=1790020991';
-import { buildBush, buildFlower, buildGrassTuft } from '../art/PlantGen.js?v=1790020991';
-import { BUILD, GROUND, PLANT, MOSS, BARK, METAL, mixHex, tweak, shade } from '../art/Palette.js?v=1790020991';
-import { WORLD } from '../core/Config.js?v=1790020991';
-import { makeRng, clamp, clamp01, lerp, TAU, smoothstep } from '../core/Util.js?v=1790020991';
+import * as THREE from '../../lib/three.module.js?v=1790055608';
+import { MeshBuilder, box, hexa, beam, cylinder, lathe, blob, quad, tube, sheet } from '../art/Geo.js?v=1790055608';
+import * as P from '../art/PropArt.js?v=1790055608';
+import { buildTree } from '../art/TreeGen.js?v=1790055608';
+import { buildBush, buildFlower, buildGrassTuft } from '../art/PlantGen.js?v=1790055608';
+import { BUILD, GROUND, PLANT, MOSS, BARK, METAL, mixHex, tweak, shade } from '../art/Palette.js?v=1790055608';
+import { WORLD } from '../core/Config.js?v=1790055608';
+import { makeRng, clamp, clamp01, lerp, TAU, smoothstep } from '../core/Util.js?v=1790055608';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -197,7 +197,127 @@ export function planOutpost(T, def) {
     booth = { x: def.x + 30, z: def.z, yaw: -Math.PI / 2 };
   }
 
-  return { def, style: S, datum, lake, lots, booth, seed: r.seed() };
+  /* --- LANES ------------------------------------------------------------
+     The outposts had no paths at all. Houses stood on flattened pads in
+     open grass, and the difference between that and the home village —
+     which has had a path graph since the first day — is most of why the
+     later places felt like models rather than settlements. A village is
+     a set of routes with buildings along them; without the routes it is
+     a collection of sheds.
+
+     Registered with the terrain BEFORE anything is placed, because
+     addPath flattens the ground under a lane and everything downstream
+     reads heights. Doing it after is how you get a road cut through a
+     house that was already standing on the old ground. */
+  const paths = [];
+  const lane = (ax, az, bx, bz, w) => {
+    paths.push({ ax, az, bx, bz, w });
+    T.addPath(ax, az, bx, bz, w);
+  };
+
+  {
+    /* a spine from the green down to the water, which is the walk every
+       player makes and therefore the one that has to exist */
+    if (lake) {
+      const a = lake.angle + Math.PI;
+      lane(def.x, def.z,
+        lake.x + Math.cos(a) * (lake.r + 4.5), lake.z + Math.sin(a) * (lake.r + 4.5), 3.2);
+    }
+
+    /* A STREET, NOT A SUNBURST.
+       The first version ran a straight spur from the green to every
+       single house, and from above that is a wagon wheel — fourteen
+       radial spokes, unmistakably generated. Villages do not work like
+       that. They have a lane, and the houses stand along it.
+
+       So: one curved street threaded through the ring the houses sit
+       on, wandering a little so it is not a compass arc, and a SHORT
+       stub from each house to its nearest point on that street. Most
+       houses end up a couple of metres off the lane, which is exactly
+       what a village looks like from the air. */
+    const ring = lots.length
+      ? lots.reduce((s, l) => s + Math.hypot(l.x - def.x, l.z - def.z), 0) / lots.length
+      : def.core * 0.55;
+
+    /* the street runs round most of the ring, but not all of it: a
+       closed circle reads as a racetrack, and leaving a gap gives the
+       village a back. */
+    const a0 = (lake ? lake.angle + Math.PI : 0) + r.range(-0.5, 0.5);
+    const sweep = r.range(3.9, 5.2);
+    const STEPS = 9;
+    const street = [];
+    for (let i = 0; i <= STEPS; i++) {
+      const t = i / STEPS;
+      const a = a0 + t * sweep;
+      /* the wander: two slow sines, so the lane breathes in and out of
+         the ring instead of tracing it */
+      const rr = ring * (1 + Math.sin(t * 3.1 + 0.7) * 0.10 + Math.sin(t * 7.3) * 0.045);
+      street.push([def.x + Math.cos(a) * rr, def.z + Math.sin(a) * rr]);
+    }
+    for (let i = 0; i < street.length - 1; i++) {
+      lane(street[i][0], street[i][1], street[i + 1][0], street[i + 1][1], 2.6);
+    }
+    /* and one lane in from the green to meet it, so the centre is joined */
+    lane(def.x, def.z, street[Math.floor(STEPS * 0.5)][0], street[Math.floor(STEPS * 0.5)][1], 2.4);
+
+    /* THE STUBS. Nearest point on the street, and only if the house is
+       not already standing on it — a two-metre path to a lane you are
+       already touching is a smear, not a path. */
+    for (const l of lots) {
+      let best = null, bd = Infinity;
+      for (let i = 0; i < street.length - 1; i++) {
+        const [ax, az] = street[i], [bx, bz] = street[i + 1];
+        const vx = bx - ax, vz = bz - az;
+        const len2 = vx * vx + vz * vz || 1;
+        const t = clamp(((l.x - ax) * vx + (l.z - az) * vz) / len2, 0, 1);
+        const px = ax + vx * t, pz = az + vz * t;
+        const d = Math.hypot(l.x - px, l.z - pz);
+        if (d < bd) { bd = d; best = [px, pz]; }
+      }
+      const doorstep = Math.max(l.w, l.d) * 0.55;
+      if (!best || bd < doorstep + 0.8) continue;
+      const dx = best[0] - l.x, dz = best[1] - l.z;
+      const d = Math.hypot(dx, dz) || 1;
+      lane(l.x + (dx / d) * doorstep, l.z + (dz / d) * doorstep, best[0], best[1], 1.8);
+    }
+  }
+
+  /* --- A LANDMARK -------------------------------------------------------
+     One large distinctive thing per village, visible over the roofs, so
+     each place is recognisable from the approach and from the map. This
+     is what turns "another village" into "oh, the one with the tower".
+     Chosen from the village's own terrain and style rather than at
+     random, so it always belongs where it is standing. */
+  const landmark = pickLandmark(def, S, lake, r);
+  if (landmark) T.addFlat(landmark.x, landmark.z, 4.0, undefined);
+
+  return { def, style: S, datum, lake, lots, booth, paths, landmark, seed: r.seed() };
+}
+
+/**
+ * WHAT THIS VILLAGE IS KNOWN FOR, as a building.
+ *
+ * Driven off the terrain and the architecture, never rolled blind: a
+ * lighthouse belongs on a big lake and nowhere else, a watchtower
+ * belongs on high stone ground, a drying rack belongs where the fishing
+ * is the whole economy. Picking at random would give Stonecrag a
+ * fishing shrine and Fenmoor a bell tower, and the point of a landmark
+ * is that it tells you something true about the place.
+ */
+function pickLandmark(def, S, lake, r) {
+  const at = (ax, az) => ({ x: ax, z: az });
+  /* off the green, far enough not to crowd the centre */
+  const ang = r.range(0, TAU);
+  const rad = def.core * 0.42;
+  const px = def.x + Math.cos(ang) * rad;
+  const pz = def.z + Math.sin(ang) * rad;
+
+  if (lake && lake.r >= 48) return { kind: 'lighthouse', ...at(px, pz), h: 9.5 };
+  if (S.snow) return { kind: 'bell', ...at(px, pz), h: 7.0 };
+  if (S.wall === 'stone') return { kind: 'tower', ...at(px, pz), h: 10.5 };
+  if (S.stilts > 0.3) return { kind: 'racks', ...at(px, pz), h: 4.2 };
+  if (S.terrace > 0) return { kind: 'shrine', ...at(px, pz), h: 5.0 };
+  return { kind: 'greattree', ...at(px, pz), h: 12.0 };
 }
 
 /* ========================================================================= */
@@ -633,11 +753,208 @@ function buildRoof(b, r, S, w, d, y) {
 }
 
 /* ========================================================================= */
+/* LANDMARKS                                                                 */
+/* ========================================================================= */
+
+/**
+ * The one thing each village is known for.
+ *
+ * All six are built from the same primitives the houses use, at roughly
+ * twice the height of a roof, so they clear the skyline of the place
+ * without turning it into a city. Each one is also a REASON: a
+ * lighthouse says the lake is big enough to get lost on, drying racks
+ * say the village lives on fish, a watchtower says somebody was worried
+ * about something. A landmark that does not explain its village is just
+ * a big prop.
+ */
+function buildLandmark(T, plan, put, r, blockers, lights, npcSpots) {
+  const L = plan.landmark, S = plan.style, def = plan.def;
+  const b = new MeshBuilder(), g = new MeshBuilder();
+  const ground = T.height(L.x, L.z);
+  const H = L.h;
+
+  switch (L.kind) {
+    case 'lighthouse': {
+      /* a tapering stone drum with a lamp room and a gallery */
+      b.color(mixHex(S.wallCols[0], 0xffffff, 0.25), 0.07, r);
+      lathe(b, [[1.5, 0], [1.35, H * 0.35], [1.05, H * 0.72], [0.98, H * 0.80]], 12);
+      /* banded, because a lighthouse without bands is a chimney */
+      b.color(shade(S.trim, -0.05), 0.05, r);
+      for (let i = 0; i < 3; i++) {
+        const y = H * (0.16 + i * 0.22);
+        lathe(b, [[1.42 - i * 0.12, y], [1.46 - i * 0.12, y + 0.55], [1.42 - i * 0.12, y + 1.1]], 12);
+      }
+      b.color(S.beam, 0.06, r);                       // the gallery
+      lathe(b, [[1.5, H * 0.80], [1.55, H * 0.84], [1.0, H * 0.86]], 12);
+      b.color(0x3a4048, 0.05, r);                     // the lamp room posts
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * TAU;
+        beam(b, Math.cos(a) * 0.9, H * 0.86, Math.sin(a) * 0.9,
+          Math.cos(a) * 0.9, H * 0.86 + 1.5, Math.sin(a) * 0.9, 0.09, 0.09, [0, 1, 0]);
+      }
+      b.color(0x2e343a, 0.05, r);                     // the cap
+      lathe(b, [[1.25, H * 0.86 + 1.5], [0.9, H * 0.86 + 2.1], [0.1, H * 0.86 + 2.6]], 10);
+      b.color(0xfff0b8, 0.03, r);
+      blob(b, 0, H * 0.86 + 0.75, 0, 0.62, 3, 9);
+      g.color(0xffe08a, 0.05, r);
+      blob(g, 0, H * 0.86 + 0.75, 0, 1.05, 3, 9);
+      lights.push({ x: L.x, y: ground + H * 0.86 + 0.75, z: L.z, color: 0xffd98a, intensity: 3.4 });
+      blockers.push({ x: L.x, z: L.z, r: 1.7 });
+      break;
+    }
+    case 'tower': {
+      /* a square stone watchtower with a timber top storey */
+      b.color(S.wallCols[1] ?? S.wallCols[0], 0.08, r);
+      for (let i = 0; i < 5; i++) {
+        const y = i * (H * 0.62 / 5), w = 2.6 - i * 0.10;
+        box(b, 0, y + H * 0.062, 0, w, H * 0.124, w);
+      }
+      b.color(S.beam, 0.07, r);
+      box(b, 0, H * 0.70, 0, 3.0, H * 0.16, 3.0);     // the jettied top
+      b.color(S.roofCols[0], 0.07, r);
+      lathe(b, [[2.4, H * 0.78], [1.4, H * 0.95], [0, H * 1.02]], 4, 0, 0);
+      b.color(0x2a2620, 0.05, r);                     // the window slits
+      for (const s of [-1, 1]) box(b, s * 1.32, H * 0.40, 0, 0.08, 0.9, 0.34);
+      lights.push({ x: L.x, y: ground + H * 0.72, z: L.z, color: BUILD.lanternGlow, intensity: 1.6 });
+      blockers.push({ x: L.x, z: L.z, r: 1.8 });
+      break;
+    }
+    case 'bell': {
+      /* an open belfry on four legs, for weather and for warnings */
+      b.color(S.beam, 0.08, r);
+      for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+        beam(b, sx * 1.5, 0, sz * 1.5, sx * 0.75, H * 0.66, sz * 0.75, 0.18, 0.18, [0, 1, 0]);
+      }
+      b.color(shade(S.beam, -0.12), 0.06, r);         // cross-bracing
+      for (const s of [-1, 1]) {
+        beam(b, s * 1.35, H * 0.22, -1.35, s * 0.95, H * 0.50, 1.35, 0.10, 0.10, [0, 1, 0]);
+      }
+      b.color(S.roofCols[0], 0.07, r);
+      lathe(b, [[1.5, H * 0.66], [0.9, H * 0.86], [0, H * 0.95]], 6, 0, 0);
+      b.color(METAL.brass ?? 0xb08a3a, 0.05, r);      // the bell
+      lathe(b, [[0.10, H * 0.64], [0.52, H * 0.44], [0.58, H * 0.30], [0.30, H * 0.28]], 10);
+      blockers.push({ x: L.x, z: L.z, r: 1.6 });
+      npcSpots.push({ x: L.x + 2.2, z: L.z, kind: 'bell', yaw: -Math.PI / 2, village: def.id });
+      break;
+    }
+    case 'racks': {
+      /* DRYING RACKS: rows of split fish hung to cure. The clearest
+         possible statement that this village lives on the water. */
+      b.color(BARK.oak, 0.08, r);
+      for (let row = 0; row < 3; row++) {
+        const z0 = (row - 1) * 2.4;
+        for (const s of [-1, 1]) {
+          beam(b, s * 2.6, 0, z0, s * 2.6, H, z0, 0.13, 0.13, [0, 1, 0]);
+        }
+        b.color(shade(BARK.oak, -0.1), 0.06, r);
+        for (let bar = 0; bar < 3; bar++) {
+          const y = H * (0.45 + bar * 0.22);
+          beam(b, -2.6, y, z0, 2.6, y, z0, 0.07, 0.07, [0, 1, 0]);
+          /* the fish, as simple flattened leaves of silver */
+          b.color(mixHex(0xc8d4d8, 0xa89a78, r.range(0, 0.5)), 0.09, r);
+          for (let k = 0; k < 9; k++) {
+            const x = -2.3 + k * 0.58;
+            blob(b, x, y - 0.42, z0, 0.19, 2, 6, () => [0.30, 1.9, 0.95]);
+          }
+          b.color(shade(BARK.oak, -0.1), 0.06, r);
+        }
+        b.color(BARK.oak, 0.08, r);
+      }
+      blockers.push({ x: L.x, z: L.z, r: 2.4 });
+      npcSpots.push({ x: L.x, z: L.z + 3.4, kind: 'racks', yaw: 0, village: def.id });
+      break;
+    }
+    case 'shrine': {
+      /* a little stone shrine on the terrace, with a lantern in it */
+      b.color(mixHex(S.wallCols[0], 0x9a9284, 0.5), 0.09, r);
+      lathe(b, [[1.9, 0], [1.7, 0.4], [1.5, 0.55]], 8);   // the plinth
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * TAU + Math.PI / 4;
+        beam(b, Math.cos(a) * 1.0, 0.55, Math.sin(a) * 1.0,
+          Math.cos(a) * 1.0, H * 0.72, Math.sin(a) * 1.0, 0.16, 0.16, [0, 1, 0]);
+      }
+      b.color(S.roofCols[0], 0.07, r);
+      lathe(b, [[1.8, H * 0.72], [1.1, H * 0.90], [0, H * 1.0]], 8, 0, 0);
+      b.color(0xffe4a8, 0.04, r);
+      blob(b, 0, H * 0.46, 0, 0.34, 3, 8);
+      g.color(0xffd98a, 0.05, r);
+      blob(g, 0, H * 0.46, 0, 0.62, 3, 8);
+      lights.push({ x: L.x, y: ground + H * 0.46, z: L.z, color: 0xffd08a, intensity: 2.0, flicker: true });
+      blockers.push({ x: L.x, z: L.z, r: 1.5 });
+      npcSpots.push({ x: L.x + 2.4, z: L.z + 0.6, kind: 'shrine', yaw: -Math.PI / 2, village: def.id });
+      break;
+    }
+    default: {
+      /* THE GREAT TREE. The village grew up round something that was
+         already here, which is how most villages actually happen. */
+      const sub = new MeshBuilder();
+      buildTree(sub, {
+        species: (S.treeMix && S.treeMix[0]) || 'oak',
+        seed: r.seed(), lod: 0, scale: 1.9, mossy: 0.5,
+      });
+      b.append(sub, new THREE.Matrix4().makeTranslation(0, 0, 0));
+      /* a bench round the trunk, which is what makes it a place rather
+         than a big plant */
+      b.color(BUILD.plankOld, 0.08, r);
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * TAU;
+        box(b, Math.cos(a) * 1.9, 0.42, Math.sin(a) * 1.9, 1.1, 0.10, 0.42);
+        b.color(shade(BUILD.plankOld, -0.15), 0.06, r);
+        box(b, Math.cos(a) * 1.9, 0.20, Math.sin(a) * 1.9, 0.14, 0.40, 0.14);
+        b.color(BUILD.plankOld, 0.08, r);
+      }
+      blockers.push({ x: L.x, z: L.z, r: 1.3 });
+      npcSpots.push({ x: L.x + 2.6, z: L.z, kind: 'tree', yaw: -Math.PI / 2, village: def.id });
+      break;
+    }
+  }
+
+  put('solid', b, L.x, L.z, r.range(0, TAU));
+  if (!g.isEmpty) put('glow', g, L.x, L.z, 0);
+}
+
+/* ========================================================================= */
 /* WHAT THE BIOME PUTS ON THE GROUND                                         */
 /* ========================================================================= */
 
 function dressOutpost(T, plan, put, r, blockers, lights, npcSpots) {
   const def = plan.def, S = plan.style, lake = plan.lake;
+
+  /* --- THE LANES, laid as trodden ground -------------------------------
+     The terrain has already been flattened along them by planOutpost;
+     this is the surface you can see. Worn earth with the village's own
+     path material scattered over it, narrowing at the ends so a lane
+     fades into the grass instead of stopping at a hard line. */
+  for (const p of plan.paths || []) {
+    const len = Math.hypot(p.bx - p.ax, p.bz - p.az);
+    const n = Math.max(2, Math.round(len / 1.1));
+    const sub = new MeshBuilder();
+    for (let i = 0; i <= n; i++) {
+      const t = i / n;
+      const x = lerp(p.ax, p.bx, t), z = lerp(p.az, p.bz, t);
+      /* taper both ends so the lane is not a stripe with square corners */
+      const fade = Math.min(1, Math.min(t, 1 - t) * 5 + 0.25);
+      const w = p.w * 0.5 * fade;
+      const col = S.path === 'board' ? BUILD.plankOld : GROUND.dirt ?? 0x6b5a42;
+      sub.color(tweak(col, { l: r.range(0.88, 1.12) }), 0.07, r);
+      const y = T.height(x, z) + 0.02;
+      if (S.path === 'board') {
+        box(sub, x - def.x, y - T.height(def.x, def.z), z - def.z, w * 2, 0.06, 1.0);
+      } else {
+        /* a patch of bare earth rather than a plank: two overlapping
+           quads per step, jittered, so the edge is ragged */
+        for (let k = 0; k < 2; k++) {
+          const jx = r.range(-0.25, 0.25), jz = r.range(-0.25, 0.25);
+          blob(sub, x - def.x + jx, y - T.height(def.x, def.z) - 0.02, z - def.z + jz,
+            w * r.range(0.7, 1.05), 2, 6, () => [1, 0.05, 1]);
+        }
+      }
+    }
+    if (!sub.isEmpty) put('solid', sub, def.x, def.z, 0);
+  }
+
+  /* --- THE LANDMARK ----------------------------------------------------- */
+  if (plan.landmark) buildLandmark(T, plan, put, r, blockers, lights, npcSpots);
 
   /* --- a centre: a well, a fire, a tree, depending ----------------------- */
   {

@@ -150,9 +150,28 @@ export const ROD_BY_ID = Object.fromEntries(RODS.map(r => [r.id, r]));
 export const STARTER_ROD = RODS[0].id;
 
 /** Everything a given village has on the rack, cheapest first. */
+/**
+ * WHAT THIS VILLAGE'S FISHERMAN HAS ON THE RACK.
+ *
+ * It used to be exactly one rod each: the single entry whose `at` named
+ * that village. Nine villages, nine racks, one rod apiece — so a shop
+ * was a vending machine, a player who walked past a village could never
+ * buy what they had missed, and a far village's rack was no more
+ * impressive than the first one's.
+ *
+ * Now a village stocks EVERYTHING UP TO ITS OWN RUNG. Its speciality is
+ * still the one you came for and still the best thing there, but the
+ * cheaper rods are behind it — so a rack visibly deepens as you travel,
+ * a far village feels like a proper shop, and nothing is ever missable.
+ *
+ * Sorted expensive-first, because the one at the top is the one the
+ * village is known for and the reason you walked here.
+ */
 export function rodsAt(villageId) {
-  return RODS.filter(r => r.at === villageId && r.price > 0)
-    .sort((a, b) => a.price - b.price);
+  const home = RODS.find(r => r.at === villageId && r.price > 0);
+  const cap = home ? home.tier : 1;
+  return RODS.filter(r => r.price > 0 && r.tier <= cap)
+    .sort((a, b) => b.price - a.price);
 }
 
 /** The rod the player is actually using, falling back to the starter. */

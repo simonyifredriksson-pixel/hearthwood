@@ -25,7 +25,7 @@
    that the walk between two villages is itself a journey.
 */
 
-import { WORLD } from '../core/Config.js?v=1790020991';
+import { WORLD } from '../core/Config.js?v=1790055608';
 
 /**
  *   x, z        centre of the green
@@ -273,6 +273,27 @@ export function zoneAt(x, z) {
 export function dangerBand(x, z) {
   const t = zoneAt(x, z);
   return t < 0.20 ? 1 : t < 0.40 ? 2 : t < 0.62 ? 3 : t < 0.82 ? 4 : 5;
+}
+
+/**
+ * WHAT A VILLAGE'S FISHERMAN PAYS, as a multiplier on a fish's value.
+ *
+ * The brief asks that the economy get better the further you travel,
+ * and that it show up in prices. Better rods on the rack is half of
+ * that; the other half is that the market itself is better out there.
+ *
+ * Derived from distance rather than written per village, so the ninth
+ * village and a tenth added later are both priced by the same rule —
+ * and so it can never disagree with the map. The curve is deliberately
+ * gentle: at 1.9x the far villages are worth the walk without making
+ * the home village pointless, and a fish is still worth most because
+ * of WHAT it is rather than where you happened to sell it.
+ */
+export function payRate(villageId) {
+  const v = VILLAGE_BY_ID[villageId];
+  if (!v) return 1;
+  const d = Math.hypot(v.x - HOME.x, v.z - HOME.z);
+  return Math.round((1 + Math.min(0.9, d / 1000)) * 100) / 100;
 }
 
 export const BAND_NAMES = [

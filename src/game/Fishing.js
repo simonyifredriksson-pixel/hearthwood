@@ -25,9 +25,9 @@
    UI layer reads this state and draws it.
 */
 
-import { rollFish, fishTier, rarityOf } from '../data/FishData.js?v=1790020991';
-import { bus, EV } from '../core/Bus.js?v=1790020991';
-import { clamp, clamp01, lerp, makeRng } from '../core/Util.js?v=1790020991';
+import { rollFish, fishTier, rarityOf } from '../data/FishData.js?v=1790055608';
+import { bus, EV } from '../core/Bus.js?v=1790055608';
+import { clamp, clamp01, lerp, makeRng } from '../core/Util.js?v=1790055608';
 
 /*
  * THE ZONE MUST BE ABLE TO OUTRUN THE FISH.
@@ -150,6 +150,8 @@ export class Fishing {
         depth: spot.depth ?? 0.4, remoteness: spot.remoteness ?? 0.3,
         zone: spot.zone ?? 0, night: !!spot.night,
         luck: rod ? rod.luck : 1, rareChance: rod ? rod.rare : 1,
+        /* the character of this particular pool — see waterAt */
+        water: spot.water || null,
       });
     this.audio?.cast?.();
     return true;

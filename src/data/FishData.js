@@ -22,7 +22,7 @@
    which is one very good rod. Nothing else is tuned by feel.
 */
 
-import { makeRng, clamp, clamp01, lerp } from '../core/Util.js?v=1790020991';
+import { makeRng, hash2, clamp, clamp01, lerp } from '../core/Util.js?v=1790055608';
 
 /* ========================================================================= */
 /* RARITY                                                                    */
@@ -524,9 +524,96 @@ export const BY_RARITY = FISH_RARITY.map(r => ({
  * different fish in the same pond — it catches the pond's better fish more
  * often, and lets you reach ponds that have better fish in them.
  */
+/* ========================================================================= */
+/* EVERY WATER IS ITS OWN WATER                                              */
+/* ========================================================================= */
+
+/**
+ * The character of a body of water, and what lives in it.
+ *
+ * Until now a pool's stock was decided entirely by how deep it was and
+ * how far from the village — so two lakes the same distance out held
+ * the same fish, and discovering a new one told you nothing you did not
+ * already know. Walking to a lake should be worth doing for its own
+ * sake: "what can I catch HERE" is the question the whole activity
+ * hangs on.
+ *
+ * Each water therefore gets a CHARACTER, rolled once from its own seed
+ * and stable forever, which bends the table: a peat pool is thick with
+ * the things that like dark water and nearly empty of the rest, a clear
+ * mountain tarn is the other way round. The bend is strong enough to
+ * notice and weak enough that nothing is ever locked out — you can
+ * still catch a perch in a tarn, it is just not what the tarn is for.
+ *
+ * Distance is untouched by this. A shallow weedy pond in the far wood
+ * still holds far-wood fish; its character decides WHICH far-wood fish.
+ * Progression and variety are separate axes, and mixing them is how you
+ * get a late lake that is worse than an early one.
+ */
+/*
+ * NO TWO OF THESE MAY SHARE A SIGNATURE.
+ *
+ * The first draft gave Deep and Cold the same `likes` — torpedo and
+ * deep-bodied — and they came out three per cent apart, which is to say
+ * they were the same lake with two names. The whole value of this
+ * system is that arriving at new water is worth something, so the
+ * like/hate pairs are deliberately spread across all eight body shapes
+ * and checked against each other. Adding a seventh water means picking
+ * a pair nothing else uses.
+ */
+export const WATERS = [
+  {
+    id: 'weedy', name: 'Weedy', blurb: 'Thick with weed. Slow water, and plenty in it.',
+    likes: ['flat', 'globe'], hates: ['torpedo', 'needle'], boost: 2.2, damp: 0.38,
+  },
+  {
+    id: 'peat', name: 'Peat-dark', blurb: 'Black water. You cannot see your own hook.',
+    likes: ['eel', 'deep'], hates: ['ray'], boost: 2.3, damp: 0.40, night: 1.35,
+  },
+  {
+    id: 'clear', name: 'Gin-clear', blurb: 'You can count the stones on the bottom.',
+    likes: ['torpedo', 'needle'], hates: ['eel', 'globe'], boost: 2.2, damp: 0.38,
+  },
+  {
+    id: 'deep', name: 'Deep', blurb: 'It shelves away fast a yard from the bank.',
+    likes: ['ray', 'deep'], hates: ['flat'], boost: 2.4, damp: 0.42, depth: 0.22,
+  },
+  {
+    id: 'reedy', name: 'Reedy', blurb: 'More reed than water at the margins.',
+    likes: ['ribbon', 'eel'], hates: ['deep', 'ray'], boost: 2.2, damp: 0.40,
+  },
+  {
+    id: 'cold', name: 'Cold', blurb: 'Snowmelt. Your paws ache after a minute.',
+    likes: ['torpedo', 'ray'], hates: ['globe', 'flat'], boost: 2.1, damp: 0.42, rare: 1.20,
+  },
+];
+export const WATER_BY_ID = Object.fromEntries(WATERS.map(w => [w.id, w]));
+
+/**
+ * Which water this is, decided from its position alone.
+ *
+ * Position, not a stored id, so it is stable across saves, identical on
+ * every machine, and works for the river as well as for the lakes —
+ * and so a lake that has not been generated yet still has a known
+ * character the moment the player walks up to it.
+ *
+ * @param key  something stable for this body of water: a lake's centre,
+ *             or a coarse cell of the river.
+ */
+export function waterAt(kx, kz) {
+  const h = hash2(Math.round(kx), Math.round(kz), 0x77a7e4) / 4294967296;
+  const W = WATERS[Math.floor(h * WATERS.length) % WATERS.length];
+  /* a speciality: the one species this water is KNOWN for, which is what
+     makes a pool worth coming back to rather than just worth visiting */
+  const h2 = hash2(Math.round(kx), Math.round(kz), 0x1d3b57) / 4294967296;
+  const pool = FISH_LIST.filter(f => W.likes.includes(f.body));
+  const star = pool.length ? pool[Math.floor(h2 * pool.length) % pool.length] : null;
+  return { ...W, star: star ? star.id : null, key: `${Math.round(kx)},${Math.round(kz)}` };
+}
+
 export function rollFish(seed, {
   depth = 0.4, remoteness = 0.3, zone = 0, night = false,
-  luck = 1, rareChance = 1,
+  luck = 1, rareChance = 1, water = null,
 } = {}) {
   const r = makeRng(seed >>> 0);
   const d = clamp01(depth * 0.62 + remoteness * 0.5);
@@ -543,6 +630,19 @@ export function rollFish(seed, {
     const common = rarityOf(f.rarity).index === 0 ? lerp(1, 0.45, z) : 1;
     let w = f.w * TIER_BUDGET[f.rarity] * (0.12 + fit * fit * 2.3) * (0.35 + far * 0.9) * common;
     if (night) w *= f.night; else if (f.night > 1.6) w *= 0.35;
+
+    /* THE CHARACTER OF THIS PARTICULAR WATER. Applied as a multiplier on
+       body shape rather than on species, so it needs no per-fish table
+       and a fish added later is placed sensibly by its own anatomy: an
+       eel belongs in peat and reeds whatever else is true about it. */
+    if (water) {
+      if (water.likes?.includes(f.body)) w *= water.boost ?? 1.8;
+      else if (water.hates?.includes(f.body)) w *= water.damp ?? 0.5;
+      /* and the speciality, which is the reason to walk back to a pool */
+      if (water.star === f.id) w *= 2.4;
+      if (water.night && night) w *= water.night;
+      if (water.rare && rarityOf(f.rarity).index >= 3) w *= water.rare;
+    }
     /* the rod tilts the whole table upwards rather than adding a flat bonus,
        so a good rod feels like better water rather than a coupon */
     const ri = rarityOf(f.rarity).index;

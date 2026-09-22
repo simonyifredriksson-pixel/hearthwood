@@ -13,25 +13,25 @@
      7. ui, then render
 */
 
-import * as THREE from '../lib/three.module.js?v=1790020991';
-import { input } from './core/Input.js?v=1790020991';
-import { CameraRig } from './core/CameraRig.js?v=1790020991';
-import { audio } from './core/Audio.js?v=1790020991';
-import { bus, EV } from './core/Bus.js?v=1790020991';
-import { BUILD, RENDER, WORLD, GAME, PLAYER } from './core/Config.js?v=1790020991';
-import { clamp, clamp01, lerp, now, Rolling } from './core/Util.js?v=1790020991';
+import * as THREE from '../lib/three.module.js?v=1790055608';
+import { input } from './core/Input.js?v=1790055608';
+import { CameraRig } from './core/CameraRig.js?v=1790055608';
+import { audio } from './core/Audio.js?v=1790055608';
+import { bus, EV } from './core/Bus.js?v=1790055608';
+import { BUILD, RENDER, WORLD, GAME, PLAYER } from './core/Config.js?v=1790055608';
+import { clamp, clamp01, lerp, now, Rolling } from './core/Util.js?v=1790055608';
 
-import { MATS } from './art/Materials.js?v=1790020991';
-import { World } from './world/World.js?v=1790020991';
-import { Player } from './game/Player.js?v=1790020991';
-import { NPCs } from './game/NPCs.js?v=1790020991';
-import { GameState } from './game/State.js?v=1790020991';
-import { SPECIES } from './game/Anim.js?v=1790020991';
-import { weaponMeshes } from './art/WeaponArt.js?v=1790020991';
-import { rodMeshes } from './art/RodArt.js?v=1790020991';
-import { fishMeshes } from './art/FishArt.js?v=1790020991';
-import { fishTitle } from './data/FishData.js?v=1790020991';
-import { dangerBand, BAND_NAMES } from './data/VillageData.js?v=1790020991';
+import { MATS } from './art/Materials.js?v=1790055608';
+import { World } from './world/World.js?v=1790055608';
+import { Player } from './game/Player.js?v=1790055608';
+import { NPCs } from './game/NPCs.js?v=1790055608';
+import { GameState } from './game/State.js?v=1790055608';
+import { SPECIES } from './game/Anim.js?v=1790055608';
+import { weaponMeshes } from './art/WeaponArt.js?v=1790055608';
+import { rodMeshes } from './art/RodArt.js?v=1790055608';
+import { fishMeshes } from './art/FishArt.js?v=1790055608';
+import { fishTitle, waterAt } from './data/FishData.js?v=1790055608';
+import { dangerBand, BAND_NAMES, payRate } from './data/VillageData.js?v=1790055608';
 
 /**
  * A line under each region name. The name says where; this says what it
@@ -42,32 +42,32 @@ const BAND_SUB = [
   '', 'Quiet water and easy fish', 'The wood thickens',
   'Something is watching', 'Few come back this far', 'Where the old fish live',
 ];
-import { WEAPON_CLASSES } from './data/WeaponData.js?v=1790020991';
-import { RARITY } from './art/Palette.js?v=1790020991';
-import { STICKWRIGHT, FISHERMAN } from './data/VillagerData.js?v=1790020991';
-import { RARE } from './data/StickData.js?v=1790020991';
-import { STARTER_ROD } from './data/RodData.js?v=1790020991';
+import { WEAPON_CLASSES } from './data/WeaponData.js?v=1790055608';
+import { RARITY } from './art/Palette.js?v=1790055608';
+import { STICKWRIGHT, FISHERMAN } from './data/VillagerData.js?v=1790055608';
+import { RARE } from './data/StickData.js?v=1790055608';
+import { STARTER_ROD, rodsAt } from './data/RodData.js?v=1790055608';
 
-import { UI } from './ui/UI.js?v=1790020991';
-import { Talk } from './ui/Talk.js?v=1790020991';
-import { RodShop } from './ui/RodShop.js?v=1790020991';
-import { Minimap } from './ui/Minimap.js?v=1790020991';
-import { Combatant } from './ui/Combatant.js?v=1790020991';
-import { Hotbar } from './ui/Hotbar.js?v=1790020991';
-import { MapScreen } from './ui/MapScreen.js?v=1790020991';
-import { Fog } from './game/MapData.js?v=1790020991';
-import { Effects } from './game/Effects.js?v=1790020991';
-import { SatchelScreen, Turntable } from './ui/Satchel.js?v=1790020991';
-import { WorkshopScreen, RevealScreen } from './ui/Workshop.js?v=1790020991';
-import { ForgeScene } from './game/Forge.js?v=1790020991';
-import { Workers } from './game/Workers.js?v=1790020991';
-import { Wildlife } from './game/Wildlife.js?v=1790020991';
-import { Fishing, FISH_STATE } from './game/Fishing.js?v=1790020991';
-import { FishingRig } from './game/FishingRig.js?v=1790020991';
-import { FishingUI } from './ui/FishingUI.js?v=1790020991';
-import { Quest, FESTIVAL_SPEECH } from './game/Quest.js?v=1790020991';
-import { CHARGE } from './game/Combat.js?v=1790020991';
-import { ic } from './ui/Icons.js?v=1790020991';
+import { UI } from './ui/UI.js?v=1790055608';
+import { Talk } from './ui/Talk.js?v=1790055608';
+import { RodShop } from './ui/RodShop.js?v=1790055608';
+import { Minimap } from './ui/Minimap.js?v=1790055608';
+import { Combatant } from './ui/Combatant.js?v=1790055608';
+import { Hotbar } from './ui/Hotbar.js?v=1790055608';
+import { MapScreen } from './ui/MapScreen.js?v=1790055608';
+import { Fog } from './game/MapData.js?v=1790055608';
+import { Effects } from './game/Effects.js?v=1790055608';
+import { SatchelScreen, Turntable } from './ui/Satchel.js?v=1790055608';
+import { WorkshopScreen, RevealScreen } from './ui/Workshop.js?v=1790055608';
+import { ForgeScene } from './game/Forge.js?v=1790055608';
+import { Workers } from './game/Workers.js?v=1790055608';
+import { Wildlife } from './game/Wildlife.js?v=1790055608';
+import { Fishing, FISH_STATE } from './game/Fishing.js?v=1790055608';
+import { FishingRig } from './game/FishingRig.js?v=1790055608';
+import { FishingUI } from './ui/FishingUI.js?v=1790055608';
+import { Quest, FESTIVAL_SPEECH } from './game/Quest.js?v=1790055608';
+import { CHARGE } from './game/Combat.js?v=1790055608';
+import { ic } from './ui/Icons.js?v=1790055608';
 
 /* ========================================================================= */
 
@@ -484,9 +484,14 @@ async function fishermanShop(npc) {
   const who = npc.name, title = npc.title || 'Fisherman';
   const village = npc.village || 'home';
 
+  /* WHAT THIS MARKET PAYS. A fisherman a long way out pays better, and
+     the panel says so — an invisible multiplier is a worse reward than
+     no multiplier, because the player never learns to travel to sell. */
+  const rate = payRate(village);
+
   for (;;) {
     const n = S.sellableCount;
-    const worth = S.sellableValue;
+    const worth = S.sellableValueAt(village);
     const best = S.bestInCreel;
     const line = S.fish.length === 0
       ? pick(FISHERMAN.greetEmpty || FISHERMAN.greet)
@@ -495,7 +500,8 @@ async function fishermanShop(npc) {
     const choice = await G.talk.ask(who, title, line, [
       {
         id: 'one', label: 'I want to sell this', icon: 'drop',
-        note: best && !best.fav ? `${best.name} · ${money(S.valueOf(best))}` : null,
+        note: best && !best.fav
+          ? `${best.name} · ${money(S.valueOf(best) * rate)}` : null,
         disabled: !n,
       },
       {
@@ -503,7 +509,10 @@ async function fishermanShop(npc) {
         note: n ? `${n} fish · ${money(worth)}` : 'nothing to sell',
         disabled: !n,
       },
-      { id: 'rods', label: 'Can I see your fishing rods?', icon: 'spark' },
+      {
+        id: 'rods', label: 'Can I see your fishing rods?', icon: 'spark',
+        note: `${rodsAt(village).length} on the rack`,
+      },
       { id: 'bye', label: 'Nevermind', icon: 'chevron' },
     ]);
 
@@ -518,7 +527,7 @@ async function fishermanShop(npc) {
       const pickFish = S.fish.filter(f => !f.fav)
         .sort((a, b) => S.valueOf(b) - S.valueOf(a))[0];
       if (!pickFish) continue;
-      const r = S.sellFish(pickFish.uid);
+      const r = S.sellFish(pickFish.uid, village);
       if (r.ok) {
         audio.pickup?.(2);
         G.ui.toast({
@@ -533,7 +542,7 @@ async function fishermanShop(npc) {
     }
 
     if (choice === 'all') {
-      const r = S.sellAllFish();
+      const r = S.sellAllFish(village);
       if (r.ok) {
         audio.pickup?.(3);
         G.ui.toast({
@@ -681,13 +690,34 @@ function startFishing(spot = null) {
      and fortune bias what is down there — so a better rod genuinely changes
      what comes out of the same pond. */
   const rod = G.state.currentRod;
+
+  /* WHICH WATER THIS IS. A lake is keyed by its own centre so every
+     swim on it is the same water; the river is keyed by a 60 m cell, so
+     it changes character as you walk its length instead of being one
+     enormous identical channel. */
+  const lake = G.world.terrain.lakeAt?.(s.x, s.z) || null;
+  const water = lake
+    ? waterAt(lake.x, lake.z)
+    : waterAt(Math.round(s.x / 60) * 60, Math.round(s.z / 60) * 60);
+
   const where = {
     ...s,
-    depth: Math.min(s.depth ?? 0.45, rod.reach),
+    depth: clamp01(Math.min(s.depth ?? 0.45, rod.reach) + (water.depth || 0)),
     remoteness: clamp01(Math.hypot(P.x - WORLD.village.cx, P.z - WORLD.village.cz) / 700),
     night: G.world.sky.night,
+    water,
     rod,
   };
+
+  /* NAME THE SWIM, once per water, so arriving somewhere new is an event
+     and coming back to it is recognisable. */
+  if (G._lastWater !== water.key) {
+    G._lastWater = water.key;
+    G.ui.toast({
+      text: `${water.name} water`, sub: water.blurb,
+      icon: 'drop', ms: 4200,
+    });
+  }
   G.fishing.cast(where);
   /* The float flies from the rod tip, which is on the end of a moving
      arm — so the rig is handed a function rather than a position. */

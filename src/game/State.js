@@ -11,15 +11,16 @@
    millisecond.
 */
 
-import { loadRaw, saveRaw, clearSave } from '../core/Save.js?v=1790020991';
-import { bus, EV } from '../core/Bus.js?v=1790020991';
-import { GAME } from '../core/Config.js?v=1790020991';
-import { rollStick, stickValue, stickTags, stickTier, stickName, stickComponents, RARE } from '../data/StickData.js?v=1790020991';
-import { forgeWeapon, WEAPON_CLASSES } from '../data/WeaponData.js?v=1790020991';
-import { catchValue, fishTitle, FISH } from '../data/FishData.js?v=1790020991';
-import { STARTER_ROD, rodOf, ROD_BY_ID } from '../data/RodData.js?v=1790020991';
-import { SPECIES } from './Anim.js?v=1790020991';
-import { clamp } from '../core/Util.js?v=1790020991';
+import { loadRaw, saveRaw, clearSave } from '../core/Save.js?v=1790055608';
+import { bus, EV } from '../core/Bus.js?v=1790055608';
+import { GAME } from '../core/Config.js?v=1790055608';
+import { rollStick, stickValue, stickTags, stickTier, stickName, stickComponents, RARE } from '../data/StickData.js?v=1790055608';
+import { forgeWeapon, WEAPON_CLASSES } from '../data/WeaponData.js?v=1790055608';
+import { catchValue, fishTitle, FISH } from '../data/FishData.js?v=1790055608';
+import { STARTER_ROD, rodOf, ROD_BY_ID } from '../data/RodData.js?v=1790055608';
+import { payRate } from '../data/VillageData.js?v=1790055608';
+import { SPECIES } from './Anim.js?v=1790055608';
+import { clamp } from '../core/Util.js?v=1790055608';
 
 let nextUid = 1;
 
@@ -349,7 +350,19 @@ export class GameState {
    * Sell one fish.
    * @returns {{ok:boolean, reason?:string, coin?:number, fish?:object}}
    */
-  sellFish(uid) {
+  /**
+   * Sell one fish.
+   *
+   * @param at  the village doing the buying. A far fisherman pays more
+   *            — see payRate — which is the economic half of "the
+   *            further you travel, the better the fishing gets". The
+   *            rate is applied HERE, in the one function that removes a
+   *            fish for money, so no seller can accidentally bypass it
+   *            for the same reason no seller can bypass the favourite
+   *            gate.
+   * @returns {{ok:boolean, reason?:string, coin?:number, fish?:object}}
+   */
+  sellFish(uid, at = null) {
     const i = this.fish.findIndex(f => f.uid === uid);
     if (i < 0) return { ok: false, reason: 'missing' };
     if (this.fish[i].fav) return { ok: false, reason: 'favourite' };   // THE gate
@@ -358,7 +371,7 @@ export class GameState {
        of the creel goes through here or through dropFish, so this is the
        only place that has to remember. */
     if (this.heldFish === f.uid) this.stowFish();
-    const coin = this.earn(catchValue(f));
+    const coin = this.earn(catchValue(f) * (at ? payRate(at) : 1));
     this.stats.sold++;
     this._dirty = true;
     bus.emit(EV.FISH_SOLD, { fish: f, coin });
@@ -370,14 +383,20 @@ export class GameState {
    * Routed through `sellFish` one at a time rather than reimplementing the
    * loop, so there is exactly one place that can ever be wrong about it.
    */
-  sellAllFish() {
+  sellAllFish(at = null) {
     const ids = this.fish.filter(f => !f.fav).map(f => f.uid);
     let coin = 0, n = 0;
     for (const uid of ids) {
-      const r = this.sellFish(uid);
+      const r = this.sellFish(uid, at);
       if (r.ok) { coin += r.coin; n++; }
     }
     return { ok: n > 0, coin, count: n, kept: this.fish.length };
+  }
+
+  /** What this village would pay for the creel, for the shop panel. */
+  sellableValueAt(at = null) {
+    const k = at ? payRate(at) : 1;
+    return Math.round(this.sellableValue * k);
   }
 
   dropFish(uid) {

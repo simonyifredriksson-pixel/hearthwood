@@ -21,10 +21,10 @@
    this is the view while you do it.
 */
 
-import { FISH_STATE } from '../game/Fishing.js?v=1790020991';
-import { rarityOf, fishTitle, MUTATION_BY_ID, catchValue, FISH } from '../data/FishData.js?v=1790020991';
-import { ic } from './Icons.js?v=1790020991';
-import { esc, clamp, clamp01 } from '../core/Util.js?v=1790020991';
+import { FISH_STATE } from '../game/Fishing.js?v=1790055608';
+import { rarityOf, fishTitle, MUTATION_BY_ID, catchValue, FISH } from '../data/FishData.js?v=1790055608';
+import { ic } from './Icons.js?v=1790055608';
+import { esc, clamp, clamp01 } from '../core/Util.js?v=1790055608';
 
 /** Carved into the timber down the side of the gauge. */
 const DEPTHS = ['shallows', '', 'weed', '', 'deep', '', 'dark'];
@@ -126,6 +126,24 @@ export class FishingUI {
         [FISH_STATE.LOST]: 'It slipped the line.',
       }[st] || '';
       this.hint.style.opacity = st === FISH_STATE.FIGHT ? '1' : '0.3';
+    }
+
+    /* THE RARITY WASH. Set from the hooked fish, cleared the moment the
+       line is empty — read by the CSS above, which tints the case and
+       throbs the frame for the top tiers. No new elements, and the
+       player knows something serious is on before they land it. */
+    if (st === FISH_STATE.FIGHT && F.fish) {
+      const R = rarityOf(F.fish.rarity);
+      if (this._rare !== R.id) {
+        this._rare = R.id;
+        this.el.style.setProperty('--rare', R.css);
+        this.el.dataset.rare = R.index >= 5 ? 'high' : R.index >= 2 ? 'yes' : '';
+        if (R.index < 2) delete this.el.dataset.rare;
+      }
+    } else if (this._rare) {
+      this._rare = null;
+      delete this.el.dataset.rare;
+      this.el.style.removeProperty('--rare');
     }
 
     if (st === FISH_STATE.FIGHT) {
