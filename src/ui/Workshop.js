@@ -18,12 +18,12 @@
    it was a loading bar that had been drawn nicely.
 */
 
-import { forgeHint } from '../data/WeaponData.js?v=1790102737';
-import { stickBlurb, SPECIES, BARKS } from '../data/StickData.js?v=1790102737';
-import { RARITY } from '../art/Palette.js?v=1790102737';
-import { ic } from './Icons.js?v=1790102737';
-import { makeScreen } from './UI.js?v=1790102737';
-import { esc, clamp } from '../core/Util.js?v=1790102737';
+import { forgeHint } from '../data/WeaponData.js?v=1790103247';
+import { stickBlurb, SPECIES, BARKS } from '../data/StickData.js?v=1790103247';
+import { RARITY } from '../art/Palette.js?v=1790103247';
+import { ic } from './Icons.js?v=1790103247';
+import { makeScreen } from './UI.js?v=1790103247';
+import { esc, clamp } from '../core/Util.js?v=1790103247';
 
 export class WorkshopScreen {
   constructor(state, ui, turntable, { onForge = null, audio = null } = {}) {

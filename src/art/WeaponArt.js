@@ -18,13 +18,13 @@
    parts and a very large number of ways to combine them.
 */
 
-import * as THREE from '../../lib/three.module.js?v=1790102737';
-import { MeshBuilder, tube, blob, lathe, blade as leafBlade, box, quad, tri3, beam } from './Geo.js?v=1790102737';
-import { buildStick, orientMatrix } from './StickGen.js?v=1790102737';
-import { SPECIES, MATERIALS } from '../data/StickData.js?v=1790102737';
-import { WEAPON_CLASSES } from '../data/WeaponData.js?v=1790102737';
-import { BARK, METAL, MOSS, MUSHROOM, BUILD, mixHex, tweak, shade } from './Palette.js?v=1790102737';
-import { makeRng, clamp, clamp01, lerp, TAU, smoothstep } from '../core/Util.js?v=1790102737';
+import * as THREE from '../../lib/three.module.js?v=1790103247';
+import { MeshBuilder, tube, blob, lathe, blade as leafBlade, box, quad, tri3, beam } from './Geo.js?v=1790103247';
+import { buildStick, orientMatrix } from './StickGen.js?v=1790103247';
+import { SPECIES, MATERIALS } from '../data/StickData.js?v=1790103247';
+import { WEAPON_CLASSES } from '../data/WeaponData.js?v=1790103247';
+import { BARK, METAL, MOSS, MUSHROOM, BUILD, mixHex, tweak, shade } from './Palette.js?v=1790103247';
+import { makeRng, clamp, clamp01, lerp, TAU, smoothstep } from '../core/Util.js?v=1790103247';
 
 /* The metal the genome names, resolved to a colour. */
 const METAL_HEX = {

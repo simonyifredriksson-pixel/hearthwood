@@ -22,8 +22,8 @@
    reads as faceted and hand-carved); trunks, stems and animals want smooth.
 */
 
-import * as THREE from '../../lib/three.module.js?v=1790102737';
-import { TAU, clamp, lerp } from '../core/Util.js?v=1790102737';
+import * as THREE from '../../lib/three.module.js?v=1790103247';
+import { TAU, clamp, lerp } from '../core/Util.js?v=1790103247';
 
 const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3();
 const _n = new THREE.Vector3();

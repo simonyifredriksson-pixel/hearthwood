@@ -38,15 +38,15 @@
    TYPE and the RARITY, and those land on the card at the end.
 */
 
-import * as THREE from '../../lib/three.module.js?v=1790102737';
-import { MeshBuilder, blob, box } from '../art/Geo.js?v=1790102737';
-import { MATS } from '../art/Materials.js?v=1790102737';
-import { buildStick } from '../art/StickGen.js?v=1790102737';
-import { weaponMeshes } from '../art/WeaponArt.js?v=1790102737';
-import { WEAPON_CLASSES } from '../data/WeaponData.js?v=1790102737';
-import { MATERIALS, EFFECTS } from '../data/StickData.js?v=1790102737';
-import { carryFor } from './Combat.js?v=1790102737';
-import { clamp01, lerp, smoothstep, TAU, makeRng } from '../core/Util.js?v=1790102737';
+import * as THREE from '../../lib/three.module.js?v=1790103247';
+import { MeshBuilder, blob, box } from '../art/Geo.js?v=1790103247';
+import { MATS } from '../art/Materials.js?v=1790103247';
+import { buildStick } from '../art/StickGen.js?v=1790103247';
+import { weaponMeshes } from '../art/WeaponArt.js?v=1790103247';
+import { WEAPON_CLASSES } from '../data/WeaponData.js?v=1790103247';
+import { MATERIALS, EFFECTS } from '../data/StickData.js?v=1790103247';
+import { carryFor } from './Combat.js?v=1790103247';
+import { clamp01, lerp, smoothstep, TAU, makeRng } from '../core/Util.js?v=1790103247';
 
 /* ========================================================================= */
 /* THE BEATS                                                                 */
