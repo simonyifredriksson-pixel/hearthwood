@@ -17,26 +17,26 @@
    releases the ones behind you.
 */
 
-import * as THREE from '../../lib/three.module.js?v=1790100127';
-import { Terrain, riverX, riverLevel } from './Terrain.js?v=1790100127';
+import * as THREE from '../../lib/three.module.js?v=1790102737';
+import { Terrain, riverX, riverLevel } from './Terrain.js?v=1790102737';
 import {
   buildTerrainTile, buildRiverMesh, buildRiverEdge, buildLakeMesh,
   lodForDistance, detailForDistance,
 } from './TerrainMesh.js';
-import { scatterTile, stickSlots, stickContext, SCATTER_PASS_A, SCATTER_PASS_B } from './Scatter.js?v=1790100127';
-import { planVillage, buildVillage } from './Village.js?v=1790100127';
-import { planOutpost, buildOutpost } from './Outpost.js?v=1790100127';
-import { VILLAGES, HOME, nearestVillage, zoneAt } from '../data/VillageData.js?v=1790100127';
-import { Sky } from '../art/Sky.js?v=1790100127';
-import { Ambient } from './Ambient.js?v=1790100127';
-import { MATS, makeTerrainMaterial, makeWaterMaterial, updateWind } from '../art/Materials.js?v=1790100127';
-import { WATER, SKY } from '../art/Palette.js?v=1790100127';
-import { WORLD, RENDER } from '../core/Config.js?v=1790100127';
-import { bus, EV } from '../core/Bus.js?v=1790100127';
-import { rollStick } from '../data/StickData.js?v=1790100127';
-import { buildStick } from '../art/StickGen.js?v=1790100127';
-import { MeshBuilder } from '../art/Geo.js?v=1790100127';
-import { clamp, clamp01, lerp, now, Budget, TAU } from '../core/Util.js?v=1790100127';
+import { scatterTile, stickSlots, stickContext, SCATTER_PASS_A, SCATTER_PASS_B } from './Scatter.js?v=1790102737';
+import { planVillage, buildVillage } from './Village.js?v=1790102737';
+import { planOutpost, buildOutpost } from './Outpost.js?v=1790102737';
+import { VILLAGES, HOME, nearestVillage, zoneAt } from '../data/VillageData.js?v=1790102737';
+import { Sky } from '../art/Sky.js?v=1790102737';
+import { Ambient } from './Ambient.js?v=1790102737';
+import { MATS, makeTerrainMaterial, makeWaterMaterial, updateWind } from '../art/Materials.js?v=1790102737';
+import { WATER, SKY } from '../art/Palette.js?v=1790102737';
+import { WORLD, RENDER } from '../core/Config.js?v=1790102737';
+import { bus, EV } from '../core/Bus.js?v=1790102737';
+import { rollStick } from '../data/StickData.js?v=1790102737';
+import { buildStick } from '../art/StickGen.js?v=1790102737';
+import { MeshBuilder } from '../art/Geo.js?v=1790102737';
+import { clamp, clamp01, lerp, now, Budget, TAU } from '../core/Util.js?v=1790102737';
 
 /** A far block is exactly 2x2 near tiles — see _rebuildWishlist. */
 export const FAR_BLOCK = WORLD.tile * 2;

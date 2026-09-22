@@ -1160,8 +1160,14 @@ body:has(.cine.in) #prompt { opacity: 0; transition: opacity .4s ease; }
 /* An overlay, not a screen: the bank, the water and the fox stay visible
    behind it, because the view is half of why anyone fishes. Carved timber,
    brass and lantern light, so it belongs to the same world as the rest. */
+/* BIG ENOUGH TO BE THE MAIN EVENT. This was a hundred and thirty pixels
+   wide on a 1280 screen — the central interaction of a game about fishing,
+   rendered at the size of a postage stamp in the margin, with type at
+   eight pixels and the depth labels spilling out of the frame. It still
+   sits to the side, because the water and the fox are the other half of
+   the pleasure, but it is now a thing you are looking AT. */
 .fishing {
-  position: fixed; right: 6vw; top: 50%; transform: translateY(-50%) translateX(28px);
+  position: fixed; right: 4.5vw; top: 50%; transform: translateY(-50%) translateX(28px);
   z-index: 7; pointer-events: none; opacity: 0;
   transition: opacity .4s ease, transform .5s cubic-bezier(.2, 1, .35, 1);
   font-family: var(--sans);
@@ -1170,8 +1176,8 @@ body:has(.cine.in) #prompt { opacity: 0; transition: opacity .4s ease; }
 .fishing.in { opacity: 1; transform: translateY(-50%) translateX(0); }
 
 .fish-rig {
-  display: grid; grid-template-rows: auto 1fr auto; gap: .5rem;
-  padding: .7rem .7rem .6rem;
+  display: grid; grid-template-rows: auto auto 1fr auto auto; gap: .5rem;
+  padding: .8rem .85rem .7rem;
   border-radius: 1rem;
   background:
     linear-gradient(180deg, rgba(58, 44, 26, .93), rgba(38, 29, 17, .95));
@@ -1181,11 +1187,28 @@ body:has(.cine.in) #prompt { opacity: 0; transition: opacity .4s ease; }
 
 /* the little brass plate with the rod's name on it */
 .fish-plate {
-  text-align: center; padding: .22em .5em; border-radius: .4rem;
+  text-align: center; padding: .3em .55em; border-radius: .4rem;
   background: linear-gradient(180deg, #c9a24a, #8a6a28);
-  color: #2b2210; font-size: .62rem; letter-spacing: .16em; text-transform: uppercase;
+  color: #2b2210; font-size: .78rem; letter-spacing: .14em; text-transform: uppercase;
   font-weight: 700; border: 1px solid rgba(255, 238, 190, .4);
   text-shadow: 0 1px 0 rgba(255, 240, 200, .35);
+}
+
+/* the hooked fish's name and rarity — present only while one is on */
+.fish-id {
+  display: none; text-align: center; line-height: 1.25;
+  padding: .3rem .4rem; border-radius: .45rem;
+  background: rgba(10, 16, 18, .55);
+  border: 1px solid rgba(214, 186, 128, .16);
+}
+.fishing[data-hooked] .fish-id { display: block; }
+.fi-name {
+  display: block; font-family: var(--display); font-size: 1.04rem;
+  color: #f0e5c6; letter-spacing: .01em;
+}
+.fi-rare {
+  display: block; font-size: .62rem; letter-spacing: .2em; text-transform: uppercase;
+  color: #b9ab86;
 }
 
 /* NOT OVERSIZED. At 44vh this was nearly half the screen height for a
@@ -1194,8 +1217,8 @@ body:has(.cine.in) #prompt { opacity: 0; transition: opacity .4s ease; }
    third of the height is still a comfortable target for the zone and
    leaves the river visible behind it. */
 .fish-case {
-  position: relative; display: flex; gap: .35rem;
-  height: 32vh; min-height: 13rem; max-height: 22rem;
+  position: relative; display: flex; gap: .45rem;
+  height: 40vh; min-height: 16rem; max-height: 25rem;
 }
 
 /* WHAT IS ON THE END, without saying it.
@@ -1224,16 +1247,23 @@ body:has(.cine.in) #prompt { opacity: 0; transition: opacity .4s ease; }
 }
 
 /* depths cut into the timber down the side */
+/* WIDE ENOUGH FOR ITS OWN WORDS, which it was not: at 3.4em of a .52rem
+   font the column was twenty-eight pixels and "SHALLOWS" needed
+   fifty-five, so the labels hung out of the left of the panel and the
+   longest one was cut in half by the edge of the screen. The words are
+   shorter now and the column is wider, and a `min-width` on a nowrap
+   flex item is the thing that actually stops it happening again. */
 .fish-scale {
   display: flex; flex-direction: column-reverse; justify-content: space-between;
-  font-size: .52rem; letter-spacing: .1em; text-transform: uppercase;
-  color: rgba(226, 206, 160, .42); text-align: right; width: 3.4em;
+  font-size: .62rem; letter-spacing: .08em; text-transform: uppercase;
+  color: rgba(226, 206, 160, .5); text-align: right;
+  width: 3.2em; min-width: 3.2em; flex: 0 0 auto;
   padding: .3rem 0;
 }
 .fish-scale i { font-style: normal; white-space: nowrap; }
 
 .fish-track {
-  position: relative; width: 3.1rem; border-radius: .6rem; overflow: hidden;
+  position: relative; width: 4.4rem; border-radius: .6rem; overflow: hidden;
   background: linear-gradient(180deg, #16323f 0%, #0d2029 60%, #081419 100%);
   border: 2px solid rgba(96, 74, 42, .9);
   box-shadow: inset 0 0 22px rgba(0, 0, 0, .7);
@@ -1269,9 +1299,10 @@ body:has(.cine.in) #prompt { opacity: 0; transition: opacity .4s ease; }
 
 /* the fish itself, drawn rather than dotted */
 .fish-mark {
-  position: absolute; left: 50%; width: 2.1rem; height: 1rem;
-  margin-left: -1.05rem; margin-bottom: -.5rem;
+  position: absolute; left: 50%; width: 3rem; height: 1.42rem;
+  margin-left: -1.5rem; margin-bottom: -.71rem;
   transition: bottom .05s linear;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .6));
 }
 .fish-mark svg { width: 100%; height: 100%; }
 .fish-mark path { fill: #dfe9ee; }
@@ -1280,13 +1311,44 @@ body:has(.cine.in) #prompt { opacity: 0; transition: opacity .4s ease; }
 .fishing[data-state="bite"] .fish-mark { animation: fishBite .16s ease-in-out infinite alternate; }
 @keyframes fishBite { from { transform: translateX(-3px) rotate(-6deg); } to { transform: translateX(3px) rotate(6deg); } }
 
-/* the rod complaining about a fish it is not rated for */
-.fish-strain { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .2s; }
-.fish-strain.on { opacity: 1; box-shadow: inset 0 0 26px rgba(226, 92, 60, .6); animation: fishStrain .5s ease-in-out infinite alternate; }
-@keyframes fishStrain { from { box-shadow: inset 0 0 18px rgba(226, 92, 60, .40); } to { box-shadow: inset 0 0 34px rgba(255, 120, 70, .75); } }
+/* THE ROD COMPLAINING ABOUT A FISH IT IS NOT RATED FOR.
+   This is the only thing in the game that says "buy a better rod" rather
+   than "get better reflexes", and it was an inset shadow so faint you
+   could lose a Divine without ever noticing it was on. It now says so in
+   words, across the gauge, in red, pulsing. */
+.fish-strain {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0;
+  transition: opacity .2s;
+}
+/* THE WORDS GO UNDER THE GAUGE, NOT OVER IT. The first version centred
+   the badge in the track, which put a red label exactly where the fish
+   is and hid the one thing the player is tracking — a warning that
+   obscures what it is warning about. */
+.fish-warn {
+  display: none; text-align: center;
+  font-family: var(--sans); font-size: .58rem; font-weight: 700;
+  letter-spacing: .18em; color: #ffdfd2;
+  padding: .24em .4em; border-radius: .3rem;
+  background: rgba(150, 38, 18, .85); border: 1px solid rgba(255, 150, 120, .55);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .8);
+  animation: fishWarn .5s ease-in-out infinite alternate;
+}
+.fishing[data-strain] .fish-warn { display: block; }
+@keyframes fishWarn { from { opacity: .72; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .fish-warn { animation: none; } }
+
+.fish-strain.on {
+  opacity: 1; box-shadow: inset 0 0 26px rgba(226, 92, 60, .75);
+  animation: fishStrain .45s ease-in-out infinite alternate;
+}
+@keyframes fishStrain {
+  from { box-shadow: inset 0 0 20px rgba(226, 92, 60, .5); }
+  to { box-shadow: inset 0 0 38px rgba(255, 120, 70, .95); }
+}
+@media (prefers-reduced-motion: reduce) { .fish-strain.on { animation: none; } }
 
 .fish-reeds {
-  position: absolute; left: 3.6em; right: 0; bottom: -2px; height: 1.1rem;
+  position: absolute; left: 3.65em; right: 0; bottom: -2px; height: 1.3rem;
   background:
     radial-gradient(6px 14px at 12% 100%, rgba(88, 118, 58, .9) 60%, transparent 62%),
     radial-gradient(5px 18px at 34% 100%, rgba(72, 100, 48, .9) 60%, transparent 62%),
@@ -1295,9 +1357,38 @@ body:has(.cine.in) #prompt { opacity: 0; transition: opacity .4s ease; }
   pointer-events: none;
 }
 
-/* THE REEL: the catch meter, wound in from the bottom */
-.fish-reel {
-  position: relative; height: 1.5rem; border-radius: .5rem; overflow: hidden;
+/* THE REEL: a brass drum that turns as the line comes in, beside the
+   catch meter. The meter alone was a green rectangle with a number in
+   it, which is a progress bar, and a progress bar is the one piece of
+   furniture this interface was built to avoid. */
+.fish-reel { display: flex; align-items: center; gap: .5rem; }
+
+.fr-drum {
+  position: relative; flex: 0 0 auto;
+  width: 2.1rem; height: 2.1rem; border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #e6c179, #9c7630 62%, #5d4518);
+  border: 2px solid rgba(255, 234, 180, .45);
+  box-shadow: inset 0 0 8px rgba(60, 40, 8, .7), 0 2px 6px rgba(0, 0, 0, .5);
+  transition: transform .12s linear;
+}
+/* three spokes, which is what makes the rotation legible at all — a
+   plain disc turning looks exactly like a plain disc standing still */
+.fr-drum i {
+  position: absolute; left: 50%; top: 12%; bottom: 12%; width: 2px;
+  margin-left: -1px; background: rgba(70, 48, 12, .75); border-radius: 1px;
+  transform-origin: 50% 50%;
+}
+.fr-drum i:nth-child(2) { transform: rotate(60deg); }
+.fr-drum i:nth-child(3) { transform: rotate(120deg); }
+.fr-drum::after {
+  content: ''; position: absolute; inset: 38%; border-radius: 50%;
+  background: radial-gradient(circle at 36% 32%, #f6dda6, #8a6726);
+  box-shadow: 0 0 0 1px rgba(60, 40, 8, .5);
+}
+
+.fr-gauge {
+  position: relative; flex: 1 1 auto; height: 1.8rem;
+  border-radius: .5rem; overflow: hidden;
   background: rgba(14, 12, 6, .7); border: 1px solid rgba(180, 150, 90, .4);
   display: flex; align-items: center; justify-content: center;
 }
@@ -1309,25 +1400,54 @@ body:has(.cine.in) #prompt { opacity: 0; transition: opacity .4s ease; }
 }
 .fish-reel.low .fr-line b { background: linear-gradient(180deg, #f0a068, #c25a34); }
 .fish-reel.win .fr-line b { background: linear-gradient(180deg, #ffe6a0, #e0b052); }
+/* LEGIBLE AT BOTH ENDS. The number sat on the fill, so it was dark text
+   on a pale bar at eighty per cent and dark text on a near-black gauge
+   at nineteen — and nineteen per cent is exactly the moment the player
+   most needs to read it. Pale text with a hard dark outline reads on
+   either, and needs no state to decide which. */
 .fr-pct {
-  position: relative; font-size: .68rem; font-weight: 700; letter-spacing: .1em;
-  color: #16140c; text-shadow: 0 1px 0 rgba(255, 255, 255, .28);
+  position: relative; font-size: .86rem; font-weight: 700; letter-spacing: .08em;
+  color: #fdf6e2;
+  text-shadow: 0 0 3px rgba(0, 0, 0, .95), 0 1px 2px rgba(0, 0, 0, .9),
+               0 0 7px rgba(0, 0, 0, .7);
 }
 
+/* OUTSIDE THE PANEL AND WIDER THAN IT. The line under the rig is a
+   sentence, and the rig is a narrow column; left to the column's width
+   "It slipped the line." breaks into four. It is centred on the rig and
+   allowed to run past it in both directions. */
 .fish-say {
   margin-top: .5rem; text-align: center; font-family: var(--display);
-  font-size: 1.02rem; color: #f2e6c4; min-height: 1.3em;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, .8);
+  font-size: 1.1rem; color: #f2e6c4; min-height: 1.3em;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, .9);
+  white-space: nowrap; position: relative; left: 50%; transform: translateX(-50%);
+  width: max-content;
 }
 .fishing[data-state="bite"] .fish-say {
   color: #ffe08a; animation: fishSay .28s ease-in-out infinite alternate;
 }
-@keyframes fishSay { from { transform: scale(1); } to { transform: scale(1.09); } }
-.fish-hint {
-  text-align: center; font-size: .58rem; letter-spacing: .14em; text-transform: uppercase;
-  color: rgba(228, 214, 180, .55); margin-top: .1rem; transition: opacity .3s;
+/* the translate has to be repeated in the keyframes: `transform` is one
+   property, so an animation that sets only the scale drops the centring
+   and the line jumps a panel's width to the right as it starts */
+@keyframes fishSay {
+  from { transform: translateX(-50%) scale(1); }
+  to { transform: translateX(-50%) scale(1.09); }
 }
-.fish-hint kbd { font-size: .9em; }
+/* INSIDE THE PANEL, AND READABLE. It used to sit outside the rig at
+   nine pixels on top of whatever the world happened to be, which meant
+   the only instruction in the whole activity was the least legible text
+   on the screen. */
+.fish-hint {
+  text-align: center; font-size: .66rem; letter-spacing: .1em; text-transform: uppercase;
+  color: rgba(232, 220, 190, .75); transition: opacity .3s;
+}
+.fish-hint s { text-decoration: none; opacity: .4; margin: 0 .2em; }
+.fish-hint kbd {
+  font-size: .95em; font-family: var(--sans); font-weight: 700;
+  padding: .12em .42em; border-radius: .25rem;
+  background: rgba(240, 226, 190, .16); border: 1px solid rgba(240, 226, 190, .3);
+  color: #f4e9cc;
+}
 
 /* ------------------------------------------------------------ the catch */
 

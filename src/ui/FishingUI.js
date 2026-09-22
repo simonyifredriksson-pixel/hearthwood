@@ -21,13 +21,16 @@
    this is the view while you do it.
 */
 
-import { FISH_STATE } from '../game/Fishing.js?v=1790100127';
-import { rarityOf, fishTitle, MUTATION_BY_ID, catchValue, FISH } from '../data/FishData.js?v=1790100127';
-import { ic } from './Icons.js?v=1790100127';
-import { esc, clamp, clamp01 } from '../core/Util.js?v=1790100127';
+import { FISH_STATE } from '../game/Fishing.js?v=1790102737';
+import { rarityOf, fishTitle, MUTATION_BY_ID, catchValue, FISH } from '../data/FishData.js?v=1790102737';
+import { ic } from './Icons.js?v=1790102737';
+import { esc, clamp, clamp01 } from '../core/Util.js?v=1790102737';
 
-/** Carved into the timber down the side of the gauge. */
-const DEPTHS = ['shallows', '', 'weed', '', 'deep', '', 'dark'];
+/** Carved into the timber down the side of the gauge, bottom to top.
+    SHORT WORDS ONLY. "shallows" ran past the end of its column and out of
+    the panel entirely — the gauge was a hundred and thirty pixels wide
+    and the label was fifty-five of them. */
+const DEPTHS = ['edge', '', 'weed', '', 'deep', '', 'dark'];
 
 export class FishingUI {
   constructor(root) {
@@ -36,6 +39,18 @@ export class FishingUI {
     this.el.innerHTML = `
       <div class="fish-rig">
         <div class="fish-plate"><span class="fp-rod"></span></div>
+        <!-- WHAT IS ON THE LINE, IN WORDS.
+             The rarity wash on the case is a lovely piece of tension and
+             it is also the only thing the panel said about the fish,
+             which meant a player fighting a Moonscale Char and a player
+             fighting a Silt Loach were reading the same interface in two
+             slightly different colours. The name and the rarity go on a
+             card of their own, and it only exists while something is
+             actually hooked. -->
+        <div class="fish-id">
+          <span class="fi-name"></span>
+          <span class="fi-rare"></span>
+        </div>
         <div class="fish-case">
           <div class="fish-scale">${DEPTHS.map(d => `<i>${d}</i>`).join('')}</div>
           <div class="fish-track">
@@ -50,13 +65,21 @@ export class FishingUI {
           </div>
           <div class="fish-reeds"></div>
         </div>
+        <!-- THE REEL, which is now a reel. It was a flat green bar with a
+             number in it; the drum turns as the line comes in, so the
+             player can see progress out of the corner of an eye that is
+             busy watching the sleeve. -->
         <div class="fish-reel">
-          <div class="fr-line"><b></b></div>
-          <span class="fr-pct">0%</span>
+          <div class="fr-drum"><i></i><i></i><i></i></div>
+          <div class="fr-gauge">
+            <div class="fr-line"><b></b></div>
+            <span class="fr-pct">0%</span>
+          </div>
         </div>
+        <div class="fish-warn">LINE STRAINING</div>
+        <div class="fish-hint"><kbd>HOLD</kbd> rise <s>&middot;</s> <kbd>LET GO</kbd> sink</div>
       </div>
-      <div class="fish-say"></div>
-      <div class="fish-hint"><kbd>HOLD</kbd> raise &middot; <kbd>RELEASE</kbd> sink</div>`;
+      <div class="fish-say"></div>`;
     (root || document.body).appendChild(this.el);
 
     this.track = this.el.querySelector('.fish-track');
@@ -69,9 +92,14 @@ export class FishingUI {
     this.rodPlate = this.el.querySelector('.fp-rod');
     this.say = this.el.querySelector('.fish-say');
     this.hint = this.el.querySelector('.fish-hint');
+    this.drum = this.el.querySelector('.fr-drum');
+    this.idName = this.el.querySelector('.fi-name');
+    this.idRare = this.el.querySelector('.fi-rare');
     this._shown = false;
     this._lastState = null;
     this._lastRod = null;
+    this._lastFish = null;
+    this._spin = 0;
   }
 
   show(on) {
@@ -131,6 +159,28 @@ export class FishingUI {
         [FISH_STATE.LOST]: 'It slipped the line.',
       }[st] || '';
       this.hint.style.opacity = st === FISH_STATE.FIGHT ? '1' : '0.3';
+      /* the strain warning belongs to the fight and to nothing else —
+         leaving it up on the catch card would be the panel shouting
+         about a line that is no longer under any load at all */
+      if (st !== FISH_STATE.FIGHT) {
+        delete this.el.dataset.strain;
+        this.strain.classList.remove('on');
+      }
+    }
+
+    /* the nameplate, written once per fish rather than once per frame */
+    const fid = st === FISH_STATE.FIGHT && F.fish ? (F.fish.id + '|' + F.fish.rarity) : null;
+    if (fid !== this._lastFish) {
+      this._lastFish = fid;
+      if (fid) {
+        const R = rarityOf(F.fish.rarity);
+        this.idName.textContent = FISH[F.fish.id]?.name || 'something';
+        this.idRare.textContent = R.name;
+        this.idRare.style.color = R.css;
+        this.el.dataset.hooked = '1';
+      } else {
+        delete this.el.dataset.hooked;
+      }
     }
 
     /* THE RARITY WASH. Set from the hooked fish, cleared the moment the
@@ -165,10 +215,17 @@ export class FishingUI {
       this.pct.textContent = `${Math.round(F.catch * 100)}%`;
       this.reel.classList.toggle('low', F.catch < 0.28);
       this.reel.classList.toggle('win', F.catch > 0.82);
+      /* THE DRUM TURNS WITH THE LINE. It is driven by the catch value
+         rather than by the clock, so it winds in while you are gaining
+         and stops dead when you are not — which is a second channel for
+         "is this going well" that costs one CSS transform. */
+      this._spin = F.catch * 1080;
+      this.drum.style.transform = `rotate(${this._spin}deg)`;
       /* the rod bending past what it is rated for: the one piece of
          feedback that tells a player they need a better rod rather than
          better reflexes */
       this.strain.classList.toggle('on', !!F.overLine);
+      if (F.overLine) this.el.dataset.strain = '1'; else delete this.el.dataset.strain;
     } else if (st === FISH_STATE.BITE) {
       this.mark.style.bottom = `${(0.5 + Math.sin(F.stateT * 26) * 0.06) * 100}%`;
     }

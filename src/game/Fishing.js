@@ -25,9 +25,9 @@
    UI layer reads this state and draws it.
 */
 
-import { rollFish, fishTier, rarityOf } from '../data/FishData.js?v=1790100127';
-import { bus, EV } from '../core/Bus.js?v=1790100127';
-import { clamp, clamp01, lerp, makeRng } from '../core/Util.js?v=1790100127';
+import { rollFish, fishTier, rarityOf } from '../data/FishData.js?v=1790102737';
+import { bus, EV } from '../core/Bus.js?v=1790102737';
+import { clamp, clamp01, lerp, makeRng } from '../core/Util.js?v=1790102737';
 
 /*
  * THE ZONE MUST BE ABLE TO OUTRUN THE FISH.
@@ -51,6 +51,40 @@ const DRAG = 2.20;        // velocity damping, per second
 const ZONE = 0.22;        // how much of the bar the player's zone covers (the rod widens it)
 const FILL_RATE = 0.52;   // catch meter per second while on the fish
 const DRAIN_RATE = 0.30;  // and off it — deliberately slower than the fill
+/* HOW A FISH IS PLAYED OUT — and it takes PRESSURE, not patience.
+   ===========================================================================
+   This took three wrong shapes before the right one, and each wrong shape
+   is worth stating because each is a tempting thing to do again.
+
+   THE PROBLEM. Fill is 0.52 a second on the fish and drain is 0.30 times
+   the fish's `fight` off it, so a fish around 1.7 drains at almost exactly
+   the rate a player who is on it half the time fills. The meter then sits
+   where it is. It was not hypothetical: a test that played a fight out
+   fairly ran its hundred-second guard out about one run in eight.
+
+     1. CUT THE DRAIN AS IT TIRES (45%). Moved the equilibrium. Still hung.
+     2. CUT IT HARDER (90%). Worse — a fish that barely drains the meter is
+        a fish you can no longer LOSE, so the fight hung just above zero
+        instead of just below one. Removing a term cannot make a quantity
+        move.
+     3. GIVE LINE UNCONDITIONALLY AS IT TIRES. That terminates, and it
+        hands the fish to a player who does nothing at all, which broke
+        the one test that most deserved to stay unbroken.
+
+   WHAT IS ACTUALLY TRUE about playing a fish out is that it tires because
+   you are leaning on it. So the clock only runs WHILE THE ZONE IS ON THE
+   FISH, and what it buys is a bigger fill — never a smaller drain and
+   never free progress. Idling accrues nothing and still loses. A player
+   who is on the fish at all, however clumsily, keeps banking pressure
+   until the fill outruns the drain, which is what breaks the stalemate.
+
+   And a fight still cannot run forever: past FIGHT_MAX the line parts.
+   That is the guarantee, rather than an argument about rates — and losing
+   a fish you have been holding for a minute and a quarter is a better
+   story than a bar that never moved. */
+const TIRE_FULL = 30;     // seconds ON THE FISH before it is fully played out
+const TIRE_GAIN = 1.20;   // and how much more line it then yields per second
+const FIGHT_MAX = 75;     // after which the line parts, whatever the meter says
 
 /*
  * THE SHAPE OF A CAST, and why there are two states in front of the old
@@ -121,6 +155,9 @@ export class Fishing {
     this.fishTarget = 0.5;
     this.nextThink = 0;
     this.catch = 0.30;       // the progress meter, 0..1
+    this.fought = 0;         // seconds of PRESSURE — time with the zone on it
+    this.held = 0;           // seconds the fight has been running at all
+    this.tired = 0;          // 0 fresh, 1 played out
     this.holding = false;
     this.stateT = 0;
     this.biteAt = 0;
@@ -255,6 +292,11 @@ export class Fishing {
     this.zone = 0.35;
     this.vel = 0;
     this.catch = 0.30;
+    /* a fresh fish every time the hook sets — a reroll after a missed
+       strike must not inherit the last one's exhaustion */
+    this.fought = 0;
+    this.held = 0;
+    this.tired = 0;
     bus.emit(EV.FISH_HOOKED, { fish: this.fish });
     this.audio?.hook?.();
   }
@@ -388,8 +430,30 @@ export class Fishing {
     const on = Math.abs(this.fishPos - this.zone) <= half;
     this.onFish = on ? Math.min(1, this.onFish + dt * 6) : Math.max(0, this.onFish - dt * 6);
 
+    /* --- THE FISH TIRES -------------------------------------------------
+       Without this a fight has no end in it. Fill is 0.52 a second and
+       drain is 0.30 times the fish's fight, so a fish around 1.7 drains
+       at almost exactly the rate a player on it half the time fills —
+       and the meter sits where it is, forever. It is not a theoretical
+       worry: a test that plays a fight out fairly hit the stalemate
+       roughly one run in eight and simply never finished.
+
+       It is also the right mechanic on its own terms. Playing a fish out
+       is what fishing IS, and a fight that is winnable by holding on is
+       a fight with a shape: hard at first, then yours. Three quarters of
+       a minute takes the resistance down to a bit over half.
+
+       WHAT IT DOES NOT TOUCH is the over-the-line bleed below. Tiring
+       must never let a starter rod land a River Father — that bleed is
+       the upgrade loop, and if patience could beat it there would be no
+       reason to ever buy a rod. */
+    /* pressure, not patience: the clock only runs while you are on it */
+    if (on) this.fought += dt;
+    this.tired = clamp01(this.fought / TIRE_FULL);
+    this.held += dt;
+
     const M = this.fish.move;
-    if (on) this.catch = clamp01(this.catch + FILL_RATE * dt);
+    if (on) this.catch = clamp01(this.catch + FILL_RATE * (1 + this.tired * TIRE_GAIN) * dt);
     else this.catch = clamp01(this.catch - DRAIN_RATE * M.fight * dt);
     /* OVER THE LINE RATING. A fish heavier than the rod can hold bleeds the
        meter even when you are tracking it perfectly, so a starter rod can
@@ -400,6 +464,10 @@ export class Fishing {
 
     if (this.catch >= 1) this._win();
     else if (this.catch <= 0) this._lose();
+    /* THE LINE PARTS. The backstop that makes termination a fact rather
+       than an argument about rates: no arrangement of fill, drain and
+       player skill can hold a fight open past this. */
+    else if (this.held >= FIGHT_MAX) this._lose('parted');
   }
 
   /**
@@ -524,7 +592,12 @@ export class Fishing {
     const wobble = Math.sin(this.t * 3.1 + this.fish.seed * 0.001) * M.drift * 0.06;
     const want = clamp01(this.fishTarget + wobble);
     const d = want - this.fishPos;
-    const step = M.speed * dt * (1 + Math.abs(d) * 1.4);
+    /* A TIRED FISH SWIMS SLOWER, but only a little — a sixth off at the
+       end of a long fight. The meter is where tiring does its work; this
+       is here so the player can SEE it happening rather than only read
+       it off a bar, and it is kept small because a fish that visibly
+       gives up stops being worth landing. */
+    const step = M.speed * (1 - this.tired * 0.17) * dt * (1 + Math.abs(d) * 1.4);
     this.fishPos += clamp(d, -step, step);
     this.fishPos = clamp01(this.fishPos);
   }

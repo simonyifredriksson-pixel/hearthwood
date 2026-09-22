@@ -22,7 +22,7 @@
    which is one very good rod. Nothing else is tuned by feel.
 */
 
-import { makeRng, hash2, clamp, clamp01, lerp } from '../core/Util.js?v=1790100127';
+import { makeRng, hash2, clamp, clamp01, lerp } from '../core/Util.js?v=1790102737';
 
 /* ========================================================================= */
 /* RARITY                                                                    */
@@ -714,7 +714,14 @@ export function catchValue(f) {
 /** The full display name: "Albino Marble Koi". */
 export function fishTitle(f) {
   const m = f.mutation ? MUTATION_BY_ID[f.mutation] : null;
-  return m ? `${m.name} ${f.name}` : f.name;
+  /* THE SPECIES IS THE FALLBACK, because a record that has lost its
+     `name` still knows what it is. `makeCatch` always writes one, but the
+     catch card is the loudest moment in the game and the failure mode of
+     trusting the field was the word "undefined" in forty-point display
+     type across the middle of the screen. An old save, a hand-built
+     record or a future code path should not be able to do that. */
+  const name = f.name || FISH[f.id]?.name || 'a strange fish';
+  return m ? `${m.name} ${name}` : name;
 }
 
 /** How loudly to announce a catch: 0 quiet, 3 stop-everything. */
