@@ -26,11 +26,11 @@
    character's arm stretches when it bends.
 */
 
-import * as THREE from '../../lib/three.module.js?v=1790085618';
-import { MeshBuilder, tube, blob, lathe, blade, box, quad, wedge } from './Geo.js?v=1790085618';
-import { FUR, BUILD, mixHex, tweak, shade } from './Palette.js?v=1790085618';
-import { MATS } from './Materials.js?v=1790085618';
-import { makeRng, clamp, lerp, TAU } from '../core/Util.js?v=1790085618';
+import * as THREE from '../../lib/three.module.js?v=1790100127';
+import { MeshBuilder, tube, blob, lathe, blade, box, quad, wedge } from './Geo.js?v=1790100127';
+import { FUR, BUILD, mixHex, tweak, shade } from './Palette.js?v=1790100127';
+import { MATS } from './Materials.js?v=1790100127';
+import { makeRng, clamp, lerp, TAU } from '../core/Util.js?v=1790100127';
 
 /* ========================================================================= */
 /* RIG HELPERS                                                               */

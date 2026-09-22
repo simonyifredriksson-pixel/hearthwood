@@ -308,6 +308,23 @@ kbd {
     radial-gradient(10px 10vh at 99% 100%, #84ad60 62%, transparent 64%),
     linear-gradient(180deg, transparent 34%, #7ea65e 38%, #6f9a52 70%, #628c49 100%);
 }
+/* THE 3D SCENE. Full bleed, under everything else on the boot screen.
+   It carries `.on` only once the renderer has actually produced a frame,
+   so if WebGL is unavailable the painted fallback underneath is what the
+   player sees rather than a black rectangle over it. */
+#boot-3d {
+  position: absolute; inset: 0; z-index: 1;
+  width: 100%; height: 100%; display: block;
+  opacity: 0; transition: opacity 1.1s ease;
+}
+#boot-3d.on { opacity: 1; }
+/* once the real scene is up, the painted one is redundant — fade it out
+   rather than removing it, so the two never pop */
+#boot.has3d .boot-sky,
+#boot.has3d .boot-sun,
+#boot.has3d .boot-hills,
+#boot.has3d .boot-grass { opacity: 0; transition: opacity 1.1s ease; }
+
 /* the loading line: rope and a burned-in label, not a UI widget */
 /* above the bank, where nothing else is competing for the eye */
 .boot-rope {

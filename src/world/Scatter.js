@@ -21,18 +21,18 @@
    generated plants in it draws in two calls.
 */
 
-import * as THREE from '../../lib/three.module.js?v=1790085618';
-import { MeshBuilder } from '../art/Geo.js?v=1790085618';
-import { buildTree, TREES, orient } from '../art/TreeGen.js?v=1790085618';
+import * as THREE from '../../lib/three.module.js?v=1790100127';
+import { MeshBuilder, quad, blob } from '../art/Geo.js?v=1790100127';
+import { buildTree, TREES, orient } from '../art/TreeGen.js?v=1790100127';
 import {
   buildFern, buildBush, buildGrassTuft, buildFlower, buildMushrooms, buildReeds,
   buildWeed, buildGroundCover, buildRock, buildFallenLog, buildStump, buildBrash,
   FLOWER_NAMES, SHROOM_NAMES,
 } from '../art/PlantGen.js';
-import { PLANT, GROUND, LEAF, mixHex, tweak } from '../art/Palette.js?v=1790085618';
-import { WORLD, GAME } from '../core/Config.js?v=1790085618';
-import { makeRng, hash2, clamp, clamp01, lerp, TAU, smoothstep, invLerp } from '../core/Util.js?v=1790085618';
-import { riverX, riverLevel } from './Terrain.js?v=1790085618';
+import { PLANT, GROUND, LEAF, mixHex, tweak } from '../art/Palette.js?v=1790100127';
+import { WORLD, GAME } from '../core/Config.js?v=1790100127';
+import { makeRng, hash2, clamp, clamp01, lerp, TAU, smoothstep, invLerp } from '../core/Util.js?v=1790100127';
+import { riverX, riverLevel } from './Terrain.js?v=1790100127';
 
 /* ========================================================================= */
 /* LAYERS                                                                    */
@@ -63,6 +63,8 @@ const LAYERS = {
   stump: { cell: 30.0, salt: 0x10d },
   brash: { cell: 6.0, salt: 0x10e },
   reed: { cell: 3.6, salt: 0x10f },
+  /* floating, not planted -- see the lily block for why it cannot use put */
+  lily: { cell: 5.5, salt: 0x111 },
   grass: { cell: 1.9, salt: 0x110 },
 };
 
@@ -284,16 +286,26 @@ export function scatterTile(T, tx, tz, detail, tileSize = WORLD.tile, only = nul
    * every layer at once, including the ones added later, which is why it
    * lives in `put` rather than in thirteen separate weight functions.
    */
-  const inLake = (x, z) => {
+  /**
+   * @param wade  how deep this thing is willing to stand. 0 means "not in
+   *             the lake at all", which is right for a tree; reeds wade.
+   */
+  const inLake = (x, z, wade = 0) => {
     for (const L of T.lakes) {
       if (Math.hypot(x - L.x, z - L.z) > L.r * 1.05) continue;
-      if (F.heightAt(x, z) < L.level + 0.35) return true;
+      if (F.heightAt(x, z) < L.level + 0.35 - wade) return true;
     }
     return false;
   };
 
-  const put = (target, sub, x, z, yaw, tiltAmount = 0, yOff = 0, scale = 1) => {
-    if (T.lakes.length && inLake(x, z)) return;
+  const put = (target, sub, x, z, yaw, tiltAmount = 0, yOff = 0, scale = 1, wade = 0) => {
+    /* REEDS STAND IN THE WATER, and this is where they kept dying.
+       `inLake` rejects anything below the waterline plus a margin — which
+       is correct for a tree and is exactly the band a reed bed occupies,
+       so every lakeside reed the placement asked for was thrown away here
+       and the lakes kept their bare mown shores. Things that wade say how
+       deep they are prepared to go. */
+    if (T.lakes.length && inLake(x, z, wade)) return;
     const y = F.heightAt(x, z) + yOff;
     let m;
     if (tiltAmount > 0) {
@@ -475,7 +487,9 @@ export function scatterTile(T, tx, tz, detail, tileSize = WORLD.tile, only = nul
         mossy: clamp01(F.wetAt(x, z) * 0.9 + clamp01(F.forestAt(x, z) * 1.15 - 0.08) * 0.55),
         hex: F.heightAt(x, z) - WORLD.village.datum > 90 ? GROUND.rockDark : GROUND.rock,
       });
-      put(solid, sub, x, z, r.range(0, TAU), 0.35, -size * 0.32);
+      /* a boulder at the edge of a lake sits half in it, which is where
+         boulders at the edges of lakes are */
+      put(solid, sub, x, z, r.range(0, TAU), 0.35, -size * 0.32, 1, 0.45);
       if (size > 0.7) blockers.push({ x, z, r: size * 0.75 });
     });
   }
@@ -606,19 +620,95 @@ export function scatterTile(T, tx, tz, detail, tileSize = WORLD.tile, only = nul
     });
   }
 
+  /* --- REEDS, on every waterline there is ------------------------------
+     They only ever grew along the river, because the test was written
+     against `riverX`/`riverLevel` directly. Every lake in the game
+     therefore had a bare shore: a disc of water meeting mown grass with
+     nothing in between, which is most of why the lakes read as painted
+     on. The margin of a lake is exactly where reeds belong. */
   if (want('reed') && D.plant <= 1) {
     grid('reed', x0, z0, x1, z1, (x, z, r) => {
-      const lvl = riverLevel(z);
       const h = F.heightAt(x, z);
+
+      /* nearest waterline, river or lake */
+      let band = 0;
       const ro = Math.abs(x - riverX(z));
-      // reeds stand in the shallows: just above the waterline, not on dry land
-      if (ro > WORLD.river.bankWidth * 1.8) return 0;
-      const band = 1 - smoothstep(Math.abs(h - lvl) / 0.85);
+      if (ro <= WORLD.river.bankWidth * 1.8) {
+        band = 1 - smoothstep(Math.abs(h - riverLevel(z)) / 0.85);
+      }
+      for (const L of T.lakes) {
+        const d = Math.hypot(x - L.x, z - L.z);
+        if (d > L.r * 1.25) continue;
+        /* the band is about the WATERLINE, not the lake's edge: a lake
+           in a bowl has its margin wherever the ground meets the level,
+           which is not the same as a circle of radius r */
+        band = Math.max(band, 1 - smoothstep(Math.abs(h - L.level) / 0.7));
+      }
       return band * 0.85;
     }, (x, z, r, h) => {
       const sub = new MeshBuilder();
       buildReeds(sub, { seed: h, size: r.range(0.7, 1.6), lod: D.plant });
-      put(flora, sub, x, z, r.range(0, TAU), 0.15, -0.1);
+      /* wades up to 70 cm: reeds grow out of the shallows, which is the
+         whole point of them and the reason they need the exemption */
+      put(flora, sub, x, z, r.range(0, TAU), 0.15, -0.1, 1, 0.7);
+    });
+  }
+
+  /* --- LILY PADS, floating -------------------------------------------
+     On the water rather than on the ground, which is why they cannot go
+     through the ordinary `put` — that plants things at terrain height
+     and refuses anything inside a lake, and a lily pad is by definition
+     both in the lake and above the bed. Kept to the calmer margins: a
+     pad in the middle of a big open lake is a water lily in the wrong
+     place, and it would also sit where the player casts. */
+  if (want('reed') && D.plant <= 1 && T.lakes.length) {
+    grid('lily', x0, z0, x1, z1, (x, z, r) => {
+      for (const L of T.lakes) {
+        const d = Math.hypot(x - L.x, z - L.z);
+        if (d > L.r * 0.96) continue;
+        const bed = F.heightAt(x, z);
+        const deep = L.level - bed;
+        if (deep < 0.25 || deep > 1.9) return 0;      // shallow margins only
+        return 0.55;
+      }
+      return 0;
+    }, (x, z, r, h) => {
+      const L = T.lakes.find(q => Math.hypot(x - q.x, z - q.z) <= q.r * 0.96);
+      if (!L) return;
+      const sub = new MeshBuilder();
+      const rr = makeRng(h);
+      const n = rr.int(1, 3);
+      for (let i = 0; i < n; i++) {
+        const ox = rr.range(-0.5, 0.5), oz = rr.range(-0.5, 0.5);
+        const rad = rr.range(0.22, 0.42);
+        /* a pad is a disc with a notch cut out of it, which is the whole
+           silhouette of a lily pad and costs six triangles */
+        sub.color(tweak(0x4e7a38, { l: rr.range(0.82, 1.18) }), 0.08, rr);
+        const SEG = 9, notch = rr.range(0, TAU);
+        for (let k = 0; k < SEG; k++) {
+          const a0 = notch + 0.55 + (k / SEG) * (TAU - 1.1);
+          const a1 = notch + 0.55 + ((k + 1) / SEG) * (TAU - 1.1);
+          quad(sub,
+            [ox, 0.012, oz],
+            [ox + Math.cos(a0) * rad, 0.012, oz + Math.sin(a0) * rad],
+            [ox + Math.cos(a1) * rad, 0.012, oz + Math.sin(a1) * rad],
+            [ox, 0.012, oz], null, [0, 1, 0]);
+        }
+        /* one flower on some of them, which is the whole reason anybody
+           looks at a lily pond */
+        if (rr.chance(0.22)) {
+          sub.color(rr.chance(0.5) ? 0xf0e8f4 : 0xf2c8d8, 0.05, rr);
+          blob(sub, ox, 0.05, oz, 0.075, 3, 7, () => [1, 0.8, 1]);
+          sub.color(0xf0d060, 0.04, rr);
+          blob(sub, ox, 0.075, oz, 0.028, 2, 5);
+        }
+      }
+      /* placed at the LAKE LEVEL, not the terrain height */
+      const m = new THREE.Matrix4().compose(
+        new THREE.Vector3(x - x0, L.level, z - z0),
+        new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), r.range(0, TAU)),
+        new THREE.Vector3(1, 1, 1));
+      flora.append(sub, m);
     });
   }
 

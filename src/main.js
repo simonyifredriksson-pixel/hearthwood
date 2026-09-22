@@ -13,25 +13,25 @@
      7. ui, then render
 */
 
-import * as THREE from '../lib/three.module.js?v=1790085618';
-import { input } from './core/Input.js?v=1790085618';
-import { CameraRig } from './core/CameraRig.js?v=1790085618';
-import { audio } from './core/Audio.js?v=1790085618';
-import { bus, EV } from './core/Bus.js?v=1790085618';
-import { BUILD, RENDER, WORLD, GAME, PLAYER } from './core/Config.js?v=1790085618';
-import { clamp, clamp01, lerp, now, Rolling } from './core/Util.js?v=1790085618';
+import * as THREE from '../lib/three.module.js?v=1790100127';
+import { input } from './core/Input.js?v=1790100127';
+import { CameraRig } from './core/CameraRig.js?v=1790100127';
+import { audio } from './core/Audio.js?v=1790100127';
+import { bus, EV } from './core/Bus.js?v=1790100127';
+import { BUILD, RENDER, WORLD, GAME, PLAYER } from './core/Config.js?v=1790100127';
+import { clamp, clamp01, lerp, now, Rolling } from './core/Util.js?v=1790100127';
 
-import { MATS } from './art/Materials.js?v=1790085618';
-import { World } from './world/World.js?v=1790085618';
-import { Player } from './game/Player.js?v=1790085618';
-import { NPCs } from './game/NPCs.js?v=1790085618';
-import { GameState } from './game/State.js?v=1790085618';
-import { SPECIES } from './game/Anim.js?v=1790085618';
-import { weaponMeshes } from './art/WeaponArt.js?v=1790085618';
-import { rodMeshes } from './art/RodArt.js?v=1790085618';
-import { fishMeshes } from './art/FishArt.js?v=1790085618';
-import { fishTitle, waterAt } from './data/FishData.js?v=1790085618';
-import { dangerBand, BAND_NAMES, payRate } from './data/VillageData.js?v=1790085618';
+import { MATS } from './art/Materials.js?v=1790100127';
+import { World } from './world/World.js?v=1790100127';
+import { Player } from './game/Player.js?v=1790100127';
+import { NPCs } from './game/NPCs.js?v=1790100127';
+import { GameState } from './game/State.js?v=1790100127';
+import { SPECIES } from './game/Anim.js?v=1790100127';
+import { weaponMeshes } from './art/WeaponArt.js?v=1790100127';
+import { rodMeshes } from './art/RodArt.js?v=1790100127';
+import { fishMeshes } from './art/FishArt.js?v=1790100127';
+import { fishTitle, waterAt } from './data/FishData.js?v=1790100127';
+import { dangerBand, BAND_NAMES, payRate } from './data/VillageData.js?v=1790100127';
 
 /**
  * A line under each region name. The name says where; this says what it
@@ -42,32 +42,33 @@ const BAND_SUB = [
   '', 'Quiet water and easy fish', 'The wood thickens',
   'Something is watching', 'Few come back this far', 'Where the old fish live',
 ];
-import { WEAPON_CLASSES } from './data/WeaponData.js?v=1790085618';
-import { RARITY } from './art/Palette.js?v=1790085618';
-import { STICKWRIGHT, FISHERMAN } from './data/VillagerData.js?v=1790085618';
-import { RARE } from './data/StickData.js?v=1790085618';
-import { STARTER_ROD, rodsAt } from './data/RodData.js?v=1790085618';
+import { WEAPON_CLASSES } from './data/WeaponData.js?v=1790100127';
+import { RARITY } from './art/Palette.js?v=1790100127';
+import { STICKWRIGHT, FISHERMAN } from './data/VillagerData.js?v=1790100127';
+import { RARE } from './data/StickData.js?v=1790100127';
+import { STARTER_ROD, rodsAt } from './data/RodData.js?v=1790100127';
 
-import { UI } from './ui/UI.js?v=1790085618';
-import { Talk } from './ui/Talk.js?v=1790085618';
-import { RodShop } from './ui/RodShop.js?v=1790085618';
-import { Minimap } from './ui/Minimap.js?v=1790085618';
-import { Combatant } from './ui/Combatant.js?v=1790085618';
-import { Hotbar } from './ui/Hotbar.js?v=1790085618';
-import { MapScreen } from './ui/MapScreen.js?v=1790085618';
-import { Fog } from './game/MapData.js?v=1790085618';
-import { Effects } from './game/Effects.js?v=1790085618';
-import { SatchelScreen, Turntable } from './ui/Satchel.js?v=1790085618';
-import { WorkshopScreen, RevealScreen } from './ui/Workshop.js?v=1790085618';
-import { ForgeScene } from './game/Forge.js?v=1790085618';
-import { Workers } from './game/Workers.js?v=1790085618';
-import { Wildlife } from './game/Wildlife.js?v=1790085618';
-import { Fishing, FISH_STATE } from './game/Fishing.js?v=1790085618';
-import { FishingRig } from './game/FishingRig.js?v=1790085618';
-import { FishingUI } from './ui/FishingUI.js?v=1790085618';
-import { Quest, FESTIVAL_SPEECH } from './game/Quest.js?v=1790085618';
-import { CHARGE } from './game/Combat.js?v=1790085618';
-import { ic } from './ui/Icons.js?v=1790085618';
+import { UI } from './ui/UI.js?v=1790100127';
+import { Talk } from './ui/Talk.js?v=1790100127';
+import { RodShop } from './ui/RodShop.js?v=1790100127';
+import { Minimap } from './ui/Minimap.js?v=1790100127';
+import { Combatant } from './ui/Combatant.js?v=1790100127';
+import { BootScene } from './ui/BootScene.js?v=1790100127';
+import { Hotbar } from './ui/Hotbar.js?v=1790100127';
+import { MapScreen } from './ui/MapScreen.js?v=1790100127';
+import { Fog } from './game/MapData.js?v=1790100127';
+import { Effects } from './game/Effects.js?v=1790100127';
+import { SatchelScreen, Turntable } from './ui/Satchel.js?v=1790100127';
+import { WorkshopScreen, RevealScreen } from './ui/Workshop.js?v=1790100127';
+import { ForgeScene } from './game/Forge.js?v=1790100127';
+import { Workers } from './game/Workers.js?v=1790100127';
+import { Wildlife } from './game/Wildlife.js?v=1790100127';
+import { Fishing, FISH_STATE } from './game/Fishing.js?v=1790100127';
+import { FishingRig } from './game/FishingRig.js?v=1790100127';
+import { FishingUI } from './ui/FishingUI.js?v=1790100127';
+import { Quest, FESTIVAL_SPEECH } from './game/Quest.js?v=1790100127';
+import { CHARGE } from './game/Combat.js?v=1790100127';
+import { ic } from './ui/Icons.js?v=1790100127';
 
 /* ========================================================================= */
 
@@ -125,8 +126,64 @@ function setBoot(p, label) {
   if (bootText && label) bootText.textContent = label.toUpperCase();
 }
 
+/**
+ * THE 3D LOADING SCENE.
+ *
+ * On its own rAF loop rather than the game's, because the game's loop
+ * does not exist yet and will not until the world has finished
+ * generating — which is precisely the interval this is here to cover.
+ *
+ * It only reveals itself after a frame has genuinely been drawn. A
+ * canvas that fades in and then fails to render is worse than no canvas
+ * at all, because the painted fallback underneath is already good.
+ */
+function startBootScene() {
+  const el = document.getElementById('boot-3d');
+  if (!el) return;
+  let scene3d = null;
+  try { scene3d = new BootScene(el); } catch (e) { console.warn('[boot] scene failed', e); }
+  if (!scene3d || !scene3d.ok) return;
+
+  G.bootScene = scene3d;
+  let last = performance.now();
+  let shown = false;
+  const tick = now => {
+    if (!G.bootScene) return;
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    try { scene3d.update(dt); } catch (e) {
+      console.warn('[boot] scene threw; falling back to the painted one', e);
+      stopBootScene();
+      return;
+    }
+    if (!shown) {
+      shown = true;
+      el.classList.add('on');
+      bootEl?.classList.add('has3d');
+    }
+    G._bootRaf = requestAnimationFrame(tick);
+  };
+  G._bootRaf = requestAnimationFrame(tick);
+}
+
+function stopBootScene() {
+  if (G._bootRaf) cancelAnimationFrame(G._bootRaf);
+  G._bootRaf = null;
+  G.bootScene?.dispose();
+  G.bootScene = null;
+  document.getElementById('boot-3d')?.classList.remove('on');
+}
+
 async function boot() {
   setBoot(0.02, 'waking the wood');
+
+  /* THE LOADING SCENE, up before anything else is built.
+     It has to exist before `world.build()` starts, because that is the
+     several seconds it is covering — and it runs on its own animation
+     loop so it keeps moving while the main thread is busy generating
+     terrain. If WebGL is unavailable it quietly does nothing and the
+     painted fallback underneath shows through. */
+  startBootScene();
 
   G.ui = new UI({ audio });
   G.turntable = new Turntable();
@@ -208,7 +265,10 @@ async function boot() {
 
   setBoot(1, 'ready');
   bootEl.classList.add('gone');
-  setTimeout(() => bootEl.remove(), 900);
+  /* the scene keeps running through the fade, then goes — stopping it on
+     the same frame the overlay starts fading would freeze the picture
+     the player is still looking at */
+  setTimeout(() => { stopBootScene(); bootEl.remove(); }, 900);
 
   /* THERE IS NO CHARACTER SELECT ANY MORE.
      FISH N STICKS has one protagonist — the fox — so the game starts in the

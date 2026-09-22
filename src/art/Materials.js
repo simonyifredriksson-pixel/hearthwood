@@ -12,8 +12,8 @@
    single tell that separates "alive" from "animated".
 */
 
-import * as THREE from '../../lib/three.module.js?v=1790085618';
-import { SKY } from './Palette.js?v=1790085618';
+import * as THREE from '../../lib/three.module.js?v=1790100127';
+import { SKY } from './Palette.js?v=1790100127';
 
 /** Shared uniforms. One object, updated once a frame, read by every material. */
 export const windU = {
@@ -237,7 +237,16 @@ export function makeTerrainMaterial() {
  * shore fade so the water meets the bank softly instead of with a hard line,
  * and a Fresnel-ish tilt toward the sky colour at grazing angles.
  */
-export function makeWaterMaterial(shallow, deep, sky) {
+/**
+ * @param sunDir  where the light comes FROM, as a direction. The sparkle
+ *   is a specular lobe, so it only appears where the surface can actually
+ *   bounce the sun into the lens — which means this has to agree with the
+ *   scene's key light or there is no sparkle anywhere. It was hard-coded,
+ *   and the loading screen (whose key is a low backlight) rendered its
+ *   pool as a sheet of flat grey because of it. The default is the value
+ *   it used to be hard-coded to, so the lakes are unchanged.
+ */
+export function makeWaterMaterial(shallow, deep, sky, sunDir = [0.46, 0.66, 0.60]) {
   const mat = new THREE.MeshLambertMaterial({
     vertexColors: true, transparent: true, opacity: 0.86, name: 'water',
     depthWrite: false,
@@ -253,18 +262,43 @@ export function makeWaterMaterial(shallow, deep, sky) {
         uniform float uTime;
         varying vec3 vWorld;
         varying vec3 vViewDirW;
+        varying vec3 vRipple;
       `)
       .replace('#include <begin_vertex>', /* glsl */`
         #include <begin_vertex>
         vec3 wp = (modelMatrix * vec4(transformed, 1.0)).xyz;
-        // Two crossing ripple sets. The amplitude is tiny — 2 cm — because
-        // water that visibly heaves reads as an ocean, and this is a brook.
+        // THREE RIPPLE SETS AT THREE SCALES. The amplitude stays tiny — a
+        // couple of centimetres — because water that visibly heaves reads
+        // as an ocean and this is a lake; what the third, fastest set
+        // buys is that the surface never settles into a visible repeating
+        // pattern, which two sets alone always eventually do.
         float r = sin(wp.x * 2.1 + uTime * 1.6) * 0.012
                 + sin(wp.z * 3.3 - uTime * 2.1) * 0.010
-                + sin((wp.x + wp.z) * 1.1 + uTime * 0.9) * 0.008;
+                + sin((wp.x + wp.z) * 1.1 + uTime * 0.9) * 0.008
+                + sin((wp.x - wp.z * 1.7) * 6.9 + uTime * 3.4) * 0.004
+                // A FIFTH, FAST, TINY SET. Three millimetres of chop does
+                // nothing to the silhouette and everything to the sparkle:
+                // without it the sun's path is one broad mirror-bright
+                // smear, because a surface this smooth satisfies the
+                // specular lobe over the whole band at once. This is what
+                // breaks the smear into glitter.
+                + sin((wp.x * 1.3 + wp.z) * 13.7 - uTime * 5.1) * 0.003;
         transformed.y += r;
         vWorld = wp + vec3(0.0, r, 0.0);
         vViewDirW = normalize(cameraPosition - vWorld);
+
+        // THE SURFACE NORMAL, analytically. Derivatives of the same sum,
+        // so the sparkle below lines up exactly with the bumps you can
+        // see rather than being an unrelated noise field laid over them.
+        float dx = cos(wp.x * 2.1 + uTime * 1.6) * 2.1 * 0.012
+                 + cos((wp.x + wp.z) * 1.1 + uTime * 0.9) * 1.1 * 0.008
+                 + cos((wp.x - wp.z * 1.7) * 6.9 + uTime * 3.4) * 6.9 * 0.004
+                 + cos((wp.x * 1.3 + wp.z) * 13.7 - uTime * 5.1) * 13.7 * 1.3 * 0.003;
+        float dz = cos(wp.z * 3.3 - uTime * 2.1) * 3.3 * -0.010
+                 + cos((wp.x + wp.z) * 1.1 + uTime * 0.9) * 1.1 * 0.008
+                 + cos((wp.x - wp.z * 1.7) * 6.9 + uTime * 3.4) * -1.7 * 6.9 * 0.004
+                 + cos((wp.x * 1.3 + wp.z) * 13.7 - uTime * 5.1) * 13.7 * 0.003;
+        vRipple = normalize(vec3(-dx, 1.0, -dz));
       `);
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', /* glsl */`
@@ -275,24 +309,59 @@ export function makeWaterMaterial(shallow, deep, sky) {
         uniform vec3 uSky;
         varying vec3 vWorld;
         varying vec3 vViewDirW;
+        varying vec3 vRipple;
       `)
       .replace('#include <color_fragment>', /* glsl */`
         #include <color_fragment>
         // vertex colour red channel carries depth: 0 at the bank, 1 mid-stream
         float depth = diffuseColor.r;
-        vec3 base = mix(uShallow, uDeep, smoothstep(0.1, 0.85, depth));
+        vec3 base = mix(uShallow, uDeep, smoothstep(0.06, 0.80, depth));
 
-        // moving highlight: bright where the two wave sets crest together
-        float w = sin(vWorld.x * 4.3 + uTime * 2.2) * sin(vWorld.z * 5.1 - uTime * 1.7);
-        base += vec3(0.10, 0.12, 0.11) * smoothstep(0.55, 1.0, w);
+        /* ------------------------------------------------------------------
+           THE THINGS THAT MAKE IT READ AS WATER RATHER THAN BLUE GLASS.
+           The old shader had one colour ramp, one sine-product highlight and
+           a Fresnel tilt, which from a distance is a flat blue shape with a
+           moving stripe on it. Four additions, in the order they matter:
+           ------------------------------------------------------------------ */
 
-        // grazing angles pick up the sky — this is what makes it read as a
-        // surface rather than as coloured glass
+        /* 1. SHORELINE. The single biggest cue, and the one that was
+              missing entirely: water goes pale and busy where it meets
+              land. A bright band right at the margin, with a slow
+              in-and-out so it breathes like a real edge instead of
+              sitting there like a painted line. */
+        float edge = 1.0 - smoothstep(0.0, 0.16, depth);
+        float lap  = sin(vWorld.x * 3.1 + vWorld.z * 2.7 + uTime * 1.35) * 0.5 + 0.5;
+        float foam = edge * (0.45 + lap * 0.55);
+        base = mix(base, vec3(0.92, 0.95, 0.94), foam * 0.55);
+
+        /* 2. SPARKLE, off the real surface normal rather than an unrelated
+              sine. A narrow specular lobe against a fixed sun direction:
+              narrow on purpose, so it is glitter scattered over the water
+              and not a sheet of gloss. */
+        vec3 sun = normalize(vec3(${sunDir.map(v => (+v).toFixed(4)).join(', ')}));
+        vec3 h = normalize(sun + vViewDirW);
+        float spec = pow(max(dot(vRipple, h), 0.0), 220.0);
+        base += vec3(1.0, 0.97, 0.88) * spec * 0.70;
+
+        /* 3. A SOFTER, WIDER SHEEN under it, which is what stops the
+              sparkle looking like dust on a windscreen. */
+        base += vec3(0.10, 0.12, 0.11) * pow(max(dot(vRipple, h), 0.0), 16.0) * 0.5;
+
+        /* 4. Grazing angles pick up the sky — this is what makes it read
+              as a surface rather than as coloured glass. */
         float fres = pow(1.0 - clamp(vViewDirW.y, 0.0, 1.0), 3.0);
         base = mix(base, uSky, fres * 0.55);
 
         diffuseColor.rgb = base;
-        diffuseColor.a = mix(0.62, 0.93, smoothstep(0.0, 0.5, depth));
+
+        /* THE SHALLOWS ARE CLEAR. You should be able to see the bed near
+           the bank — that is where wading happens, it is where the
+           shoreline dressing lives, and opaque shallows are what made the
+           old lakes look like discs of paint laid on the ground. It goes
+           nearly opaque in the middle, which reads as depth. */
+        diffuseColor.a = mix(0.30, 0.95, smoothstep(0.0, 0.55, depth));
+        /* ...except in the foam, which is froth and hides what is under it */
+        diffuseColor.a = mix(diffuseColor.a, 0.80, foam * 0.5);
       `);
     mat.userData.shader = shader;
   };

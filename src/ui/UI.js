@@ -17,12 +17,12 @@
    turning and the character walking. Nothing else needs to know menus exist.
 */
 
-import { ic } from './Icons.js?v=1790085618';
-import { bus, EV } from '../core/Bus.js?v=1790085618';
-import { input } from '../core/Input.js?v=1790085618';
-import { esc, clamp, clamp01, lerp } from '../core/Util.js?v=1790085618';
-import { RARITY, cssHex, onPaper } from '../art/Palette.js?v=1790085618';
-import { stickBlurb, stickValue } from '../data/StickData.js?v=1790085618';
+import { ic } from './Icons.js?v=1790100127';
+import { bus, EV } from '../core/Bus.js?v=1790100127';
+import { input } from '../core/Input.js?v=1790100127';
+import { esc, clamp, clamp01, lerp } from '../core/Util.js?v=1790100127';
+import { RARITY, cssHex, onPaper } from '../art/Palette.js?v=1790100127';
+import { stickBlurb, stickValue } from '../data/StickData.js?v=1790100127';
 
 export class UI {
   constructor({ audio = null } = {}) {

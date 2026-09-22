@@ -21,10 +21,10 @@
    this is the view while you do it.
 */
 
-import { FISH_STATE } from '../game/Fishing.js?v=1790085618';
-import { rarityOf, fishTitle, MUTATION_BY_ID, catchValue, FISH } from '../data/FishData.js?v=1790085618';
-import { ic } from './Icons.js?v=1790085618';
-import { esc, clamp, clamp01 } from '../core/Util.js?v=1790085618';
+import { FISH_STATE } from '../game/Fishing.js?v=1790100127';
+import { rarityOf, fishTitle, MUTATION_BY_ID, catchValue, FISH } from '../data/FishData.js?v=1790100127';
+import { ic } from './Icons.js?v=1790100127';
+import { esc, clamp, clamp01 } from '../core/Util.js?v=1790100127';
 
 /** Carved into the timber down the side of the gauge. */
 const DEPTHS = ['shallows', '', 'weed', '', 'deep', '', 'dark'];
